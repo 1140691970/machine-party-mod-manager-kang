@@ -1,0 +1,8 @@
+{
+  "name": "machine-party-updates",
+  "main": "app-updates.mjs",
+  "compatibility_date": "2025-01-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "r2_buckets": [{"binding":"RELEASES","bucket_name":"machine-party-mods"}]
+}
