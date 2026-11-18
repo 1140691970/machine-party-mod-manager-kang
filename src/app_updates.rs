@@ -1,6 +1,6 @@
 use serde::Serialize;
 use tauri::{AppHandle, ipc::Channel};
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Serialize)]
@@ -9,7 +9,7 @@ pub struct AppRelease {
     notes: Option<String>,
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 async fn latest(app: &AppHandle) -> Result<Option<tauri_plugin_updater::Update>, String> {
     let updater = app
         .updater_builder()
@@ -21,15 +21,15 @@ async fn latest(app: &AppHandle) -> Result<Option<tauri_plugin_updater::Update>,
 
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle) -> Result<Option<AppRelease>, String> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     return Ok(latest(&app).await?.map(|update| AppRelease {
         version: update.version,
         notes: update.body,
     }));
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = app;
-        Err("windowsOnly".into())
+        Err("unsupportedPlatform".into())
     }
 }
 
@@ -39,7 +39,7 @@ pub async fn install_app_update(
     version: String,
     progress: Channel<u64>,
 ) -> Result<(), String> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     {
         let update = latest(&app)
             .await?
@@ -62,11 +62,15 @@ pub async fn install_app_update(
                 || {},
             )
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        #[cfg(target_os = "macos")]
+        app.restart();
+        #[cfg(windows)]
+        Ok(())
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = (app, version, progress);
-        Err("windowsOnly".into())
+        Err("unsupportedPlatform".into())
     }
 }

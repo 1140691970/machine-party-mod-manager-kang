@@ -16,7 +16,7 @@ export const messages = {
   appUpdate:["管理器有新版本","管理器有新版本","Manager update available"],
   installApp:["更新并重启","更新並重新啟動","Update and restart"],
   loadingApp:["正在下载并验证更新","正在下載並驗證更新","Downloading and verifying update"],
-  windowsOnly:["目前仅支持 Windows 版本更新。","目前僅支援 Windows 版本更新。","App updates are available on Windows."],
+  unsupportedPlatform:["此平台暂不支持应用更新。","此平台暫不支援應用程式更新。","App updates are unavailable on this platform."],
   releaseChanged:["版本已变更，请重新检查。","版本已變更，請重新檢查。","The release changed. Check for updates again."],
   appNetwork:["无法取得更新，请稍后重试。","無法取得更新，請稍後重試。","Could not check for updates. Try again later."],
   manager:["模组管理器","模組管理器","Mod Manager"],

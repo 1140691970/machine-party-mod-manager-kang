@@ -45,6 +45,30 @@ jobs:
           name: desktop-installers
           path: dist/
           retention-days: 14
+  build-mac:
+    if: github.ref == 'refs/heads/main' && inputs.build_run == ''
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: Swatinem/rust-cache@v2
+      - name: Build Apple Silicon application
+        run: |
+          set -eu
+          rustup target add aarch64-apple-darwin
+          npx --yes --package @tauri-apps/cli@2.12.5 tauri build --target aarch64-apple-darwin --bundles app -- --locked
+          cd target/aarch64-apple-darwin/release/bundle/macos
+          app=( *.app )
+          codesign --verify --deep --strict "${app[0]}"
+          archive="$RUNNER_TEMP/MachineParty-aarch64.app.tar.gz"
+          COPYFILE_DISABLE=1 tar -czf "$archive" "${app[0]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installer
+          path: ${{ runner.temp }}/MachineParty-aarch64.app.tar.gz
+          retention-days: 14
   verify:
     if: inputs.verify_only && inputs.build_run != ''
     runs-on: windows-2022
@@ -64,8 +88,8 @@ jobs:
           run-id: ${{ inputs.build_run }}
       - run: ./scripts/test-upgrade.ps1
   release:
-    needs: build
-    if: always() && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.build_run != ''))
+    needs: [build, build-mac]
+    if: always() && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.build-mac.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
     runs-on: windows-2022
     environment: production
     permissions:
@@ -97,13 +121,20 @@ jobs:
           path: dist
           github-token: ${{ github.token }}
           run-id: ${{ inputs.build_run || github.run_id }}
-      - name: Sign Windows updater
+      - uses: actions/download-artifact@v4
+        with:
+          name: mac-installer
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run || github.run_id }}
+      - name: Sign platform updates
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           version=$(node -p 'require("./tauri.conf.json").version')
           npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/setup.exe
+          npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/MachineParty-aarch64.app.tar.gz
       - name: Stage version in R2
         run: python scripts/app-release.py stage
         env: &storage
@@ -131,10 +162,12 @@ jobs:
             git push origin "$BUILD_SHA:refs/tags/$tag"
           fi
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" dist/setup.exe dist/setup.exe.sig --verify-tag --title "$tag" --generate-notes
+            gh release create "$tag" dist/setup.exe dist/setup.exe.sig dist/MachineParty-aarch64.app.tar.gz dist/MachineParty-aarch64.app.tar.gz.sig --verify-tag --title "$tag" --generate-notes
           else
             gh release download "$tag" -p setup.exe -D existing
+            gh release download "$tag" -p MachineParty-aarch64.app.tar.gz -D existing
             cmp dist/setup.exe existing/setup.exe
+            cmp dist/MachineParty-aarch64.app.tar.gz existing/MachineParty-aarch64.app.tar.gz
           fi
       - name: Promote stable manifest and verify public endpoint
         run: python scripts/app-release.py promote

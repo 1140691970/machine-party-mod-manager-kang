@@ -131,7 +131,7 @@ fn app_version(app: tauri::AppHandle) -> String {
 
 fn main() {
     let builder = tauri::Builder::default();
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
         .invoke_handler(tauri::generate_handler![

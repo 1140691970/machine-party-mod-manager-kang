@@ -189,7 +189,7 @@ async function checkApp(manual) {
     release=await invoke("check_app_update");
     checkResult=release ? "" : "latestApp";
   } catch (error) {
-    checkResult=String(error)==="windowsOnly" ? "windowsOnly" : "appNetwork";
+    checkResult=String(error)==="unsupportedPlatform" ? "unsupportedPlatform" : "appNetwork";
   } finally {
     checking=false;
     render();

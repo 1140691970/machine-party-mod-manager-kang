@@ -1,4 +1,4 @@
-"""Stage immutable Windows updates, then promote the tested manifest."""
+"""Stage immutable desktop updates, then promote the tested manifest."""
 import datetime
 import json
 import os
@@ -34,33 +34,51 @@ def read(url):
         return response.read(), response.headers.get("ETag")
 
 
+packages = {"windows-x86_64": "setup.exe", "darwin-aarch64": "MachineParty-aarch64.app.tar.gz"}
+
+
+def existing_object(name):
+    try:
+        return read(base + "/" + name)[0]
+    except urllib.error.HTTPError as error:
+        if error.code != 404:
+            raise
+        return None
+
+
+def publish_immutable(name, file):
+    existing = existing_object(name)
+    if existing is None:
+        upload(version + "/" + name, file, ["--if-none-match", "*"])
+        existing = read(base + "/" + name)[0]
+    if existing != file.read_bytes():
+        raise ValueError("Published object differs from this build: " + name)
+
+
 def stage():
-    installer = directory / "setup.exe"
-    for name, file in [("setup.exe", installer), ("manifest.json", manifest)]:
-        url = base + "/" + name
-        try:
-            existing, _ = read(url)
-        except urllib.error.HTTPError as error:
-            if error.code != 404:
-                raise
-            existing = None
-        if name == "manifest.json":
-            if existing:
-                saved = json.loads(existing)
-                if saved["version"] != version or saved["platforms"]["windows-x86_64"]["url"] != base + "/setup.exe":
-                    raise ValueError("Unexpected staged manifest")
-                file.write_bytes(existing)
-                (directory / "setup.exe.sig").write_text(saved["platforms"]["windows-x86_64"]["signature"], encoding="ascii")
-            else:
-                file.write_text(json.dumps({
-                    "version": version, "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                    "platforms": {"windows-x86_64": {"url": base + "/setup.exe",
-                        "signature": (directory / "setup.exe.sig").read_text().strip()}}
-                }), encoding="utf-8")
-        if existing is None:
-            upload(version + "/" + name, file, ["--if-none-match", "*"])
-        if read(url)[0] != file.read_bytes():
-            raise ValueError("Published object differs from this build: " + name)
+    platforms = {}
+    for target, name in packages.items():
+        publish_immutable(name, directory / name)
+        platforms[target] = {"url": base + "/" + name,
+                             "signature": (directory / (name + ".sig")).read_text().strip()}
+
+    existing = existing_object("manifest.json")
+    if existing is None:
+        manifest.write_text(json.dumps({
+            "version": version, "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "platforms": platforms
+        }), encoding="utf-8")
+    else:
+        saved = json.loads(existing)
+        if saved["version"] != version or saved["platforms"].keys() != platforms.keys():
+            raise ValueError("Unexpected staged manifest")
+        for target, name in packages.items():
+            entry = saved["platforms"][target]
+            if entry["url"] != platforms[target]["url"] or not entry["signature"]:
+                raise ValueError("Unexpected staged platform: " + target)
+            (directory / (name + ".sig")).write_text(entry["signature"], encoding="ascii")
+        manifest.write_bytes(existing)
+    publish_immutable("manifest.json", manifest)
 
 
 def promote():
