@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#82262f"/>
+      <stop offset="1" stop-color="#5a181f"/>
+    </linearGradient>
+    <linearGradient id="brass" gradientUnits="userSpaceOnUse" x1="0" y1="-52" x2="0" y2="52">
+      <stop offset="0" stop-color="#e3c46f"/>
+      <stop offset="1" stop-color="#b48c36"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#plate)"/>
+  <g transform="translate(64 64)" fill="url(#brass)">
+    <circle r="41"/>
+    <g id="tooth"><rect x="-8.5" y="-52" width="17" height="15" rx="3.5"/></g>
+    <use href="#tooth" transform="rotate(45)"/>
+    <use href="#tooth" transform="rotate(90)"/>
+    <use href="#tooth" transform="rotate(135)"/>
+    <use href="#tooth" transform="rotate(180)"/>
+    <use href="#tooth" transform="rotate(225)"/>
+    <use href="#tooth" transform="rotate(270)"/>
+    <use href="#tooth" transform="rotate(315)"/>
+  </g>
+  <circle cx="64" cy="64" r="33" fill="#3a1216"/>
+  <path d="M42 50q0-17 22-17t22 17v22q0 19-22 19T42 72z" fill="#f4e7d3"/>
+  <rect x="48.5" y="57" width="11.5" height="6.5" rx="1.8" fill="#1a1213"/>
+  <rect x="68" y="57" width="11.5" height="6.5" rx="1.8" fill="#1a1213"/>
+  <path d="M54 77.5h20" stroke="#1a1213" stroke-width="3.6" stroke-linecap="round"/>
+</svg>

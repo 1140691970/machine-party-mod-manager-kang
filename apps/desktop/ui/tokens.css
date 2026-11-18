@@ -1,0 +1,83 @@
+/* Design tokens. Components and layout read these variables only; see docs/en/ui-design.md. */
+:root {
+  color-scheme: dark;
+
+  /* Palette */
+  --wine-900: #120c0d;
+  --wine-850: #1a1213;
+  --wine-800: #231819;
+  --wine-750: #2c1f20;
+  --wine-700: #4e151b;
+  --wine-600: #6e1f26;
+  --wine-500: #8c2a33;
+  --brass-600: #a5822f;
+  --brass-500: #c9a24a;
+  --brass-400: #e0c06f;
+  --cream-100: #f4e7d3;
+
+  /* Semantic colours */
+  --bg-sidebar: var(--wine-900);
+  --bg-app: var(--wine-850);
+  --bg-surface: var(--wine-800);
+  --bg-raised: var(--wine-750);
+  --bg-overlay: #0c0708cc;
+  --line: #3a2627;
+  --line-strong: #5a3c34;
+  --text: var(--cream-100);
+  --text-secondary: #c9b29c;
+  --text-muted: #9c8170;
+  --accent: var(--brass-500);
+  --accent-hover: var(--brass-400);
+  --accent-pressed: var(--brass-600);
+  --on-accent: var(--wine-850);
+  --selected: var(--wine-600);
+  --selected-line: #9b2d36;
+  --success: #8fcf98;
+  --warning: #f0a36d;
+  --danger: #ef8a6a;
+  --focus: var(--brass-400);
+
+  /* Typography */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: "Avenir Next Condensed", "Bahnschrift Condensed", "Bahnschrift", "Arial Narrow", var(--font-ui);
+  --font-mono: "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-display: clamp(26px, 2.6vw, 34px);
+
+  /* Spacing, shape and depth */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --shadow-card: 0 0 0 1px var(--line), 0 8px 22px #0006;
+  --shadow-hover: 0 0 0 1px var(--brass-500), 0 16px 32px #000a;
+  --shadow-dialog: 0 0 0 1px var(--line-strong), 0 24px 60px #000c;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.5, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --stagger: 45ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+    --stagger: 0ms;
+  }
+}

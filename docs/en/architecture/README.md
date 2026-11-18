@@ -19,7 +19,7 @@ flowchart LR
 | Directory | Responsibility |
 | --- | --- |
 | `apps/desktop/src-tauri` | Tauri 2 shell. `main.rs` only assembles; `commands.rs` decodes and validates IPC and delegates; `game.rs` recognizes Steam game copies; `inventory.rs` reads per-copy installation records; `preferences.rs` stores the manual choice; `catalog.rs` embeds the catalog and restricts which author pages may open; `app_updates.rs` owns signed updates. |
-| `apps/desktop/ui` | Native ES modules with no build step. `bridge.js` is the only file that touches Tauri; `catalog.js` and `versions.js` are pure; `state.js` holds UI state; each `*-view.js` renders. |
+| `apps/desktop/ui` | Native ES modules with no build step. `bridge.js` is the only file that touches Tauri; `catalog.js` and `versions.js` are pure; `state.js` holds UI state; each `*-view.js` renders. Styling has three layers: design tokens in `tokens.css`, shared components in `components.css` and page layout in `style.css`; `dom.js` and `icons.js` create components and icons. |
 | `catalog/mods.json` | Single source of mod IDs, order, versions, three-language text and aliases ([ADR-002](ADR-002-catalog-source.md)). |
 | `services/update-worker` | Read-only Worker serving the stable manifest and version-pinned installers from R2 ([ADR-003](ADR-003-desktop-updates.md)). |
 | `scripts`, `tests` | Release, deployment, acceptance and boundary checks. Node tests are grouped as `ui`, `contracts` and `architecture`; Rust unit tests sit beside their modules. |

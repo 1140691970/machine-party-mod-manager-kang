@@ -34,7 +34,7 @@ export async function detectGame(rescan = false) {
   state.inventoryFailed = false;
   render();
   show(t("choose"), element("p", t(candidates.length ? "multiple" : "missing")),
-    ...candidates.map(path => button(path, () => selectPath(path), "control")),
-    button(t("choose"), pickGame, "control primary"),
-    button(t("later"), closeDialog, "control"));
+    ...candidates.map(path => button(path, () => selectPath(path), "secondary", "folder")),
+    button(t("choose"), pickGame, "primary"),
+    button(t("later"), closeDialog, "ghost"));
 }

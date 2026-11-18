@@ -19,7 +19,7 @@ flowchart LR
 | 目錄 | 職責 |
 | --- | --- |
 | `apps/desktop/src-tauri` | Tauri 2 殼層。`main.rs` 只組裝；`commands.rs` 解碼、驗證 IPC 並轉交；`game.rs` 辨識 Steam 遊戲副本；`inventory.rs` 讀取各副本的安裝紀錄；`preferences.rs` 保存手動選擇；`catalog.rs` 內嵌目錄並限制可開啟的作者頁；`app_updates.rs` 負責簽章更新。 |
-| `apps/desktop/ui` | 無建置步驟的原生 ES 模組。`bridge.js` 是唯一接觸 Tauri 的檔案；`catalog.js`、`versions.js` 為純函式；`state.js` 保存介面狀態；各 `*-view.js` 負責繪製。 |
+| `apps/desktop/ui` | 無建置步驟的原生 ES 模組。`bridge.js` 是唯一接觸 Tauri 的檔案；`catalog.js`、`versions.js` 為純函式；`state.js` 保存介面狀態；各 `*-view.js` 負責繪製。樣式分三層：`tokens.css` 設計 token、`components.css` 共用元件、`style.css` 頁面版面；`dom.js` 與 `icons.js` 建立元件與圖示。 |
 | `catalog/mods.json` | 收錄 ID、序號、版本、三語文案與別名的唯一來源（[ADR-002](ADR-002-catalog-source.md)）。 |
 | `services/update-worker` | 唯讀 Worker，自 R2 提供穩定清單與按版本固定的安裝包（[ADR-003](ADR-003-desktop-updates.md)）。 |
 | `scripts`、`tests` | 發布、部署、驗收與邊界檢查；Node 測試分為 `ui`、`contracts`、`architecture`。Rust 單元測試放在各模組旁。 |

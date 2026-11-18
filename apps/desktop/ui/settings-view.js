@@ -7,9 +7,10 @@ import { render, setLocale, state, t } from "./state.js";
 
 const languageNames = ["简体中文", "繁體中文", "English"];
 
-function languagePicker(applyLocale) {
-  const label = element("label", t("language"), "language");
-  const select = element("select");
+function languagePanel(applyLocale) {
+  const panel = element("section", "", "panel");
+  const row = element("label", "", "panel-row");
+  const select = element("select", "", "select");
   languageNames.forEach((name, index) => {
     const option = element("option", name);
     option.value = locales[index];
@@ -22,20 +23,37 @@ function languagePicker(applyLocale) {
     render();
     $("select").focus();
   };
-  label.append(select);
-  return label;
+  row.append(element("h2", t("language")), select);
+  panel.append(row);
+  return panel;
+}
+
+function folderPanel() {
+  const panel = element("section", "", "panel");
+  panel.append(element("h2", t("folder")), element("p", state.game || t("unset"), "panel-value"));
+  if (isDesktop) {
+    const actions = element("div", "", "panel-actions");
+    actions.append(button(t("choose"), pickGame, "primary", "folder"),
+      button(t("rescan"), () => detectGame(true), "secondary", "refresh"));
+    panel.append(actions);
+  }
+  return panel;
+}
+
+function managerPanel() {
+  const panel = element("section", "", "panel");
+  const row = element("div", "", "panel-row");
+  const check = button(t(state.checking ? "checkingApp" : "checkApp"), () => checkApp(true), "secondary", "refresh");
+  check.disabled = state.checking || state.installing;
+  row.append(element("h2", t("manager") + " " + state.appVersion), check);
+  panel.append(row);
+  if (state.checkResult) panel.append(element("p", t(state.checkResult), "panel-note"));
+  return panel;
 }
 
 export function renderSettings(content, applyLocale) {
-  const box = element("div", "", "box");
-  box.append(languagePicker(applyLocale), element("h2", t("folder")), element("p", state.game || t("unset")));
-  if (isDesktop) {
-    box.append(button(t("choose"), pickGame, "control primary"),
-      button(t("rescan"), () => detectGame(true), "control"));
-    const check = button(t(state.checking ? "checkingApp" : "checkApp"), () => checkApp(true), "control");
-    check.disabled = state.checking || state.installing;
-    box.append(element("h2", t("manager") + " " + state.appVersion), check);
-    if (state.checkResult) box.append(element("p", t(state.checkResult)));
-  }
-  content.append(box);
+  const page = element("div", "", "settings");
+  page.append(languagePanel(applyLocale), folderPanel());
+  if (isDesktop) page.append(managerPanel());
+  content.append(page);
 }

@@ -3,42 +3,46 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <link rel="icon" href="data:," />
+    <link rel="icon" href="images/logo.svg" />
     <title>Machine Party 模组管理器</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="components.css" />
     <link rel="stylesheet" href="style.css" />
     <script type="module" src="app.js"></script>
   </head>
   <body>
-    <aside>
+    <aside class="sidebar">
       <div class="brand" aria-label="Machine Party 模组管理器">
-        <b>MACHINE<br />PARTY</b><small>模组管理器</small>
+        <img src="images/logo.svg" alt="" />
+        <div><b>MACHINE PARTY</b><small>模组管理器</small></div>
       </div>
-      <nav>
-        <button data-page="catalog" title="模组目录"><i>⊞</i><span>模组目录</span></button>
-        <button data-page="installed" title="已安装"><i>▣</i><span>已安装</span></button>
+      <nav class="nav">
+        <button class="nav-item" data-page="catalog" data-icon="catalog"><span class="nav-label">模组目录</span></button>
+        <button class="nav-item" data-page="installed" data-icon="installed"><span class="nav-label">已安装</span></button>
       </nav>
-      <button class="settings" data-page="settings" title="设置"><i>⚙</i><span>设置</span></button>
+      <div class="sidebar-footer">
+        <button class="nav-item" data-page="settings" data-icon="settings"><span class="nav-label">设置</span></button>
+      </div>
     </aside>
     <main>
-      <header>
+      <header class="page-head">
         <div>
           <h1></h1>
           <p id="subtitle"></p>
         </div>
-        <label id="search">
-          <i>⚲</i>
+        <label id="search" class="field search" data-icon="search">
           <input type="search" placeholder="搜索模组、作者或关键字" aria-label="搜索模组" />
         </label>
       </header>
-      <button hidden id="appRelease" class="control primary"></button>
+      <button hidden id="appRelease" class="btn btn-primary release-banner"></button>
       <div id="content"></div>
     </main>
-    <dialog aria-labelledby="dialogTitle">
+    <dialog class="dialog" aria-labelledby="dialogTitle">
       <div class="dialog-head">
         <h2 id="dialogTitle"></h2>
-        <button id="close" aria-label="关闭">×</button>
+        <button id="close" class="btn btn-ghost btn-icon" aria-label="关闭" data-icon="close"></button>
       </div>
-      <div id="dialogBody"></div>
+      <div id="dialogBody" class="dialog-body"></div>
     </dialog>
   </body>
 </html>

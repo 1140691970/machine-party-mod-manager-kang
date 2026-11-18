@@ -1,13 +1,18 @@
 import { openProject } from "./bridge.js";
 import { visibleMods } from "./catalog.js";
-import { $, button, element, show } from "./dom.js";
+import { $, button, element, show, tag } from "./dom.js";
 import { state, t } from "./state.js";
 import { versionState } from "./versions.js";
 
 const nameOf = mod => mod.name[state.locale];
 
+const statusTone = {
+  pending: "", release: "", waiting: "", same: "success",
+  available: "accent", newer: "warning", review: "warning"
+};
+
 function project(mod) {
-  return button(mod.repo.split("/")[0] + " ↗", () => openProject(mod.repo));
+  return button(mod.repo.split("/")[0], () => openProject(mod.repo), "link", "external");
 }
 
 function details(mod) {
@@ -28,20 +33,21 @@ function details(mod) {
 
 function cover(mod, name, status) {
   const box = element("div", "", "cover");
-  const fallback = element("strong", name);
+  const fallback = element("strong", name, "cover-title");
   box.append(fallback);
   if (mod.image) {
-    const img = element("img");
+    const img = element("img", "", "loading");
     img.alt = "";
-    img.onerror = () => img.replaceWith(fallback);
+    box.classList.add("skeleton");
+    img.onload = () => { img.classList.remove("loading"); box.classList.remove("skeleton"); };
+    img.onerror = () => { img.replaceWith(fallback); box.classList.remove("skeleton"); };
     img.src = "images/" + mod.image + ".png";
     fallback.replaceWith(img);
   }
-  const tags = element("div", "", "tags");
-  tags.append(
-    element("span", mod.version || t("unlisted"), "version-tag"),
-    element("span", t(status), "state-tag " + status)
-  );
+  const tags = element("div", "", "cover-tags");
+  const version = tag(mod.version || t("unlisted"));
+  if (mod.version) version.classList.add("tag-mono");
+  tags.append(version, tag(t(status), statusTone[status]));
   box.append(tags);
   return box;
 }
@@ -51,39 +57,42 @@ function primaryAction(mod, name, local, status) {
   if (status === "review") action = "review";
   else if (status === "available" || status === "waiting") action = "update";
   else if (local !== undefined) action = "uninstall";
-  return button(t(action), () => {
+  const el = button(t(action), () => {
     if (action === "review") return details(mod);
     const note = action === "update" && status === "waiting" ? "hold"
       : action === "install" && !mod.verified ? "installPending" : "enginePending";
     show(t(action) + " · " + name, element("p", t(note)));
   }, action === "uninstall" || action === "review" ? "secondary" : "primary");
+  el.classList.add("btn-block");
+  return el;
 }
 
-function card(mod) {
+function card(mod, index) {
   const name = nameOf(mod);
   const local = state.inventory[mod.repo];
   const status = state.inventoryFailed ? "review" : versionState(local, mod.version, mod.verified);
-  const item = element("article");
+  const item = element("article", "", "card");
+  item.style.setProperty("--i", String(index));
 
-  const copy = element("div", "", "copy");
-  const heading = element("h2");
+  const body = element("div", "", "card-body");
+  const heading = element("h2", "", "card-title");
   const link = element("a", name);
   link.href = "#" + encodeURIComponent(mod.repo);
   link.onclick = event => { event.preventDefault(); details(mod); };
   heading.append(link);
-  copy.append(heading, element("p", mod.summary[state.locale]));
+  body.append(heading, element("p", mod.summary[state.locale], "card-summary"));
   if (local !== undefined) {
     const versions = element("div", "", "comparison");
     versions.append(
       element("span", t("local") + " · " + local),
       element("span", t("release") + " · " + (mod.version || t("unlisted")))
     );
-    copy.append(versions);
+    body.append(versions);
   }
 
-  const footer = element("div", "", "actions");
+  const footer = element("div", "", "card-actions");
   footer.append(primaryAction(mod, name, local, status));
-  item.append(cover(mod, name, status), copy, footer);
+  item.append(cover(mod, name, status), body, footer);
   return item;
 }
 

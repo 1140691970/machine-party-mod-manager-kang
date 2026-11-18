@@ -1,5 +1,5 @@
 import { checkAppUpdate, installAppUpdate, isDesktop } from "./bridge.js";
-import { button, closeDialog, element, show } from "./dom.js";
+import { button, closeDialog, element, progress, show } from "./dom.js";
 import { render, state, t } from "./state.js";
 
 export function showRelease() {
@@ -10,16 +10,18 @@ export function showRelease() {
       if (state.installing) return;
       state.installing = true;
       const status = element("p", t("loadingApp"));
-      show(t("installApp"), status);
+      const bar = progress();
+      show(t("installApp"), status, bar.el);
       try {
         await installAppUpdate(selected.version, pct => {
           status.textContent = t("loadingApp") + " · " + pct + "%";
+          bar.set(pct);
         });
       } finally {
         state.installing = false;
       }
-    }, "control primary"),
-    button(t("close"), closeDialog, "control"));
+    }, "primary", "download"),
+    button(t("close"), closeDialog, "ghost"));
 }
 
 export async function checkApp(manual) {
