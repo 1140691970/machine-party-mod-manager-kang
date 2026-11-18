@@ -124,11 +124,13 @@ jobs:
           set -eu
           version=$(node -p 'require("./tauri.conf.json").version')
           tag="v$version"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+            test "$(git rev-list -1 "$tag")" = "$BUILD_SHA"
+          fi
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" dist/setup.exe dist/setup.exe.sig --target "$BUILD_SHA" --title "$tag" --generate-notes
           else
-            git fetch origin "refs/tags/$tag:refs/tags/$tag"
-            test "$(git rev-list -1 "$tag")" = "$BUILD_SHA"
             gh release download "$tag" -p setup.exe -D existing
             cmp dist/setup.exe existing/setup.exe
           fi

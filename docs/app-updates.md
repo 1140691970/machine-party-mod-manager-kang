@@ -10,6 +10,8 @@ Windows x64 客户端启动时从 `https://machineparty.ailaogong.men/v1/app-upd
 4. 工作流先上传版本专属安装包和清单，再安装旧版测试客户端，实际经过 Worker 下载、更新与重启。它检查运行版本和本地设置，然后创建 GitHub Release，最后切换稳定清单。此后已安装的客户端下次检查即可收到更新。
 5. 失败时先查看失败步骤。若只是网络问题，选择 **Re-run failed jobs** 以复用已构建的安装包。若需要修正发布脚本，可在 main 发起新运行，在 `build_run` 填入原始构建的运行 ID。工作流会核对来源及应用代码，沿用原安装包。勾选 `verify_only` 可对已暂存的版本单独执行 Windows 升级验收。发布后的安装包按版本固定，替换内容需要新版本号。
 
+若使用历史构建重试时 GitHub 在建 Release 步骤返回 403，维护者可用具有推送权限的账号，先运行 `git push origin <已验收的完整提交SHA>:refs/tags/v<版本>`，再重跑失败任务。工作流会检查已有标签与安装包来源一致。
+
 ## 托管与签名
 
 Worker 从私有 R2 桶 `machine-party-mods` 的 `app-releases/` 读取。每个版本的安装包和清单位于 `<版本>/setup.exe` 和 `<版本>/manifest.json`。稳定清单位于 `stable/latest.json`，关闭缓存。首次发布前，稳定端点返回 HTTP 204。
