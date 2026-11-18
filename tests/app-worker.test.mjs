@@ -32,3 +32,11 @@ test("only exposes stable metadata and versioned installer/manifest objects",asy
   assert.equal((await worker.fetch("/v1/app-downloads/1.2.3/secret")).status,404);
   assert.deepEqual(worker.reads.map(read=>read[1]),["app-releases/stable/latest.json","app-releases/1.2.3/setup.exe","app-releases/1.2.3/manifest.json"]);
 });
+
+test("serves the Apple Silicon update archive from its versioned R2 key",async()=>{
+  const worker=fixture("archive");
+  const file="MachineParty-aarch64.app.tar.gz";
+  const response=await worker.fetch("/v1/app-downloads/0.1.1/"+file);
+  assert.equal(await response.text(),"archive");
+  assert.deepEqual(worker.reads,[["get","app-releases/0.1.1/"+file]]);
+});
