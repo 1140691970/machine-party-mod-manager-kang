@@ -1,0 +1,39 @@
+name: 模組收錄或版本更新
+description: 推薦 Machine Party 模組，或提交已收錄模組的新版本。
+title: "[收錄] "
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 申請類型
+      options:
+        - 首次收錄
+        - 已收錄模組的新版本
+    validations:
+      required: true
+  - type: input
+    id: repo
+    attributes:
+      label: 作者的 GitHub 倉庫
+      placeholder: https://github.com/owner/repo
+    validations:
+      required: true
+  - type: input
+    id: release
+    attributes:
+      label: 指定版本的 Release 頁或標籤
+      description: 若作者尚未發布套件，填「尚無 Release」，仍可推薦候選。
+    validations:
+      required: true
+  - type: textarea
+    id: purpose
+    attributes:
+      label: 模組用途或新版變更
+      description: 簡述玩家可以做什麼，或這次更新改了什麼。
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補充資料（選填）
+      description: 可附建議的套件檔名、載入器需求、遊戲版本、作者的授權說明或實測結果。
