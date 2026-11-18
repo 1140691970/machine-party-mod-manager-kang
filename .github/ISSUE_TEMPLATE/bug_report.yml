@@ -1,0 +1,53 @@
+name: Bug report · 问题报告
+description: The manager misbehaves, shows wrong information or crashes. · 管理器运行异常、信息错误或崩溃。
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English, 简体中文 or 繁體中文 are all welcome. Report security problems privately as described in SECURITY.md.
+        欢迎使用英文、简体中文或繁体中文。安全问题请按 SECURITY.md 私下报告。
+  - type: input
+    id: version
+    attributes:
+      label: Manager version · 管理器版本
+      description: Shown in Settings. · 见设置页。
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform · 平台
+      options:
+        - Windows x64
+        - macOS (Apple Silicon)
+        - Other · 其他
+    validations:
+      required: true
+  - type: input
+    id: game
+    attributes:
+      label: Game version and folder detection · 游戏版本与目录检测
+      description: Steam game version, and whether the folder was detected automatically or chosen manually. · Steam 游戏版本，以及目录是自动检测还是手动选择。
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce · 复现步骤
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result · 预期与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or logs · 截图或日志
+      description: Remove personal information from paths and screenshots. · 请去除路径与截图中的个人信息。

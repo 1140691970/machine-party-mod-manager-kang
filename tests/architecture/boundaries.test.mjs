@@ -25,7 +25,11 @@ test("domain modules stay independent of Tauri", () => {
   assert.match(checkSource("apps/desktop/src-tauri/src/main.rs", "#[tauri::command]\nfn x() {}")[0], /commands belong/);
 });
 
-test("tests may not patch production source", () => {
-  const source = 'const s = await readFile("x.js"); s.replace("a", "b");';
-  assert.match(checkSource("tests/ui/x.test.mjs", source)[0], /rewrite production source/);
+test("tests may not patch and run production source", () => {
+  const patched = 'const s = await readFile("x.js"); await writeFile("y.js", s.replace("a", "b"));';
+  assert.match(checkSource("tests/ui/x.test.mjs", patched)[0], /rewrite production source/);
+  const evaluated = 'const s = await readFile("x.js"); new Function(s.replace("a", "b"))();';
+  assert.match(checkSource("tests/ui/x.test.mjs", evaluated)[0], /rewrite production source/);
+  const parsing = 'const s = (await readFile("README.md")).replace(/```/g, "");';
+  assert.equal(checkSource("tests/contracts/docs.test.mjs", parsing).length, 0);
 });

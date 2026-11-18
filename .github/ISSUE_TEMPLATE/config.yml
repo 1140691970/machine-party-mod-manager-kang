@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability · 安全漏洞
+    url: https://github.com/JamesGZM/machine-party-mod-manager/security/advisories/new
+    about: Report privately instead of opening a public issue. · 请私下报告，不要公开提交。
+  - name: Problems inside a mod · 模组本身的问题
+    url: https://github.com/JamesGZM/machine-party-mod-manager/blob/main/SUPPORT.md
+    about: Bugs in a mod belong with its author; the mod details link to each author. · 模组本身的问题请联系作者，模组详情中有作者链接。

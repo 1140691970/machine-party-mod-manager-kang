@@ -26,7 +26,8 @@ export function checkSource(file, source) {
   if (file.startsWith(ui) && !file.endsWith("/bridge.js") && /__TAURI__/.test(source)) report("Tauri access must go through bridge.js");
   if (tauriFree.includes(file) && /\btauri(?:_plugin_\w+)?::|crate::commands\b/.test(source)) report("domain module depends on Tauri");
   if (file === rustSrc + "main.rs" && /#\[tauri::command\]/.test(source)) report("commands belong in commands.rs or their owning adapter");
-  if (file.startsWith("tests/") && /readFile/.test(source) && /\.(?:replace|replaceAll)\s*\(/.test(source)) report("tests must not rewrite production source");
+  if (file.startsWith("tests/") && /readFile/.test(source) && /\.(?:replace|replaceAll)\s*\(/.test(source)
+      && /writeFile|new Function|\beval\(|import\(\s*["'`]data:/.test(source)) report("tests must not rewrite production source");
   return errors;
 }
 
