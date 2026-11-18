@@ -1,6 +1,8 @@
 # 正式目錄發布與中國大陸連線驗收
 
-**狀態**　首版設計。現有客戶端仍使用隨包候選資料。正式網域、Worker、發布工作流與三網驗收結果均待落地。
+[English](../../en/catalog/delivery.md) · [简体中文](../../zh-CN/catalog/delivery.md) · **繁體中文**
+
+**狀態**　首版設計。現有客戶端仍使用隨包發布的 `catalog/mods.json`（[ADR-002](../architecture/ADR-002-catalog-source.md)）。正式網域、Worker、發布工作流與三網驗收結果均待落地。
 
 ## 玩家取得列表的路徑
 
@@ -44,7 +46,7 @@ Windows App 經 HTTPS 向自有網域的 Worker 請求 `GET /v1/catalog.json`。
 
 ## 誰能發布
 
-1. 社群透過同倉庫 Issue 表單推薦模組，維護者選定資產後由流程產生草案 PR；熟悉資料格式的貢獻者也可直接提 PR。完整步驟見[收錄操作手冊](mod-catalog.md)。擬將收錄資料置於 `catalog/`、Worker 置於 `worker/`。PR CI 檢查格式、重複 ID、版本與資產資料，並建立可預覽快照。合併只更新倉庫。
+1. 社群透過同倉庫 Issue 表單推薦模組，維護者選定資產後由流程產生草案 PR；熟悉資料格式的貢獻者也可直接提 PR。完整步驟見[收錄操作手冊](mods.md)。收錄資料位於 `catalog/`，目錄 Worker 擬置於 `services/`，與現有的 `services/update-worker` 並列。PR CI 檢查格式、重複 ID、版本與資產資料，並建立可預覽快照。合併只更新倉庫。
 2. 由倉庫擁有者手動選擇已合併的 main 提交發布。部署工作使用 GitHub 的 `production` environment，限制 main 並指定 JamesGZM 為必要審核人；單人維護時允許其批准自己的部署。審核畫面應能核對提交 SHA、修訂號與變更清單。PR 驗證工作無部署憑證。
 3. Cloudflare 部署 Token 存為環境 Secret `CLOUDFLARE_API_TOKEN`，帳號 ID 存為環境變數 `CLOUDFLARE_ACCOUNT_ID`。只授予目標帳號部署所需權限。App 只讀公開端點。[GitHub 部署環境](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) · [Cloudflare Actions 部署](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
 4. 部署後從正式網域讀回 JSON，比對修訂號與快照雜湊，再用上一版客戶端驗證同步。記錄提交、雜湊、部署版本及結果。異常時由擁有者批准重新發布上一份良好資料，配新修訂號並清快取；確認一般客戶端能從壞版恢復。回滾前核對已撤回的模組，避免意外重新開放下載。

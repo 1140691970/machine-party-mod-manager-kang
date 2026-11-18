@@ -1,23 +1,51 @@
-# Machine Party 模組管理器
+# Machine Party Mod Manager
 
-免費、非營利的 Windows 桌面工具。玩家可以搜尋團隊手動收錄的模組，查看作者首頁，在同一個介面完成安裝與卸載。首次使用時自動尋找 Steam 遊戲目錄。
+[![Source checks](https://github.com/JamesGZM/machine-party-mod-manager/actions/workflows/check.yml/badge.svg)](https://github.com/JamesGZM/machine-party-mod-manager/actions/workflows/check.yml)
+[![Release](https://img.shields.io/github/v/release/JamesGZM/machine-party-mod-manager)](https://github.com/JamesGZM/machine-party-mod-manager/releases/latest)
+[![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
 
-**專案階段**　Rust / Tauri 桌面原型。以 `cargo run` 啟動、`cargo test` 執行目錄辨識測試。首頁目前使用隨包候選目錄，可離線瀏覽、搜尋與查看詳情；首次開啟偵測 Steam 目錄，設定頁可重新選擇。四個候選均待 Windows 驗收，安裝與還原尚未開放。[介面參考圖](docs/ui-reference.png)。首個驗收目標是讓玩家從乾淨的遊戲副本安裝 Overtime、透過 Steam 開局，離線卸載後驗證遊戲資料已還原。
+**English** · [简体中文](docs/readme/README.zh-CN.md) · [繁體中文](docs/readme/README.zh-TW.md)
 
-| 文件 | 用途 |
+A free, non-profit desktop tool for [Machine Party](https://store.steampowered.com/app/4108000/Machine_Party/). Players search mods that the team has catalogued by hand, read about them, visit the author's page and, once verified, install and uninstall them from one window. The app finds the Steam game folder on first launch.
+
+![Mod catalog](docs/images/screenshot-catalog.png)
+
+## Status
+
+Early prototype built with Rust and Tauri 2.
+
+- Available now: the bundled catalog with search in Simplified Chinese, Traditional Chinese and English, mod details, Steam game detection and manual folder selection, per-copy version comparison and signed in-app updates for the manager itself.
+- Not yet available: installing mods. All four candidates are awaiting Windows verification. The first acceptance target is installing Overtime on a clean game copy, playing a round from Steam, then uninstalling offline and confirming the original game data is restored.
+
+## Download
+
+Get the latest build from [Releases](https://github.com/JamesGZM/machine-party-mod-manager/releases/latest).
+
+- **Windows x64**: run `setup.exe`.
+- **Apple Silicon Mac**: extract `MachineParty-aarch64.app.tar.gz` and move the app to a writable Applications folder. It is ad hoc signed and not notarised.
+
+Installed copies update themselves from Settings or when prompted at startup.
+
+## Documentation
+
+| Guide | Purpose |
 | --- | --- |
-| [產品需求](docs/requirements.md) | 玩家流程、首頁順序、搜尋及驗收條件 |
-| [正式目錄交付方案](docs/catalog-delivery.md) | Worker 列表、擁有者批准發布、大陸三網驗收與離線行為（規劃中） |
-| [技術設計](docs/architecture.md) | Steam 偵測、模組依賴、交易恢復及下載中轉 |
-| [候選模組與收錄規範](docs/mod-catalog.md) | 遊戲能力、上游來源、授權及實測清單 |
-| [介面設計規範](docs/ui-design.md) | 暗黑工業風首頁佈局、簡體中文文案與卡片狀態 |
+| [Product requirements](docs/en/requirements.md) | Player flows, catalog order, search and acceptance criteria |
+| [Current architecture](docs/en/architecture/README.md) | Components, Steam detection, catalog, installs and ADRs |
+| [Development guide](docs/en/development/README.md) | Setup, layout, commands and verification |
+| [Releasing](docs/en/development/releasing.md) | Signed desktop updates and the release workflow |
+| [Candidate mods and inclusion](docs/en/catalog/mods.md) | Game baseline, candidates, licences and the acceptance checklist |
+| [Catalog delivery](docs/en/catalog/delivery.md) | Worker catalog, owner-approved publishing and mainland China acceptance (planned) |
+| [UI design](docs/en/ui-design.md) | Layout, cards, states and planned flows |
 
-Machine Party Mod Manager 是社群整合專案。遊戲與各模組的作者、版本和來源會保留在個別項目頁面。
+All guides: [docs](docs/README.md).
 
-推薦模組或提交新版，請依[收錄操作手冊](docs/mod-catalog.md)填寫 GitHub Issue 表單。
+## Contributing
 
-## 授權
+Recommend a mod or submit a new version with the [mod submission form](https://github.com/JamesGZM/machine-party-mod-manager/issues/new?template=mod-submission.yml). For bugs, features and code, read [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents follow [AGENTS.md](AGENTS.md). Get help through [SUPPORT.md](SUPPORT.md) and report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
-本專案的管理器程式碼採 [GNU General Public License v3.0 only](LICENSE)（SPDX `GPL-3.0-only`）。官方版本免費提供。
+## License
 
-遊戲、第三方模組與專案封面各自適用原權利人的授權。目錄中的圖片來源為 [Overtime 實機截圖](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) 與 [MachineParty+ 專案橫幅](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png)。
+The manager is licensed under the [GNU General Public License v3.0 only](LICENSE) (SPDX `GPL-3.0-only`). Official builds are free.
+
+Machine Party Mod Manager is a community project and is not affiliated with the game's developer. The game, third-party mods and cover images belong to their respective owners and keep their own licences; authors, versions and sources are shown on each entry. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

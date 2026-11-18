@@ -1,0 +1,53 @@
+# 現行架構
+
+[English](../../en/architecture/README.md) · [简体中文](../../zh-CN/architecture/README.md) · **繁體中文**
+
+本文是唯一的現行架構說明。重大決策記錄在同目錄的 ADR；安裝、切換與恢復仍是設計草案，待實機驗證。
+
+## 元件與邊界
+
+```mermaid
+flowchart LR
+  ui["apps/desktop/ui"] -->|"bridge.js IPC"| commands["src-tauri commands.rs"]
+  commands --> domain["game / inventory / preferences / catalog"]
+  catalogData["catalog/mods.json"] --> domain
+  commands --> updater["app_updates.rs"]
+  updater -->|HTTPS| worker["services/update-worker"]
+  worker --> r2["R2 app-releases"]
+```
+
+| 目錄 | 職責 |
+| --- | --- |
+| `apps/desktop/src-tauri` | Tauri 2 殼層。`main.rs` 只組裝；`commands.rs` 解碼、驗證 IPC 並轉交；`game.rs` 辨識 Steam 遊戲副本；`inventory.rs` 讀取各副本的安裝紀錄；`preferences.rs` 保存手動選擇；`catalog.rs` 內嵌目錄並限制可開啟的作者頁；`app_updates.rs` 負責簽章更新。 |
+| `apps/desktop/ui` | 無建置步驟的原生 ES 模組。`bridge.js` 是唯一接觸 Tauri 的檔案；`catalog.js`、`versions.js` 為純函式；`state.js` 保存介面狀態；各 `*-view.js` 負責繪製。 |
+| `catalog/mods.json` | 收錄 ID、序號、版本、三語文案與別名的唯一來源（[ADR-002](ADR-002-catalog-source.md)）。 |
+| `services/update-worker` | 唯讀 Worker，自 R2 提供穩定清單與按版本固定的安裝包（[ADR-003](ADR-003-desktop-updates.md)）。 |
+| `scripts`、`tests` | 發布、部署、驗收與邊界檢查；Node 測試分為 `ui`、`contracts`、`architecture`。Rust 單元測試放在各模組旁。 |
+
+本機資料位於應用程式設定目錄：`game-path.json` 保存玩家選擇的遊戲路徑；`installations.json` 第一層鍵是遊戲路徑，第二層鍵是 `作者/倉庫`，值為管理器安裝的版本。介面語言存於 WebView 的 localStorage。
+
+## 遊戲定位與辨識
+
+首版以 Windows Steam 版為目標。由 Steam 安裝位置讀取遊戲庫清單，在各庫查找 App ID 4108000 的安裝清單，使用其安裝路徑尋找遊戲執行檔及 PCK。允許從已知的版本子目錄定位檔案。記錄 Steam build、實際路徑及資料檔雜湊；相容性以經實測的組合為準。玩家搬移遊戲後重新檢查，備份按副本和安裝前的檔案指紋保存。
+
+## 目錄、搜尋與下載
+
+維護者發布固定的模組 ID、收錄序號、作者、README 摘要、別名與首頁。每個可安裝版本另存上游標籤或提交、資產名稱、SHA-256、支援的遊戲指紋、安裝方式、所需載入器版本、已知衝突及下載路徑。App 快取最近一次成功讀取的目錄。
+
+正式列表統一經自訂網域的 Cloudflare Worker 取得。發布時部署已審核快照，GitHub 用於協作與發布；玩家瀏覽列表不依賴對 GitHub 的連線。大陸下載優先走同網域 Worker；允許再散布的已驗證原檔優先存入私有 R2，其他資產依授權與線路測試決定是否串流回源；只允許作者直連的資產另標限制。現有客戶端使用隨包發布的 `catalog/mods.json`。端點契約、失敗處理、發布與三網驗收見[正式目錄交付方案](../catalog/delivery.md)。
+
+## 安裝、切換與恢復（設計草案）
+
+完整流程與約束見 [ADR-005](ADR-005-install-transactions.md)。摘要：鎖定副本並檢查遊戲進程、版本、空間與依賴；在暫存區備妥並校驗套件；先寫入安裝紀錄與備份，再套用；讀回驗證後才記錄成功；中斷後依紀錄與磁碟實況恢復，遇到 Steam 更新或未知修改時停止覆寫。
+
+## 是否維護 fork
+
+先用作者公開的 CLI 或底層安裝腳本。App 可自行承擔偵測、備份及校驗。若遇到無法從外部解決的互動或還原問題，記錄可重現案例，優先向上游提交小改動。授權允許且確有必要時才維護安裝器 fork，保留原作者、來源及版本對照。
+
+## 架構決策紀錄
+
+- [ADR-001：專案邊界，保留 Tauri 與原生 JS](ADR-001-project-boundaries.md)
+- [ADR-002：模組目錄的唯一來源](ADR-002-catalog-source.md)
+- [ADR-003：簽章的桌面更新](ADR-003-desktop-updates.md)
+- [ADR-004：按語言組織文件](ADR-004-language-documentation.md)
+- [ADR-005：模組安裝交易與備份（提議）](ADR-005-install-transactions.md)

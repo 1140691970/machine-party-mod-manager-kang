@@ -1,0 +1,25 @@
+# Documentation
+
+**English** · [简体中文](../zh-CN/README.md) · [繁體中文](../zh-TW/README.md)
+
+## Product
+
+- [Product requirements](requirements.md)
+- [UI design specification](ui-design.md)
+- [Candidate mods and inclusion rules](catalog/mods.md)
+- [Production catalog delivery](catalog/delivery.md)
+
+## Developers
+
+- [Development guide](development/README.md)
+- [Releasing manager updates](development/releasing.md)
+- [Current architecture](architecture/README.md) and its ADRs
+
+## Project policies
+
+- [Contributing](../../CONTRIBUTING.md)
+- [Support](../../SUPPORT.md)
+- [Security](../../SECURITY.md)
+- [Changelog](../../CHANGELOG.md)
+- [Third-party notices](../../THIRD_PARTY_NOTICES.md)
+- [Rules for coding agents](../../AGENTS.md)
