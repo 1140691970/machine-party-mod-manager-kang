@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "mods": [
+    {
+      "id": "overtime",
+      "order": 1,
+      "repo": "DarkJadeStone/MachineParty-Overtime",
+      "image": "overtime",
+      "version": "v1.7",
+      "verified": false,
+      "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
+      "summary": {
+        "zh-CN": "最多 8 人在线或本地同玩。",
+        "zh-TW": "最多 8 人線上或本機同玩。",
+        "en": "Play online or locally with up to eight players."
+      },
+      "detail": {
+        "zh-CN": "直接修改游戏数据包，与 MPML 方式互斥。联机玩家需使用相同游戏与模组版本。",
+        "zh-TW": "直接修改遊戲資料包，與 MPML 方式互斥。連線玩家需使用相同遊戲與模組版本。",
+        "en": "Patches the game data directly and conflicts with MPML mode. Players need matching game and mod versions."
+      },
+      "aliases": ["加班", "八人", "八人联机", "八人聯機", "8p", "本機"]
+    },
+    {
+      "id": "machineparty-plus",
+      "order": 2,
+      "repo": "Ghostx10742/MachineParty-Plus",
+      "image": "plus",
+      "version": "v2.1.0",
+      "verified": false,
+      "name": {"zh-CN": "MachineParty+", "zh-TW": "MachineParty+", "en": "MachineParty+"},
+      "summary": {
+        "zh-CN": "公开房间、语音与文字聊天。",
+        "zh-TW": "公開房間、語音與文字聊天。",
+        "en": "Public lobbies, voice chat and text chat."
+      },
+      "detail": {
+        "zh-CN": "需要 MPML 加载器；语音聊天需要双方安装模组。",
+        "zh-TW": "需要 MPML 載入器；語音聊天需要雙方安裝模組。",
+        "en": "Requires the MPML loader. Both players need the mod for voice chat."
+      },
+      "aliases": ["plus", "mpml"]
+    },
+    {
+      "id": "broadcast-8p-freecam",
+      "order": 3,
+      "repo": "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher",
+      "verified": false,
+      "name": {"zh-CN": "Broadcast 8P Freecam", "zh-TW": "Broadcast 8P Freecam", "en": "Broadcast 8P Freecam"},
+      "summary": {
+        "zh-CN": "八人团播、四队轮换与导播自由镜头。",
+        "zh-TW": "八人團播、四隊輪換與導播自由鏡頭。",
+        "en": "Eight players, rotating teams and a free camera for the director."
+      },
+      "detail": {
+        "zh-CN": "支持一名导播和八名参赛者，卸载与备份恢复流程待实测。",
+        "zh-TW": "支援一名導播和八名參賽者，卸載與備份還原流程待實測。",
+        "en": "Supports one director and eight contestants. Uninstall and backup restoration await testing."
+      },
+      "aliases": ["直播", "导播", "導播", "觀戰", "八人"]
+    },
+    {
+      "id": "binary1936-8p",
+      "order": 4,
+      "repo": "Binary1936/machine-party-8p",
+      "version": "v1.5",
+      "verified": false,
+      "name": {"zh-CN": "八人联机模组", "zh-TW": "八人連線模組", "en": "Eight-player multiplayer"},
+      "summary": {
+        "zh-CN": "将在线游戏扩展至八人。",
+        "zh-TW": "將線上遊戲擴充至八人。",
+        "en": "Expands online play to eight players."
+      },
+      "detail": {
+        "zh-CN": "游戏数据的备份与还原流程待验证。",
+        "zh-TW": "遊戲資料的備份與還原流程待驗證。",
+        "en": "Game data backup and restoration await verification."
+      },
+      "aliases": ["8p", "八人聯機", "多人"]
+    }
+  ]
+}

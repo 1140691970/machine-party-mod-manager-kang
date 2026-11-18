@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import worker from "../worker/app-updates.mjs";
+import worker from "../../services/update-worker/app-updates.mjs";
 
 const host = "https://machineparty.ailaogong.men";
 const stable = "/v1/app-updates/stable/latest.json";

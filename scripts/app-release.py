@@ -8,13 +8,14 @@ import subprocess
 import sys
 import urllib.request
 
-config = json.loads(Path("tauri.conf.json").read_text(encoding="utf-8"))
+root = Path(__file__).resolve().parent.parent
+config = json.loads((root / "apps/desktop/src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
 version = config["version"]
 if not re.fullmatch(r"(0|[1-9]\d*)(\.(0|[1-9]\d*)){2}", version):
     raise ValueError("Stable releases require a numeric version")
 latest = config["plugins"]["updater"]["endpoints"][0]
 base = latest.split("/v1/")[0] + "/v1/app-downloads/" + version
-directory = Path("dist")
+directory = root / "dist"
 manifest = directory / "manifest.json"
 account = os.environ["ACCOUNT_ID"]
 bucket = os.environ["BUCKET"]

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { versionState } from "../ui/versions.js";
-import { locales, messages, systemLocale } from "../ui/languages.js";
+import { versionState } from "../../apps/desktop/ui/versions.js";
+import { locales, messages, systemLocale } from "../../apps/desktop/ui/languages.js";
 
 test("compares stable releases numerically and respects verification", () => {
   assert.equal(versionState("v1.9", "v1.10"), "waiting");

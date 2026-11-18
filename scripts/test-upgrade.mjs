@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {setTimeout as delay} from "node:timers/promises";
-const version = JSON.parse(await readFile("tauri.conf.json")).version;
+const version = JSON.parse(await readFile(new URL("../apps/desktop/src-tauri/tauri.conf.json", import.meta.url))).version;
 async function until(action, description) {
   const end = Date.now() + 120_000;
   let last;

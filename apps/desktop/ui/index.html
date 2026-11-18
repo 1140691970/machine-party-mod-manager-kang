@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Machine Party 模组管理器</title>
+    <link rel="stylesheet" href="style.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <aside>
+      <div class="brand" aria-label="Machine Party 模组管理器">
+        <b>MACHINE<br />PARTY</b><small>模组管理器</small>
+      </div>
+      <nav>
+        <button data-page="catalog" title="模组目录"><i>⊞</i><span>模组目录</span></button>
+        <button data-page="installed" title="已安装"><i>▣</i><span>已安装</span></button>
+      </nav>
+      <button class="settings" data-page="settings" title="设置"><i>⚙</i><span>设置</span></button>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <h1></h1>
+          <p id="subtitle"></p>
+        </div>
+        <label id="search">
+          <i>⚲</i>
+          <input type="search" placeholder="搜索模组、作者或关键字" aria-label="搜索模组" />
+        </label>
+      </header>
+      <button hidden id="appRelease" class="control primary"></button>
+      <div id="content"></div>
+    </main>
+    <dialog aria-labelledby="dialogTitle">
+      <div class="dialog-head">
+        <h2 id="dialogTitle"></h2>
+        <button id="close" aria-label="关闭">×</button>
+      </div>
+      <div id="dialogBody"></div>
+    </dialog>
+  </body>
+</html>

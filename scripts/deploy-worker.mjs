@@ -1,5 +1,5 @@
 import {readFile} from "node:fs/promises";
-const config = JSON.parse(await readFile(new URL("../worker/wrangler.json", import.meta.url)));
+const config = JSON.parse(await readFile(new URL("../services/update-worker/wrangler.json", import.meta.url)));
 const api = "https://api.cloudflare.com/client/v4";
 const account = "/accounts/" + process.env.CLOUDFLARE_ACCOUNT_ID;
 async function request(path, options = {}) {
@@ -13,7 +13,7 @@ form.set("metadata", JSON.stringify({
   main_module: config.main, compatibility_date: config.compatibility_date,
   bindings: config.r2_buckets.map(bucket => ({type:"r2_bucket",name:bucket.binding,bucket_name:bucket.bucket_name}))
 }));
-form.set(config.main,new Blob([await readFile(new URL("../worker/"+config.main, import.meta.url))],{type:"application/javascript+module"}),config.main);
+form.set(config.main,new Blob([await readFile(new URL("../services/update-worker/"+config.main, import.meta.url))],{type:"application/javascript+module"}),config.main);
 await request(account + "/workers/scripts/" + config.name, {method:"PUT",body:form});
 console.log("Uploaded Worker");
 const hostname = "machineparty.ailaogong.men";

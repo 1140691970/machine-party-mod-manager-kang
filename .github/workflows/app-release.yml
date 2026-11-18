@@ -25,21 +25,25 @@ jobs:
         with:
           node-version: '22'
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
       - name: Build Windows installer and older acceptance client
         shell: pwsh
+        working-directory: apps/desktop/src-tauri
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           $version = (Get-Content tauri.conf.json -Raw | ConvertFrom-Json).version
           if ($version -ne (cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version) { throw 'Version mismatch' }
-          mkdir dist
+          $dist = Join-Path $env:GITHUB_WORKSPACE dist
+          New-Item -ItemType Directory $dist | Out-Null
           npx --yes --package @tauri-apps/cli@2.12.5 tauri build --bundles nsis -- --locked
-          Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName dist/setup.exe
+          Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist setup.exe)
           $overlay = @{version='0.0.1'; plugins=@{updater=@{endpoints=@("https://machineparty.ailaogong.men/v1/app-downloads/$version/manifest.json")}}}
           $overlay | ConvertTo-Json -Depth 6 | Set-Content acceptance.json
           Remove-Item target/release/bundle/nsis/*-setup.exe
           npx --yes --package @tauri-apps/cli@2.12.5 tauri build --config acceptance.json --bundles nsis -- --locked
-          Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName dist/bootstrap.exe
+          Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist bootstrap.exe)
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-installers
@@ -54,7 +58,10 @@ jobs:
         with:
           node-version: '22'
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
       - name: Build Apple Silicon application
+        working-directory: apps/desktop/src-tauri
         run: |
           set -eu
           rustup target add aarch64-apple-darwin
@@ -110,7 +117,7 @@ jobs:
           sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq 'select(.path == ".github/workflows/app-release.yml" and .head_branch == "main" and .event == "workflow_dispatch")|.head_sha')
           [[ "$sha" =~ ^[a-f0-9]{40}$ ]]
           git merge-base --is-ancestor "$sha" HEAD
-          git diff --exit-code "$sha" HEAD -- . ':(exclude).github/workflows/**' ':(exclude)scripts/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)README.md'
+          git diff --exit-code "$sha" HEAD -- . ':(exclude).github/**' ':(exclude)scripts/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)*.md' ':(exclude).editorconfig' ':(exclude)package.json'
           echo "BUILD_SHA=$sha" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
@@ -132,7 +139,7 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
-          version=$(node -p 'require("./tauri.conf.json").version')
+          version=$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").version')
           npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/setup.exe
           npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/MachineParty-aarch64.app.tar.gz
       - name: Stage version in R2
@@ -153,7 +160,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          version=$(node -p 'require("./tauri.conf.json").version')
+          version=$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").version')
           tag="v$version"
           if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
             git fetch origin "refs/tags/$tag:refs/tags/$tag"

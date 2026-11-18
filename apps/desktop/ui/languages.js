@@ -50,14 +50,5 @@ export const messages = {
   available:["有更新","有更新","Update available"],
   hold:["新版通过验证后可更新；当前安装会保留。","新版通過驗證後可更新；保留目前安裝。","The installed version is retained until the newer release is verified."],
   noDowngrade:["保留本机版本。","保留本機版本。","Your local version is retained."],
-  inventoryError:["无法读取此副本的安装记录，请检查应用配置目录中的 installations.json。","無法讀取此副本的安裝紀錄，請檢查應用程式設定目錄的 installations.json。","Could not read installation records. Check installations.json in the app configuration folder."],
-  eight:["八人联机模组","八人連線模組","Eight-player multiplayer"],
-  overtimeSummary:["最多 8 人在线或本地同玩。","最多 8 人線上或本機同玩。","Play online or locally with up to eight players."],
-  overtimeDetail:["直接修改游戏数据包，与 MPML 方式互斥。联机玩家需使用相同游戏与模组版本。","直接修改遊戲資料包，與 MPML 方式互斥。連線玩家需使用相同遊戲與模組版本。","Patches the game data directly and conflicts with MPML mode. Players need matching game and mod versions."],
-  plusSummary:["公开房间、语音与文字聊天。","公開房間、語音與文字聊天。","Public lobbies, voice chat and text chat."],
-  plusDetail:["需要 MPML 加载器；语音聊天需要双方安装模组。","需要 MPML 載入器；語音聊天需要雙方安裝模組。","Requires the MPML loader. Both players need the mod for voice chat."],
-  castSummary:["八人团播、四队轮换与导播自由镜头。","八人團播、四隊輪換與導播自由鏡頭。","Eight players, rotating teams and a free camera for the director."],
-  castDetail:["支持一名导播和八名参赛者，卸载与备份恢复流程待实测。","支援一名導播和八名參賽者，卸載與備份還原流程待實測。","Supports one director and eight contestants. Uninstall and backup restoration await testing."],
-  eightSummary:["将在线游戏扩展至八人。","將線上遊戲擴充至八人。","Expands online play to eight players."],
-  eightDetail:["游戏数据的备份与还原流程待验证。","遊戲資料的備份與還原流程待驗證。","Game data backup and restoration await verification."]
+  inventoryError:["无法读取此副本的安装记录，请检查应用配置目录中的 installations.json。","無法讀取此副本的安裝紀錄，請檢查應用程式設定目錄的 installations.json。","Could not read installation records. Check installations.json in the app configuration folder."]
 };

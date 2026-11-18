@@ -1,2 +1,14 @@
-/target/
-/gen/
+# Build outputs
+target/
+gen/
+dist/
+node_modules/
+
+# Local agent memory, editor indexes and rules
+.agent/
+.cursor/
+.codegraph/
+
+# OS files
+.DS_Store
+Thumbs.db
