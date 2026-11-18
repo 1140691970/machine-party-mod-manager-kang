@@ -1,0 +1,90 @@
+name: Release desktop app
+on: workflow_dispatch
+permissions:
+  contents: read
+concurrency:
+  group: desktop-stable-release
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: Swatinem/rust-cache@v2
+      - name: Build Windows installer and older acceptance client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = (Get-Content tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($version -ne (cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json).packages[0].version) { throw 'Version mismatch' }
+          mkdir dist
+          npx --yes --package @tauri-apps/cli@2.12.5 tauri build --bundles nsis -- --locked
+          Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName dist/setup.exe
+          $overlay = @{version='0.0.1'; plugins=@{updater=@{endpoints=@("https://machineparty.ailaogong.men/v1/app-downloads/$version/manifest.json")}}}
+          $overlay | ConvertTo-Json -Depth 6 | Set-Content acceptance.json
+          Remove-Item target/release/bundle/nsis/*-setup.exe
+          npx --yes --package @tauri-apps/cli@2.12.5 tauri build --config acceptance.json --bundles nsis -- --locked
+          Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName dist/bootstrap.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-installers
+          path: dist/
+          retention-days: 14
+  release:
+    needs: build
+    runs-on: windows-2022
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-installers
+          path: dist
+      - name: Sign Windows updater
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          version=$(node -p 'require("./tauri.conf.json").version')
+          npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/setup.exe
+      - name: Stage version in R2
+        run: python scripts/app-release.py stage
+        env: &storage
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          BUCKET: ${{ vars.R2_BUCKET_NAME }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      - name: Install old client and update through Worker
+        run: ./scripts/test-upgrade.ps1
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          version=$(node -p 'require("./tauri.conf.json").version')
+          tag="v$version"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" dist/setup.exe dist/setup.exe.sig --target "$GITHUB_SHA" --title "$tag" --generate-notes
+          else
+            git fetch origin "refs/tags/$tag:refs/tags/$tag"
+            test "$(git rev-list -1 "$tag")" = "$GITHUB_SHA"
+            gh release download "$tag" -p setup.exe -D existing
+            cmp dist/setup.exe existing/setup.exe
+          fi
+      - name: Promote stable manifest and verify public endpoint
+        run: python scripts/app-release.py promote
+        env: *storage

@@ -2,11 +2,45 @@
   "productName": "Machine Party 模组管理器",
   "version": "0.1.0",
   "identifier": "community.machineparty.modmanager",
-  "build": {"frontendDist": "ui"},
+  "build": {
+    "frontendDist": "ui"
+  },
   "app": {
     "withGlobalTauri": true,
-    "windows": [{"title":"Machine Party 模组管理器","theme":"Dark","width":1200,"height":760,"minWidth":420,"minHeight":480}],
-    "security": {"csp":"default-src 'self'; img-src 'self' asset:; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost"}
+    "windows": [
+      {
+        "title": "Machine Party 模组管理器",
+        "theme": "Dark",
+        "width": 1200,
+        "height": 760,
+        "minWidth": 420,
+        "minHeight": 480
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset:; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
   },
-  "bundle": {"active":false}
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "requireSignedVersion": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdFMTY3NEI5RkRCNDJCRUMKUldUc0s3VDl1WFFXZm9RZGdFTzRxUitNdVZVaktlL25qaERabW5ZRmsveXlGQzVQUDIwbFM5U1gK",
+      "endpoints": [
+        "https://machineparty.ailaogong.men/v1/app-updates/stable/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
 }

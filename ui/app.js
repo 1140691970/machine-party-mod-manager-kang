@@ -160,11 +160,51 @@ function languagePicker() {
   label.append(select);
   return label;
 }
+let release, checking = false, installing = false, checkResult = "";
+const currentAppVersion = invoke ? await invoke("app_version").catch(()=>"") : "";
+
+function showRelease() {
+  if (!release || installing) return;
+  const selected = release;
+  show(t("appUpdate")+" · v"+selected.version,element("p",selected.notes || ""),
+    button(t("installApp"), async () => {
+      if (installing) return;
+      installing = true;
+      const status = element("p",t("loadingApp"));
+      show(t("installApp"),status);
+      const progress = new window.__TAURI__.core.Channel();
+      progress.onmessage = pct => { status.textContent=t("loadingApp")+" · "+pct+"%"; };
+      try { await invoke("install_app_update",{version:selected.version,progress}); }
+      finally { installing=false; }
+    },"control primary"),
+    button(t("close"),()=> $("dialog").close(),"control"));
+}
+
+async function checkApp(manual) {
+  if (!invoke || checking || installing) return;
+  checking=true;
+  checkResult="";
+  if (manual) render();
+  try {
+    release=await invoke("check_app_update");
+    checkResult=release ? "" : "latestApp";
+  } catch (error) {
+    checkResult=String(error)==="windowsOnly" ? "windowsOnly" : "appNetwork";
+  } finally {
+    checking=false;
+    render();
+  }
+}
+
 function render() {
   document.querySelectorAll("[data-page]").forEach(el=>{
     el.classList.toggle("active",el.dataset.page===page);
     if(el.dataset.page===page) el.setAttribute("aria-current","page"); else el.removeAttribute("aria-current");
   });
+  const banner=$("#appRelease");
+  banner.hidden=!release;
+  if (release) banner.textContent=t("appUpdate")+" · v"+release.version;
+  banner.onclick=showRelease;
   $("h1").textContent=t(page);
   $("#subtitle").textContent=page==="settings" ? "" : t(page+"Sub");
   $("#search").hidden=page!=="catalog";
@@ -175,6 +215,12 @@ function render() {
     const box=element("div","","box");
     box.append(languagePicker(),element("h2",t("folder")),element("p",game||t("unset")));
     if(invoke) box.append(button(t("choose"),pick,"control primary"),button(t("rescan"),()=>detect(true),"control"));
+    if(invoke) {
+      const check=button(t(checking ? "checkingApp" : "checkApp"),()=>checkApp(true),"control");
+      check.disabled=checking || installing;
+      box.append(element("h2",t("manager")+" "+currentAppVersion),check);
+      if(checkResult) box.append(element("p",t(checkResult)));
+    }
     content.append(box);
     return;
   }
@@ -194,3 +240,5 @@ $("#close").onclick=()=>$("dialog").close();
 applyLocale();
 render();
 if(invoke) detect().catch(error=>show(t("failed"),element("p",String(error)),button(t("choose"),pick,"control")));
+
+if(invoke) void checkApp(false);
