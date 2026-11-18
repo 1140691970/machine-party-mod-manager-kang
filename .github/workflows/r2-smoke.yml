@@ -40,6 +40,7 @@ jobs:
           echo "Verified SHA-256: $original"
           cleanup
           trap - EXIT
-          remaining=$(s3 list-objects-v2 --bucket "$BUCKET" --prefix "$key" --query KeyCount --output text)
-          [[ "$remaining" == 0 ]]
+          s3 list-objects-v2 --bucket "$BUCKET" --prefix "$key" --output json > listed.json
+          jq -e --arg key "$key" 'all(.Contents[]?; .Key != $key)' listed.json >/dev/null
+          s3 list-objects-v2 --bucket "$BUCKET" --prefix smoke-tests/ --output json | jq -c '[.Contents[]?.Key]'
           echo "Confirmed cleanup: $key"
