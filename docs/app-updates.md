@@ -8,7 +8,7 @@ Windows x64 客户端启动时从 `https://machineparty.ailaogong.men/v1/app-upd
 2. 在 GitHub Actions 打开 **Release desktop app**，选择 main 后运行。Windows runner 会生成正式安装包和仅用于验收的旧版客户端。
 3. 检查提交和构建结果，在 **Review deployments** 核准 production。签名密钥和 R2 凭证由该环境提供。
 4. 工作流先上传版本专属安装包和清单，再安装旧版测试客户端，实际经过 Worker 下载、更新与重启。它检查运行版本和本地设置，然后创建 GitHub Release，最后切换稳定清单。此后已安装的客户端下次检查即可收到更新。
-5. 失败时先查看失败步骤。若只是网络问题，选择 **Re-run failed jobs** 以复用已构建的安装包。发布后的安装包按版本固定，替换内容需要新版本号。
+5. 失败时先查看失败步骤。若只是网络问题，选择 **Re-run failed jobs** 以复用已构建的安装包。若需要修正发布脚本，可在 main 发起新运行，在 `build_run` 填入原始构建的运行 ID。工作流会核对来源及应用代码，沿用原安装包。勾选 `verify_only` 可对已暂存的版本单独执行 Windows 升级验收。发布后的安装包按版本固定，替换内容需要新版本号。
 
 ## 托管与签名
 
