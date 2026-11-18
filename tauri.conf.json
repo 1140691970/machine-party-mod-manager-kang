@@ -1,0 +1,12 @@
+{
+  "productName": "Machine Party 模组管理器",
+  "version": "0.1.0",
+  "identifier": "community.machineparty.modmanager",
+  "build": {"frontendDist": "ui"},
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [{"title":"Machine Party 模组管理器","theme":"Dark","width":1200,"height":760,"minWidth":420,"minHeight":480}],
+    "security": {"csp":"default-src 'self'; img-src 'self' asset:; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost"}
+  },
+  "bundle": {"active":false}
+}
