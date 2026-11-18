@@ -4,7 +4,9 @@
 
 ## 收錄操作手冊
 
-**目前進度**　倉庫已有[投稿表單範本](../../../.github/ISSUE_TEMPLATE/mod-submission.yml)，合入 GitHub 預設分支後才會出現在 New issue。以下為目標流程；Release 查詢、草案產生、CI、R2 上傳和 Worker 發布尚待實作。目前 App 使用隨包發布的 `catalog/mods.json`。
+**目前進度**　倉庫已有[投稿表單範本](../../../.github/ISSUE_TEMPLATE/mod-submission.yml)，合入 GitHub 預設分支後才會出現在 New issue。目前由維護者選擇 Release 並上傳 R2，目錄 Worker 發布已審核的快照。
+
+[線上模組目錄](../architecture/ADR-006-online-catalog.md)
 
 | 步驟 | 誰操作 | 做什麼、完成後得到什麼 |
 | --- | --- | --- |

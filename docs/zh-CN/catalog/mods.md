@@ -4,7 +4,9 @@
 
 ## 收录操作手册
 
-**当前进度**　仓库已有[投稿表单模板](../../../.github/ISSUE_TEMPLATE/mod-submission.yml)，合入 GitHub 默认分支后才会出现在 New issue 中。以下为目标流程；Release 查询、草案生成、CI、R2 上传和 Worker 发布尚待实现。目前 App 使用随包发布的 `catalog/mods.json`。
+**当前进度**　仓库已有[投稿表单模板](../../../.github/ISSUE_TEMPLATE/mod-submission.yml)，合入 GitHub 默认分支后才会出现在 New issue 中。目前由维护者选择 Release 并上传 R2，目录 Worker 发布已审核的快照。
+
+[在线模组目录](../architecture/ADR-006-online-catalog.md)
 
 | 步骤 | 谁操作 | 做什么、完成后得到什么 |
 | --- | --- | --- |

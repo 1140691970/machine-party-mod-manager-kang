@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "revision": "2026-11-18.2",
   "mods": [
     {
       "id": "overtime",
@@ -7,6 +8,14 @@
       "repo": "DarkJadeStone/MachineParty-Overtime",
       "image": "overtime",
       "version": "v1.7",
+      "package": {
+        "assetId": "594522625",
+        "filename": "Machine-Party-Overtime-1.7-CLI.zip",
+        "size": 854623,
+        "sha256": "f98b51526c9ba38167adc0578f24d2d998f6d2f4df51e6146580df27b589245c",
+        "noticeFile": "LICENSE",
+        "mirrorApproved": true
+      },
       "verified": false,
       "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
       "summary": {
@@ -27,6 +36,14 @@
       "repo": "Ghostx10742/MachineParty-Plus",
       "image": "plus",
       "version": "v2.1.0",
+      "package": {
+        "assetId": "511918824",
+        "filename": "Jarunk-MachinePartyPlus.zip",
+        "size": 94946,
+        "sha256": "a30485861598d061bee0ed98cf6e0f4272ea105a5aa973bc38dec0327cdcad11",
+        "noticeFile": "LICENSE",
+        "mirrorApproved": true
+      },
       "verified": false,
       "name": {"zh-CN": "MachineParty+", "zh-TW": "MachineParty+", "en": "MachineParty+"},
       "summary": {
@@ -45,6 +62,14 @@
       "id": "broadcast-8p-freecam",
       "order": 3,
       "repo": "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher",
+      "version": "v0.91",
+      "package": {
+        "assetId": "517871491",
+        "filename": "MachineParty_Broadcast8P_Freecam_OneClick_Patcher_v0_91_BuiltIn120Fps.zip",
+        "size": 21037309,
+        "sha256": "988b5068c0d4f054a4654b965628ca666d7ebf4e65b6a1cb60f8615a85c3f7ac",
+        "mirrorApproved": true
+      },
       "verified": false,
       "name": {"zh-CN": "Broadcast 8P Freecam", "zh-TW": "Broadcast 8P Freecam", "en": "Broadcast 8P Freecam"},
       "summary": {
@@ -64,6 +89,14 @@
       "order": 4,
       "repo": "Binary1936/machine-party-8p",
       "version": "v1.5",
+      "package": {
+        "assetId": "520133712",
+        "filename": "machine-party-8p-mod.zip",
+        "size": 32387456,
+        "sha256": "6031425e58d434190ae2b62a8557cecaef1d057ce030acb03dd02c327d7baac4",
+        "noticeFile": "NOTICE.md",
+        "mirrorApproved": true
+      },
       "verified": false,
       "name": {"zh-CN": "八人联机模组", "zh-TW": "八人連線模組", "en": "Eight-player multiplayer"},
       "summary": {

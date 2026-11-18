@@ -1,5 +1,5 @@
 import { checkApp, showRelease } from "./app-update.js";
-import { appVersion, isDesktop, loadCatalog, setAppTitle } from "./bridge.js";
+import { appVersion, isDesktop, setAppTitle } from "./bridge.js";
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
@@ -8,6 +8,9 @@ import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
 
+import { cachedCatalog, loadCatalog } from "./online-catalog.js";
+
+let catalogStatus = "catalogLoading";
 let shownPage = "";
 
 function applyLocale() {
@@ -45,12 +48,31 @@ function render() {
   content.className = state.page === shownPage ? "" : "entering";
   shownPage = state.page;
   if (state.page === "settings") renderSettings(content, applyLocale);
-  else renderModList(content);
+  else {
+    if (catalogStatus && state.page === "catalog") {
+      content.append(element("p", t(catalogStatus)));
+      if (catalogStatus !== "catalogLoading") content.append(button(t("retryCatalog"), refreshCatalog));
+    }
+    if (!catalogStatus || state.mods.length || state.page === "installed") renderModList(content);
+  }
 }
 
 onRender(render);
 state.appVersion = await appVersion();
-state.mods = sortMods(await loadCatalog().catch(() => ({mods: []})));
+const cached = cachedCatalog(localStorage);
+if (cached) state.mods = sortMods(cached);
+
+async function refreshCatalog() {
+  catalogStatus = "catalogLoading";
+  render();
+  try {
+    state.mods = sortMods(await loadCatalog(localStorage));
+    catalogStatus = "";
+  } catch {
+    catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";
+  }
+  render();
+}
 
 hydrateIcons();
 document.querySelectorAll("[data-page]").forEach(el => el.onclick = () => {
@@ -60,7 +82,7 @@ document.querySelectorAll("[data-page]").forEach(el => el.onclick = () => {
 $("input").oninput = render;
 $("#close").onclick = closeDialog;
 applyLocale();
-render();
+void refreshCatalog();
 if (isDesktop) {
   detectGame().catch(error => show(t("failed"), element("p", String(error)), button(t("choose"), pickGame, "primary")));
   void checkApp(false);

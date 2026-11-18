@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/catalog/delivery.md) · [繁體中文](../../zh-TW/catalog/delivery.md)
 
-**Status**　First-release design. The current client still ships `catalog/mods.json` in the bundle ([ADR-002](../architecture/ADR-002-catalog-source.md)). The production domain, Worker, publishing workflow and carrier acceptance results are not in place yet.
+**Online mod catalog**　The client reads the Worker snapshot at startup and caches validated data for offline browsing. Each version maps its Release asset ID to the R2 key `packages/sha256/<sha256>.zip`. Only packages cleared for mirroring are served. [ADR-006](../architecture/ADR-006-online-catalog.md)
 
 ## How players get the catalog
 

@@ -10,6 +10,10 @@
 flowchart LR
   ui["apps/desktop/ui"] -->|"bridge.js IPC"| commands["src-tauri commands.rs"]
   commands --> domain["game / inventory / preferences / catalog"]
+  ui -->|HTTPS| worker
+  worker -->|CATALOG| catalogWorker["services/catalog-worker"]
+  catalogWorker --> packages["R2 packages/sha256"]
+  catalogData --> catalogWorker
   catalogData["catalog/mods.json"] --> domain
   commands --> updater["app_updates.rs"]
   updater -->|HTTPS| worker["services/update-worker"]
@@ -34,7 +38,7 @@ flowchart LR
 
 维护者发布固定的模组 ID、收录序号、作者、README 摘要、别名与主页。每个可安装版本另存上游标签或提交、资产名称、SHA-256、支持的游戏指纹、安装方式、所需加载器版本、已知冲突及下载路径。App 缓存最近一次成功读取的目录。
 
-正式列表统一经自定义域名的 Cloudflare Worker 获取。发布时部署已审核的快照，GitHub 用于协作与发布；玩家浏览列表不依赖对 GitHub 的连接。中国大陆下载优先走同域名 Worker；允许再分发的已验证原文件优先存入私有 R2，其他资产根据授权与线路测试决定是否流式回源；只允许作者直连的资产另行标注限制。现有客户端使用随包发布的 `catalog/mods.json`。端点契约、失败处理、发布与三网验收见[正式目录交付方案](../catalog/delivery.md)。
+正式列表统一经自定义域名的 Cloudflare Worker 获取。发布时部署已审核的快照，GitHub 用于协作与发布；玩家浏览列表不依赖对 GitHub 的连接。中国大陆下载优先走同域名 Worker；允许再分发的已验证原文件优先存入私有 R2，其他资产根据授权与线路测试决定是否流式回源；只允许作者直连的资产另行标注限制。客户端启动时读取 Worker 快照，缓存通过校验的数据供离线浏览。每个版本通过 Release 资产 ID 对应 R2 键 `packages/sha256/<sha256>.zip`。仅开放允许镜像的安装包。端点契约、失败处理、发布与三网验收见[正式目录交付方案](../catalog/delivery.md)。
 
 ## 安装、切换与恢复（设计草案）
 
@@ -51,3 +55,4 @@ flowchart LR
 - [ADR-003：签名的桌面更新](ADR-003-desktop-updates.md)
 - [ADR-004：按语言组织文档](ADR-004-language-documentation.md)
 - [ADR-005：模组安装交易与备份（提议）](ADR-005-install-transactions.md)
+- [ADR-006 · 在线模组目录](ADR-006-online-catalog.md)

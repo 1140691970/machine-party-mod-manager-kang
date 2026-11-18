@@ -11,7 +11,10 @@ async function request(path, options = {}) {
 const form = new FormData();
 form.set("metadata", JSON.stringify({
   main_module: config.main, compatibility_date: config.compatibility_date,
-  bindings: config.r2_buckets.map(bucket => ({type:"r2_bucket",name:bucket.binding,bucket_name:bucket.bucket_name}))
+  bindings: [
+    ...config.r2_buckets.map(bucket => ({type:"r2_bucket",name:bucket.binding,bucket_name:bucket.bucket_name})),
+    ...config.services.map(service => ({type:"service",name:service.binding,service:service.service}))
+  ]
 }));
 form.set(config.main,new Blob([await readFile(new URL("../services/update-worker/"+config.main, import.meta.url))],{type:"application/javascript+module"}),config.main);
 await request(account + "/workers/scripts/" + config.name, {method:"PUT",body:form});

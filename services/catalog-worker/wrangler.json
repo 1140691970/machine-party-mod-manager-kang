@@ -1,0 +1,8 @@
+{
+  "name": "machine-party-catalog",
+  "main": "catalog.mjs",
+  "compatibility_date": "2025-01-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "r2_buckets": [{"binding": "PACKAGES", "bucket_name": "machine-party-mods"}]
+}

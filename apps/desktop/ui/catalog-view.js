@@ -1,3 +1,4 @@
+import { downloadUrl } from "./online-catalog.js";
 import { openProject } from "./bridge.js";
 import { visibleMods } from "./catalog.js";
 import { $, button, element, show, tag } from "./dom.js";
@@ -26,6 +27,19 @@ function details(mod) {
     parts.push(element("p", t("local") + " · " + local), element("p", t(status)));
     if (status === "waiting" || status === "newer")
       parts.push(element("p", t(status === "waiting" ? "hold" : "noDowngrade")));
+  }
+  if (mod.package) {
+    parts.push(element("p", mod.package.filename));
+    const link = element("a", t(mod.package.mirrorApproved ? "downloadPackage" : "authorRelease"), "btn btn-link");
+    if (mod.package.mirrorApproved) {
+      link.href = downloadUrl(mod);
+      link.download = mod.package.filename;
+    } else {
+      link.href = `https://github.com/${mod.repo}/releases/tag/${mod.version}`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    }
+    parts.push(link);
   }
   parts.push(project(mod));
   show(nameOf(mod), ...parts);

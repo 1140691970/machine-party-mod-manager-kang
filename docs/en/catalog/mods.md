@@ -4,7 +4,9 @@
 
 ## Inclusion guide
 
-**Current state**　The repository has a [submission form](../../../.github/ISSUE_TEMPLATE/mod-submission.yml) that appears under New issue once merged to the default branch. The flow below is the target; Release lookup, draft generation, CI, R2 upload and Worker publishing are not implemented yet. The app currently ships `catalog/mods.json`.
+**Current state**　The repository has a [submission form](../../../.github/ISSUE_TEMPLATE/mod-submission.yml) that appears under New issue once merged to the default branch. Release selection and R2 staging are manual. The catalog Worker publishes the reviewed snapshot.
+
+[Online mod catalog](../architecture/ADR-006-online-catalog.md)
 
 | Step | Who | What happens and what it produces |
 | --- | --- | --- |

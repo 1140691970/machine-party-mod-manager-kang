@@ -10,6 +10,10 @@ This is the single current architecture document. Significant decisions are reco
 flowchart LR
   ui["apps/desktop/ui"] -->|"bridge.js IPC"| commands["src-tauri commands.rs"]
   commands --> domain["game / inventory / preferences / catalog"]
+  ui -->|HTTPS| worker
+  worker -->|CATALOG| catalogWorker["services/catalog-worker"]
+  catalogWorker --> packages["R2 packages/sha256"]
+  catalogData --> catalogWorker
   catalogData["catalog/mods.json"] --> domain
   commands --> updater["app_updates.rs"]
   updater -->|HTTPS| worker["services/update-worker"]
@@ -34,7 +38,7 @@ The first release targets the Windows Steam version. The app reads Steam library
 
 Maintainers publish fixed mod IDs, catalog order, author, README summary, aliases and home page. Each installable version also records the upstream tag or commit, asset name, SHA-256, supported game fingerprints, install method, required loader version, known conflicts and download path. The app caches the last catalog it read successfully.
 
-The production catalog is served through a Cloudflare Worker on a custom domain. Releases deploy a reviewed snapshot; GitHub is used for collaboration and publishing, and browsing never depends on reaching GitHub. Downloads for mainland China go through the same Worker domain first. Verified originals that may be redistributed go into private R2; other assets are streamed from upstream only if licensing and route tests allow; author-direct-only assets are marked as such. The current client ships `catalog/mods.json` in the bundle. Endpoint contracts, failure handling, publishing and carrier acceptance are in the [catalog delivery plan](../catalog/delivery.md).
+The production catalog is served through a Cloudflare Worker on a custom domain. Releases deploy a reviewed snapshot; GitHub is used for collaboration and publishing, and browsing never depends on reaching GitHub. Downloads for mainland China go through the same Worker domain first. Verified originals that may be redistributed go into private R2; other assets are streamed from upstream only if licensing and route tests allow; author-direct-only assets are marked as such. The client reads the Worker snapshot at startup and caches validated data for offline browsing. Each version maps its Release asset ID to the R2 key `packages/sha256/<sha256>.zip`. Only packages cleared for mirroring are served. Endpoint contracts, failure handling, publishing and carrier acceptance are in the [catalog delivery plan](../catalog/delivery.md).
 
 ## Install, switch and recovery (design draft)
 
@@ -51,3 +55,4 @@ Use the author's published CLI or underlying install script first. The app itsel
 - [ADR-003: Signed desktop updates](ADR-003-desktop-updates.md)
 - [ADR-004: Documentation organised by language](ADR-004-language-documentation.md)
 - [ADR-005: Mod install transactions and backups (proposed)](ADR-005-install-transactions.md)
+- [ADR-006 · Online mod catalog](ADR-006-online-catalog.md)

@@ -2,7 +2,7 @@
 
 [English](../../en/catalog/delivery.md) · [简体中文](../../zh-CN/catalog/delivery.md) · **繁體中文**
 
-**狀態**　首版設計。現有客戶端仍使用隨包發布的 `catalog/mods.json`（[ADR-002](../architecture/ADR-002-catalog-source.md)）。正式網域、Worker、發布工作流與三網驗收結果均待落地。
+**線上模組目錄**　客戶端啟動時讀取 Worker 快照，快取通過驗證的資料供離線瀏覽。每個版本透過 Release 資產 ID 對應 R2 鍵 `packages/sha256/<sha256>.zip`。僅開放允許鏡像的套件。 [ADR-006](../architecture/ADR-006-online-catalog.md)
 
 ## 玩家取得列表的路徑
 

@@ -5,6 +5,12 @@ export function systemLocale(language) {
 }
 // Simplified Chinese, Traditional Chinese, English
 export const messages = {
+  catalogLoading:["正在同步目录…","正在同步目錄…","Syncing catalog…"],
+  catalogUnavailable:["暂时无法取得在线目录。","暫時無法取得線上目錄。","Online catalog unavailable."],
+  catalogCached:["目录同步失败，显示上次取得的列表。","目錄同步失敗，顯示上次取得的列表。","Sync failed. Showing the last saved catalog."],
+  retryCatalog:["重新加载","重新載入","Retry"],
+  authorRelease:["作者发布页","作者發布頁","Author release"],
+  downloadPackage:["下载 ZIP","下載 ZIP","Download ZIP"],
   install:["安装","安裝","Install"],
   update:["更新","更新","Update"],
   uninstall:["卸载","解除安裝","Uninstall"],
