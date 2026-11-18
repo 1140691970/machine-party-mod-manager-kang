@@ -2,6 +2,10 @@ name: Release desktop app
 on:
   workflow_dispatch:
     inputs:
+      verify_only:
+        description: Test an already staged update without publishing
+        type: boolean
+        default: false
       build_run:
         description: Optional previous desktop build run ID to retry the same installers
         required: false
@@ -41,9 +45,27 @@ jobs:
           name: desktop-installers
           path: dist/
           retention-days: 14
+  verify:
+    if: inputs.verify_only && inputs.build_run != ''
+    runs-on: windows-2022
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-installers
+          path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run }}
+      - run: ./scripts/test-upgrade.ps1
   release:
     needs: build
-    if: always() && !cancelled() && github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.build_run != ''))
+    if: always() && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.build_run != ''))
     runs-on: windows-2022
     environment: production
     permissions:
