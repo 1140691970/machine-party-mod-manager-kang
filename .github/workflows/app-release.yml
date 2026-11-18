@@ -1,5 +1,11 @@
 name: Release desktop app
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      build_run:
+        description: Optional previous desktop build run ID to retry the same installers
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
@@ -7,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && inputs.build_run == ''
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -37,12 +43,29 @@ jobs:
           retention-days: 14
   release:
     needs: build
+    if: always() && !cancelled() && github.ref == 'refs/heads/main' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.build_run != ''))
     runs-on: windows-2022
     environment: production
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate installer source
+        shell: bash
+        env:
+          BUILD_RUN: ${{ inputs.build_run || github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          [[ "$BUILD_RUN" =~ ^[0-9]+$ ]]
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq 'select(.path == ".github/workflows/app-release.yml" and .head_branch == "main" and .event == "workflow_dispatch")|.head_sha')
+          [[ "$sha" =~ ^[a-f0-9]{40}$ ]]
+          git merge-base --is-ancestor "$sha" HEAD
+          git diff --exit-code "$sha" HEAD -- . ':(exclude).github/workflows/**' ':(exclude)scripts/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)README.md'
+          echo "BUILD_SHA=$sha" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -50,6 +73,8 @@ jobs:
         with:
           name: desktop-installers
           path: dist
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run || github.run_id }}
       - name: Sign Windows updater
         shell: bash
         env:
@@ -78,10 +103,10 @@ jobs:
           version=$(node -p 'require("./tauri.conf.json").version')
           tag="v$version"
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" dist/setup.exe dist/setup.exe.sig --target "$GITHUB_SHA" --title "$tag" --generate-notes
+            gh release create "$tag" dist/setup.exe dist/setup.exe.sig --target "$BUILD_SHA" --title "$tag" --generate-notes
           else
             git fetch origin "refs/tags/$tag:refs/tags/$tag"
-            test "$(git rev-list -1 "$tag")" = "$GITHUB_SHA"
+            test "$(git rev-list -1 "$tag")" = "$BUILD_SHA"
             gh release download "$tag" -p setup.exe -D existing
             cmp dist/setup.exe existing/setup.exe
           fi

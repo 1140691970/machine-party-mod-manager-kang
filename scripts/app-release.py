@@ -29,7 +29,8 @@ def upload(key, file, condition):
 
 
 def read(url):
-    with urllib.request.urlopen(url, timeout=90) as response:
+    request = urllib.request.Request(url, headers={"User-Agent": "MachinePartyModManager-Release/" + version})
+    with urllib.request.urlopen(request, timeout=90) as response:
         return response.read(), response.headers.get("ETag")
 
 
