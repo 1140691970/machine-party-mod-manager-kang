@@ -1,0 +1,18 @@
+{
+  "name": "machine-party-mod-manager",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Free community mod manager for Machine Party: browse verified mods, install and restore them from one desktop app",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "check:architecture": "node scripts/check_architecture.mjs",
+    "dev": "cargo run --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "test:rust": "cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "lint:rust": "cargo fmt --check --manifest-path apps/desktop/src-tauri/Cargo.toml && cargo clippy --locked --all-targets --manifest-path apps/desktop/src-tauri/Cargo.toml -- -D warnings"
+  },
+  "license": "GPL-3.0-only"
+}
