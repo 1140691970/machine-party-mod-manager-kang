@@ -50,6 +50,14 @@ npm run test:rust
 
 **Source checks** 工作流程在每次 push 與 PR 時執行相同命令。介面改動需附截圖。建置成功不代表 Windows 安裝、遊戲還原或更新已驗證，請說明實際做過的實機測試。
 
+## 在 macOS 上模擬模組安裝
+
+Steam 上的 Machine Party 僅支援 Windows，不考慮在 macOS 上遊玩。在進入 Windows 實機驗收（P2）之前，macOS 開發期透過三層模擬驗證安裝邏輯（[ADR-007](../architecture/ADR-007-mod-adapters.md)）：
+
+- **L1（單元與契約測試）**：`FakeRunner` 搭配合成的 Godot PCK（僅數 KB，含合法 `GDPC` 檔頭與 `res://` 索引）及故障注入，驗證下載中斷、寫入崩潰、Steam 更新、未知修改與檔案佔用。
+- **L2（真實子進程測試）**：`ProcessRunner` 執行重現 Overtime 參數與 `State:` 輸出協議的跨平台假 CLI 腳本，並在 `python3` 下使用跨平台上游腳本（如 `install.py`）操作合成 PCK。
+- **L3（本機原版 PCK + Mono）**：僅限本機驗證，使用 Mono 執行 `overtime_install.exe` 操作未提交的 Windows 原版 `Machine Party.pck`（v2.1.2，SHA-256 `326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e`）。切勿將遊戲檔案（`Machine Party.pck`）提交到儲存庫。
+
 ## 常見改動
 
 - **新增或修改模組**：只改 `catalog/mods.json`。三種語言的 `name`、`summary`、`detail` 都要填寫，維持 `id` 與 `repo` 不變；若設定了 `image`，在 `apps/desktop/ui/images/{image}.png` 加入封面。收錄流程見[模組目錄指南](../catalog/mods.md)。

@@ -32,7 +32,7 @@ flowchart LR
 
 ## 遊戲定位與辨識
 
-首版以 Windows Steam 版為目標。由 Steam 安裝位置讀取遊戲庫清單，在各庫查找 App ID 4108000 的安裝清單，使用其安裝路徑尋找遊戲執行檔及 PCK。允許從已知的版本子目錄定位檔案。記錄 Steam build、實際路徑及資料檔雜湊；相容性以經實測的組合為準。玩家搬移遊戲後重新檢查，備份按副本和安裝前的檔案指紋保存。
+Steam 上的 Machine Party（App ID 4108000）僅支援 Windows，不考慮在 macOS 上遊玩。App 由 Steam 安裝位置讀取遊戲庫清單，在各庫查找 App ID 4108000 的安裝清單，並區分已保存的遊戲根目錄（作為 `installations.json` 的鍵）與解析出的實際存放執行檔及 `Machine Party.pck` 的內層目錄（如 `Machine Party_Windows`）。記錄 Steam build、實際路徑及資料檔雜湊；相容性以經實測的組合為準。玩家搬移遊戲後重新檢查，備份按副本和安裝前的檔案指紋保存。
 
 ## 目錄、搜尋與下載
 
@@ -42,7 +42,7 @@ flowchart LR
 
 ## 安裝、切換與恢復（設計草案）
 
-完整流程與約束見 [ADR-005](ADR-005-install-transactions.md)。摘要：鎖定副本並檢查遊戲進程、版本、空間與依賴；在暫存區備妥並校驗套件；先寫入安裝紀錄與備份，再套用；讀回驗證後才記錄成功；中斷後依紀錄與磁碟實況恢復，遇到 Steam 更新或未知修改時停止覆寫。
+完整流程與約束見 [ADR-005](ADR-005-install-transactions.md) 與 [ADR-007](ADR-007-mod-adapters.md)。摘要：無 Tauri 相依的 Rust 交易引擎負責鎖定副本並檢查遊戲進程、版本、空間與衝突；在 Rust 端從 Worker 端點下載套件到暫存區並校驗；寫入安裝前指紋與分級備份（支援差量還原時鏡像還原資料與離線 CLI，否則保存整包 PCK 備份）；再依 `catalog/mods.json` 中的宣告式 `adapter` 設定派發至內建適配器工廠（`upstream-cli`、`loader-files`）。讀回驗證後才記錄成功；中斷後依紀錄與磁碟實況恢復，遇到 Steam 更新或未知修改時停止覆寫。在進入 Windows P2 實機驗收前，macOS 開發期透過 L1（合成 PCK 與 `FakeRunner`）、L2（真實子進程）、L3（本機原版 PCK 搭配 Mono）三層模擬驗證。
 
 ## 是否維護 fork
 
@@ -56,3 +56,4 @@ flowchart LR
 - [ADR-004：按語言組織文件](ADR-004-language-documentation.md)
 - [ADR-005：模組安裝交易與備份（提議）](ADR-005-install-transactions.md)
 - [ADR-006 · 線上模組目錄](ADR-006-online-catalog.md)
+- [ADR-007：模組適配層與 macOS 模擬驗證（提議）](ADR-007-mod-adapters.md)

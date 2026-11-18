@@ -50,6 +50,14 @@ npm run test:rust
 
 The **Source checks** workflow runs the same commands on every push and pull request. UI changes need a screenshot. Builds do not prove Windows installs, game restoration or updates; describe what was tested physically.
 
+## Simulating mod installation on macOS
+
+Machine Party on Steam is Windows-only, so playing the game on macOS is out of scope. Before physical Windows verification (P2), installation logic is verified on macOS across three simulation tiers ([ADR-007](../architecture/ADR-007-mod-adapters.md)):
+
+- **L1 (Unit and contract tests)**: `FakeRunner` with a synthetic Godot PCK (a few KB with valid `GDPC` header and `res://` index) and fault injection for interrupted downloads, crashed writes, Steam updates, unknown modifications and locked files.
+- **L2 (Real subprocess tests)**: `ProcessRunner` executing a cross-platform fake CLI script matching Overtime's flags and `State:` output, plus cross-platform upstream scripts such as `install.py` under `python3` against synthetic PCKs.
+- **L3 (Local vanilla PCK + Mono)**: local-only verification with Mono running `overtime_install.exe` against an uncommitted copy of the Windows vanilla `Machine Party.pck` (v2.1.2, SHA-256 `326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e`). Never commit game files (`Machine Party.pck`) to the repository.
+
 ## Common changes
 
 - **Add or edit a mod**: change `catalog/mods.json` only. Provide `name`, `summary` and `detail` in all three languages, keep `id` and `repo` stable, and add a cover to `apps/desktop/ui/images/{image}.png` if `image` is set. Inclusion follows the [mod catalog guide](../catalog/mods.md).

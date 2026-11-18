@@ -32,7 +32,7 @@ flowchart LR
 
 ## 游戏定位与识别
 
-首版以 Windows Steam 版为目标。从 Steam 安装位置读取游戏库清单，在各库中查找 App ID 4108000 的安装清单，用其安装路径寻找游戏可执行文件及 PCK。允许从已知的版本子目录定位文件。记录 Steam build、实际路径及数据文件哈希；兼容性以实测过的组合为准。玩家移动游戏后重新检查，备份按副本和安装前的文件指纹保存。
+Steam 上的 Machine Party（App ID 4108000）仅支持 Windows，不考虑在 macOS 上游玩。App 从 Steam 安装位置读取游戏库清单，在各库中查找 App ID 4108000 的安装清单，并区分保存的游戏根目录（用作 `installations.json` 的键）与解析出的实际存放可执行文件及 `Machine Party.pck` 的内层目录（如 `Machine Party_Windows`）。记录 Steam build、实际路径及数据文件哈希；兼容性以实测过的组合为准。玩家移动游戏后重新检查，备份按副本和安装前的文件指纹保存。
 
 ## 目录、搜索与下载
 
@@ -42,7 +42,7 @@ flowchart LR
 
 ## 安装、切换与恢复（设计草案）
 
-完整流程与约束见 [ADR-005](ADR-005-install-transactions.md)。摘要：锁定副本并检查游戏进程、版本、空间与依赖；在暂存区备好并校验安装包；先写入安装记录与备份，再应用；读回验证后才记录成功；中断后根据记录与磁盘实况恢复，遇到 Steam 更新或未知修改时停止覆盖。
+完整流程与约束见 [ADR-005](ADR-005-install-transactions.md) 与 [ADR-007](ADR-007-mod-adapters.md)。摘要：无 Tauri 依赖的 Rust 交易引擎负责锁定副本并检查游戏进程、版本、空间与冲突；在 Rust 端从 Worker 端点下载安装包到暂存区并校验；写入安装前指纹与分级备份（支持差量还原时镜像还原数据与离线 CLI，否则保存整包 PCK 备份）；再依据 `catalog/mods.json` 中的声明式 `adapter` 配置派发至内置适配器工厂（`upstream-cli`、`loader-files`）。读回验证后才记录成功；中断后根据记录与磁盘实况恢复，遇到 Steam 更新或未知修改时停止覆盖。在进入 Windows P2 实机验收前，macOS 开发期通过 L1（合成 PCK 与 `FakeRunner`）、L2（真实子进程）、L3（本机原版 PCK 搭配 Mono）三层模拟验证。
 
 ## 是否维护 fork
 
@@ -56,3 +56,4 @@ flowchart LR
 - [ADR-004：按语言组织文档](ADR-004-language-documentation.md)
 - [ADR-005：模组安装交易与备份（提议）](ADR-005-install-transactions.md)
 - [ADR-006 · 在线模组目录](ADR-006-online-catalog.md)
+- [ADR-007：模组适配层与 macOS 模拟验证（提议）](ADR-007-mod-adapters.md)

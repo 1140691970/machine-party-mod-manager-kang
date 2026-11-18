@@ -32,7 +32,7 @@ Local data lives in the app configuration directory. `game-path.json` stores the
 
 ## Locating and identifying the game
 
-The first release targets the Windows Steam version. The app reads Steam library folders, finds the manifest for App ID 4108000 in each library, and uses its install path to locate the game executable and PCK, including known version subfolders. It records the Steam build, the actual path and data file hashes; compatibility is defined by tested combinations. When a player moves the game it is rechecked, and backups are stored per copy with pre-install fingerprints.
+Machine Party on Steam (App ID 4108000) is Windows-only; playing the game on macOS is out of scope. The app reads Steam library folders, finds the manifest for App ID 4108000 in each library, and separates the saved game root path (used as the key in `installations.json`) from the resolved inner directory that holds the game executable and `Machine Party.pck` (such as `Machine Party_Windows`). It records the Steam build, the actual path and data file hashes; compatibility is defined by tested combinations. When a player moves the game it is rechecked, and backups are stored per copy with pre-install fingerprints.
 
 ## Catalog, search and downloads
 
@@ -42,7 +42,7 @@ The production catalog is served through a Cloudflare Worker on a custom domain.
 
 ## Install, switch and recovery (design draft)
 
-See [ADR-005](ADR-005-install-transactions.md) for the full flow and constraints. In short: lock the copy and check the game process, version, space and dependencies; prepare and verify packages in staging; write the install record and backup before applying; record success only after reading back; after interruption recover from the record and real disk state, and stop rather than overwrite when Steam updated the game or unknown modifications exist.
+See [ADR-005](ADR-005-install-transactions.md) and [ADR-007](ADR-007-mod-adapters.md) for the full flow and constraints. In short: a Tauri-free Rust transaction engine locks the copy, checks the game process, version, space and conflicts, downloads and verifies packages in staging from the Worker origin, records pre-install fingerprints and a tiered backup (mirrored delta restore data plus offline CLI where supported, or a full PCK backup), and dispatches to a built-in adapter factory (`upstream-cli`, `loader-files`) using declarative `adapter` profiles in `catalog/mods.json`. It records success only after read-back verification, reconciles disk state after interruption, and stops rather than overwrites when Steam updated the game or unknown modifications exist. On macOS, development verification runs across three simulation tiers (L1 synthetic PCK and `FakeRunner`, L2 real subprocesses, and L3 local vanilla PCK with Mono) before physical Windows P2 acceptance.
 
 ## Whether to maintain forks
 
@@ -56,3 +56,4 @@ Use the author's published CLI or underlying install script first. The app itsel
 - [ADR-004: Documentation organised by language](ADR-004-language-documentation.md)
 - [ADR-005: Mod install transactions and backups (proposed)](ADR-005-install-transactions.md)
 - [ADR-006 · Online mod catalog](ADR-006-online-catalog.md)
+- [ADR-007: Mod adapters and macOS simulation (proposed)](ADR-007-mod-adapters.md)
