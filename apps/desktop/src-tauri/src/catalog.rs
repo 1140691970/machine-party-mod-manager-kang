@@ -398,7 +398,7 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-10").len(), 6);
+        assert_eq!(preview_entries("0.1.2-10").len(), 7);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -406,6 +406,7 @@ mod tests {
             "binary1936-8p",
             "roller-carnival",
             "lobby-bots",
+            "standalone-hd",
         ] {
             let mut item = entry(id).unwrap();
             assert!(matches_preview(&item, "0.1.2-10"), "{id}");
@@ -484,7 +485,7 @@ mod tests {
             Some("binary-tree-v1")
         );
         let entries = all_entries();
-        assert_eq!(entries.len(), 6);
+        assert_eq!(entries.len(), 7);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
         assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller
