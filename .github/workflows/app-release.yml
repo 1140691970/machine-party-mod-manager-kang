@@ -14,6 +14,10 @@ on:
         description: Optional previous desktop build run ID to retry the same installers
         required: false
         type: string
+env:
+  WINDOWS_SIGNING_PROVIDER: ${{ vars.WINDOWS_SIGNING_PROVIDER }}
+  WINDOWS_SIGNING_SUBJECT: ${{ vars.WINDOWS_SIGNING_SUBJECT }}
+  WINDOWS_SIGNING_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
 permissions:
   contents: read
 concurrency:
@@ -35,18 +39,33 @@ jobs:
         shell: pwsh
         working-directory: apps/desktop/src-tauri
         env:
-          CERT_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
+          ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
         run: |
-          if (!$env:CERT_THUMBPRINT) { throw 'Configure the Windows signing runner and publisher thumbprint before building desktop releases.' }
-          if ($env:CERT_THUMBPRINT -notmatch '^[a-fA-F0-9]{40}$') { throw 'Invalid signing thumbprint' }
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $config = Get-Content tauri.windows.conf.json -Raw | ConvertFrom-Json -AsHashtable
-          $config.bundle.windows.certificateThumbprint = $env:CERT_THUMBPRINT
-          $config.bundle.windows.digestAlgorithm = 'sha256'
-          $config.bundle.windows.timestampUrl = 'http://timestamp.digicert.com'
+          if ($env:WINDOWS_SIGNING_PROVIDER -eq 'azure') {
+            if (!$env:WINDOWS_SIGNING_SUBJECT -or $env:ENDPOINT -notmatch '^https://[a-z0-9-]+\.codesigning\.azure\.net/?$') {
+              throw 'Configure Azure Public Trust endpoint and validated publisher subject.'
+            }
+            cargo install artifact-signing-cli --version 0.12.0 --locked
+            $config.bundle.windows.signCommand = @{ cmd='artifact-signing-cli'; args=@('-e', $env:ENDPOINT, '%1') }
+          } elseif (!$env:WINDOWS_SIGNING_PROVIDER -or $env:WINDOWS_SIGNING_PROVIDER -eq 'store') {
+            if ($env:WINDOWS_SIGNING_THUMBPRINT -notmatch '^[a-fA-F0-9]{40}$') {
+              throw 'No signing identity: configure a Windows signing runner and thumbprint, or configure Azure Public Trust.'
+            }
+            $config.bundle.windows.certificateThumbprint = $env:WINDOWS_SIGNING_THUMBPRINT
+            $config.bundle.windows.digestAlgorithm = 'sha256'
+            $config.bundle.windows.timestampUrl = 'http://timestamp.digicert.com'
+          } else { throw 'Unknown Windows signing provider.' }
           $config | ConvertTo-Json -Depth 8 | Set-Content tauri.windows.conf.json
       - name: Build Windows installer and older acceptance client
         env:
-          CERT_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
+          AZURE_ARTIFACT_SIGNING_ACCOUNT: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT }}
+          AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE: ${{ vars.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         shell: pwsh
         working-directory: apps/desktop/src-tauri
         run: |
@@ -59,7 +78,7 @@ jobs:
           npx --yes --package @tauri-apps/cli@2.12.5 tauri build --bundles nsis -- --locked
           Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist setup.exe)
           foreach ($file in @('target/release/machine-party-mod-manager.exe', "$dist/setup.exe")) {
-            & "$env:GITHUB_WORKSPACE/scripts/verify-windows-signature.ps1" -Path $file -Thumbprint $env:CERT_THUMBPRINT
+            & "$env:GITHUB_WORKSPACE/scripts/verify-windows-signature.ps1" -Path $file
           }
           $overlay = @{version='0.0.1'; plugins=@{updater=@{endpoints=@("https://machineparty.ailaogong.men/v1/app-downloads/$version/manifest.json")}}}
           $overlay | ConvertTo-Json -Depth 6 | Set-Content acceptance.json
@@ -94,7 +113,7 @@ jobs:
           path: dist/windows-ui/
           if-no-files-found: warn
   build-mac:
-    if: github.ref == 'refs/heads/main' && inputs.build_run == ''
+    if: github.ref == 'refs/heads/main' && inputs.build_run == '' && !inputs.publish_preview
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -155,11 +174,10 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe -Thumbprint $env:EXPECTED
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe
           $version = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           if ($version -notmatch '^\d+\.\d+\.\d+-\d+$') { throw 'Choose a new Windows prerelease version.' }
           gh release create "v$version" dist/setup.exe --target $env:GITHUB_SHA --prerelease --latest=false --title "v$version" --generate-notes
@@ -205,10 +223,8 @@ jobs:
           run-id: ${{ inputs.build_run || github.run_id }}
       - name: Validate stable Windows publisher
         shell: pwsh
-        env:
-          EXPECTED: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
         run: |
-          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe -Thumbprint $env:EXPECTED
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe
       - name: Sign platform updates
         shell: bash
         env:

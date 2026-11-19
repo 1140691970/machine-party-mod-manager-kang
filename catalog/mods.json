@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.2",
+  "revision": "2026-11-19.3",
   "mods": [
     {
       "id": "overtime",
@@ -17,7 +17,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-3",
+      "windowsPreview": "0.1.2-4",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],

@@ -59,7 +59,7 @@ test("overtime declares a valid upstream-cli adapter profile", () => {
 });
 
 test("the preview displays exactly the remotely supplied catalog rows and metadata", () => {
-  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-3");
+  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-4");
   const live = {...preview, name:{...preview.name,en:"Updated online"}};
   assert.equal(sortMods({mods:[live]})[0], live);
   assert.deepEqual(sortMods({mods:[]}), []);

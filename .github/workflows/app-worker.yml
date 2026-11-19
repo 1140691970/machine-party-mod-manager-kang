@@ -6,6 +6,10 @@ on:
         description: Optional published Windows prerelease tag to mirror in R2
         type: string
         required: false
+env:
+  WINDOWS_SIGNING_PROVIDER: ${{ vars.WINDOWS_SIGNING_PROVIDER }}
+  WINDOWS_SIGNING_SUBJECT: ${{ vars.WINDOWS_SIGNING_SUBJECT }}
+  WINDOWS_SIGNING_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
 permissions:
   contents: read
 jobs:
@@ -21,14 +25,13 @@ jobs:
         shell: pwsh
         env:
           PREVIEW_TAG: ${{ inputs.preview_tag }}
-          EXPECTED: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
           if ($env:PREVIEW_TAG -notmatch '^v\d+\.\d+\.\d+-\d+$') { throw 'Invalid preview tag' }
           gh release download $env:PREVIEW_TAG --pattern setup.exe --dir dist
-          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe -Thumbprint $env:EXPECTED
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe
           $digest = (Get-FileHash dist/setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "digest=sha256:$digest" >> $env:GITHUB_OUTPUT
   deploy:
@@ -41,7 +44,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node scripts/deploy-worker.mjs
+      - if: inputs.preview_tag == ''
+        run: node scripts/deploy-worker.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
