@@ -5,7 +5,8 @@ export default {
     if (path === "/v1/catalog.json" || path.startsWith("/v1/downloads/"))
       return env.CATALOG.fetch(request);
     const stable = path === "/v1/app-updates/stable/latest.json";
-    const asset = /^\/v1\/app-downloads\/(\d+\.\d+\.\d+)\/(setup\.exe|MachineParty-aarch64\.app\.tar\.gz|manifest\.json)$/.exec(path);
+    const preview = /^\/v1\/app-downloads\/(\d+\.\d+\.\d+-\d+)\/(setup\.exe)$/.exec(path);
+    const asset = preview || /^\/v1\/app-downloads\/(\d+\.\d+\.\d+)\/(setup\.exe|MachineParty-aarch64\.app\.tar\.gz|manifest\.json)$/.exec(path);
     if (!stable && !asset) return new Response(null, {status: 404});
     const key = stable ? "app-releases/stable/latest.json" : `app-releases/${asset[1]}/${asset[2]}`;
     const object = request.method === "HEAD" ? await env.RELEASES.head(key) : await env.RELEASES.get(key);

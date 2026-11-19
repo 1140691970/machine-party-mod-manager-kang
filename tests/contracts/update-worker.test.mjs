@@ -40,3 +40,16 @@ test("serves the Apple Silicon update archive from its versioned R2 key",async()
   assert.equal(await response.text(),"archive");
   assert.deepEqual(worker.reads,[["get","app-releases/0.1.1/"+file]]);
 });
+
+test("a Windows preview installer is served from its versioned R2 key", async () => {
+  const source = fixture("installer");
+  const url = "/v1/app-downloads/0.1.2-3/";
+  const response = await source.fetch(url + "setup.exe");
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Location"), null);
+  assert.equal(await response.text(), "installer");
+  assert.equal((await source.fetch(url + "setup.exe", "HEAD")).status, 200);
+  assert.equal((await source.fetch(url + "manifest.json")).status, 404);
+  assert.equal((await source.fetch(url + "secret")).status, 404);
+  assert.deepEqual(source.reads,[["get","app-releases/0.1.2-3/setup.exe"],["head","app-releases/0.1.2-3/setup.exe"]]);
+});

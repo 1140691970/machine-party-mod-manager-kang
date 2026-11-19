@@ -19,10 +19,8 @@ Early prototype built with Rust and Tauri 2.
 
 ## Download
 
-Get the latest build from [Releases](https://github.com/JamesGZM/machine-party-mod-manager/releases/latest).
-
-- **Windows x64**: run `setup.exe`.
-- **Apple Silicon Mac**: extract `MachineParty-aarch64.app.tar.gz` and move the app to a writable Applications folder. It is ad hoc signed and not notarised.
+- **Windows x64** · [Stable v0.1.1](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-3](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-3/setup.exe)
+- **Apple Silicon Mac**: extract [MachineParty-aarch64.app.tar.gz](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) and move the app to a writable Applications folder. It is ad hoc signed and not notarised.
 
 Installed copies update themselves from Settings or when prompted at startup.
 

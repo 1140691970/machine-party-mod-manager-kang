@@ -19,10 +19,8 @@
 
 ## 下载
 
-从 [Releases](https://github.com/JamesGZM/machine-party-mod-manager/releases/latest) 下载最新版本。
-
-- **Windows x64**：运行 `setup.exe`。
-- **Apple Silicon Mac**：解压 `MachineParty-aarch64.app.tar.gz`，把 App 移到可写的应用程序目录。此版本使用 ad hoc 签名，未经公证。
+- **Windows x64** · [正式版 v0.1.1](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-3](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-3/setup.exe)
+- **Apple Silicon Mac**：解压 [MachineParty-aarch64.app.tar.gz](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz)，把 App 移到可写的应用程序目录。此版本使用 ad hoc 签名，未经公证。
 
 安装后可在设置页或启动提示中自动更新。
 

@@ -1,5 +1,11 @@
 name: Deploy app update Worker
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      preview_tag:
+        description: Optional published Windows prerelease tag to mirror in R2
+        type: string
+        required: false
 permissions:
   contents: read
 jobs:
@@ -16,3 +22,34 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Mirror published Windows prerelease
+        if: inputs.preview_tag != ''
+        env:
+          PREVIEW_TAG: ${{ inputs.preview_tag }}
+          GH_TOKEN: ${{ github.token }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+          AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+          ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          BUCKET: ${{ vars.R2_BUCKET_NAME }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$PREVIEW_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-[0-9]+$ ]]
+          [[ "$BUCKET" == machine-party-mods && "$ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]
+          digest=$(gh release view "$PREVIEW_TAG" --json isPrerelease,assets --jq 'select(.isPrerelease) | .assets[] | select(.name == "setup.exe") | .digest')
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          gh release download "$PREVIEW_TAG" --pattern setup.exe --dir "$RUNNER_TEMP/preview"
+          cd "$RUNNER_TEMP/preview"
+          echo "${digest#sha256:}  setup.exe" | sha256sum --check
+          version=${PREVIEW_TAG#v}
+          url="https://machineparty.ailaogong.men/v1/app-downloads/$version/setup.exe"
+          if ! curl --fail --silent --show-error "$url" -o published.exe; then
+            aws --endpoint-url "https://$ACCOUNT_ID.r2.cloudflarestorage.com" s3api put-object --bucket "$BUCKET" --key "app-releases/$version/setup.exe" --body setup.exe --if-none-match '*'
+            curl --fail --silent --show-error --retry 3 "$url" -o published.exe
+          fi
+          cmp setup.exe published.exe
+          echo "Verified $url"
