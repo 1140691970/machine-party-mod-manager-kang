@@ -6,6 +6,10 @@ on:
         description: Test an already staged update without publishing
         type: boolean
         default: false
+      publish_preview:
+        description: Publish a signed Windows GitHub prerelease after acceptance
+        type: boolean
+        default: false
       build_run:
         description: Optional previous desktop build run ID to retry the same installers
         required: false
@@ -32,13 +36,8 @@ jobs:
         working-directory: apps/desktop/src-tauri
         env:
           CERT_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
-          VERIFY_ONLY: ${{ inputs.verify_only }}
         run: |
-          if (!$env:CERT_THUMBPRINT) {
-            if ($env:VERIFY_ONLY -ne 'true') { throw 'Configure Windows code signing before stable publication.' }
-            Write-Host 'Unsigned preview build'
-            exit 0
-          }
+          if (!$env:CERT_THUMBPRINT) { throw 'Configure the Windows signing runner and publisher thumbprint before building desktop releases.' }
           if ($env:CERT_THUMBPRINT -notmatch '^[a-fA-F0-9]{40}$') { throw 'Invalid signing thumbprint' }
           $config = Get-Content tauri.windows.conf.json -Raw | ConvertFrom-Json -AsHashtable
           $config.bundle.windows.certificateThumbprint = $env:CERT_THUMBPRINT
@@ -59,11 +58,8 @@ jobs:
           New-Item -ItemType Directory $dist | Out-Null
           npx --yes --package @tauri-apps/cli@2.12.5 tauri build --bundles nsis -- --locked
           Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist setup.exe)
-          if ($env:CERT_THUMBPRINT) {
-            foreach ($file in @('target/release/machine-party-mod-manager.exe', "$dist/setup.exe")) {
-              $signature = Get-AuthenticodeSignature $file
-              if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $env:CERT_THUMBPRINT -or !$signature.TimeStamperCertificate) { throw "Invalid Authenticode signature on $file" }
-            }
+          foreach ($file in @('target/release/machine-party-mod-manager.exe', "$dist/setup.exe")) {
+            & "$env:GITHUB_WORKSPACE/scripts/verify-windows-signature.ps1" -Path $file -Thumbprint $env:CERT_THUMBPRINT
           }
           $overlay = @{version='0.0.1'; plugins=@{updater=@{endpoints=@("https://machineparty.ailaogong.men/v1/app-downloads/$version/manifest.json")}}}
           $overlay | ConvertTo-Json -Depth 6 | Set-Content acceptance.json
@@ -142,9 +138,34 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ inputs.build_run }}
       - run: ./scripts/test-upgrade.ps1
+  publish-preview:
+    if: inputs.publish_preview && !inputs.verify_only && github.ref == 'refs/heads/main'
+    needs: [build, windows-acceptance]
+    runs-on: windows-2022
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-installers
+          path: dist
+      - name: Verify publisher and publish Windows prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe -Thumbprint $env:EXPECTED
+          $version = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ($version -notmatch '^\d+\.\d+\.\d+-\d+$') { throw 'Choose a new Windows prerelease version.' }
+          gh release create "v$version" dist/setup.exe --target $env:GITHUB_SHA --prerelease --latest=false --title "v$version" --generate-notes
   release:
     needs: [build, build-mac, windows-acceptance]
-    if: always() && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.build-mac.result == 'success' && needs.windows-acceptance.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
+    if: always() && !inputs.publish_preview && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.build-mac.result == 'success' && needs.windows-acceptance.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
     runs-on: windows-2022
     environment: production
     permissions:
@@ -187,10 +208,7 @@ jobs:
         env:
           EXPECTED: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
         run: |
-          $signature = Get-AuthenticodeSignature dist/setup.exe
-          if (!$env:EXPECTED -or $signature.Status -ne 'Valid' -or $signature.SignerCertificate.Thumbprint -ne $env:EXPECTED -or !$signature.TimeStamperCertificate) {
-            throw 'Stable publication requires a timestamped, trusted Windows signature.'
-          }
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe -Thumbprint $env:EXPECTED
       - name: Sign platform updates
         shell: bash
         env:

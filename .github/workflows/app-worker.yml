@@ -9,7 +9,31 @@ on:
 permissions:
   contents: read
 jobs:
+  verify-preview:
+    if: inputs.preview_tag != ''
+    runs-on: windows-2022
+    outputs:
+      digest: ${{ steps.verify.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GitHub installer publisher
+        id: verify
+        shell: pwsh
+        env:
+          PREVIEW_TAG: ${{ inputs.preview_tag }}
+          EXPECTED: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ($env:PREVIEW_TAG -notmatch '^v\d+\.\d+\.\d+-\d+$') { throw 'Invalid preview tag' }
+          gh release download $env:PREVIEW_TAG --pattern setup.exe --dir dist
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe -Thumbprint $env:EXPECTED
+          $digest = (Get-FileHash dist/setup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "digest=sha256:$digest" >> $env:GITHUB_OUTPUT
   deploy:
+    needs: verify-preview
+    if: always() && !cancelled() && (inputs.preview_tag == '' || needs.verify-preview.result == 'success')
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -28,6 +52,7 @@ jobs:
         env:
           PREVIEW_TAG: ${{ inputs.preview_tag }}
           GH_TOKEN: ${{ github.token }}
+          VERIFIED_DIGEST: ${{ needs.verify-preview.outputs.digest }}
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: auto
@@ -42,6 +67,7 @@ jobs:
           [[ "$BUCKET" == machine-party-mods && "$ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]]
           digest=$(gh release view "$PREVIEW_TAG" --json isPrerelease,assets --jq 'select(.isPrerelease) | .assets[] | select(.name == "setup.exe") | .digest')
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$digest" == "$VERIFIED_DIGEST" ]]
           gh release download "$PREVIEW_TAG" --pattern setup.exe --dir "$RUNNER_TEMP/preview"
           cd "$RUNNER_TEMP/preview"
           echo "${digest#sha256:}  setup.exe" | sha256sum --check
