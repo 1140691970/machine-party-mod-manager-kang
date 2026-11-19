@@ -10,6 +10,7 @@ export const messages = {
   cached:["已缓存","已快取","Cached"],
   backup:["备份","備份","Backup"],
   clearCache:["清除此下载","清除此下載","Clear download"],
+  detectedVersion:["当前游戏版本","目前遊戲版本","Detected game version"],
   supportedGame:["支持游戏版本","支援遊戲版本","Game version"],
   supportUnknown:["支持版本待确认","支援版本待確認","Game compatibility unconfirmed"],
   fullCheck:["重新校验文件","重新校驗檔案","Verify game files"],

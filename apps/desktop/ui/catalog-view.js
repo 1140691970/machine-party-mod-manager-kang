@@ -44,6 +44,8 @@ function details(mod) {
   if (state.scan === "failed") parts.push(element("p", t(state.scanError) || t("statusUnavailable"), "error"));
   if (!mod.verified && mod !== state.previewMod) parts.push(element("p", t("installPending")));
   if (state.pckDir) parts.push(element("p", state.pckDir));
+  if (state.lastScan?.pckSha256 === mod.adapter?.baseline?.sha256 && mod.adapter && mod.supportedGameVersions?.length === 1)
+    parts.push(element("p", t("detectedVersion") + " · " + mod.supportedGameVersions[0]));
   if (state.lastScan?.pckSha256) parts.push(element("p", "SHA-256 · " + state.lastScan.pckSha256, "file-detail"));
   const repair = state.lastScan?.repair?.[mod.id];
   if (repair) parts.push(element("p", t("backup") + " · " + repair[0], "file-detail"));
@@ -94,8 +96,8 @@ function cover(mod, name, status) {
   return box;
 }
 
-async function perform(mod, action, path) {
-  if (state.busyMod || (path && path !== state.game)) return;
+async function perform(mod, action, path, expectedDir) {
+  if (state.busyMod || (path && (path !== state.game || expectedDir !== state.pckDir))) return;
   state.busyMod = mod.id;
   render();
   const bar = progress();
@@ -104,10 +106,10 @@ async function perform(mod, action, path) {
     if (action === "download") {
       await downloadMod(mod, pct => bar.set(pct));
       state.packages[mod.id] = mod.package.sha256;
-      if (state.modStates[mod.id] === "identifyPending") await syncGameMods(true);
+      if (state.scan === "failed" || state.modStates[mod.id] === "identifyPending") await syncGameMods(true);
     } else {
-      const validation = action === "uninstall" ? await uninstallMod(path, mod)
-        : await installMod(path, mod, action === "adoptManual");
+      const validation = action === "uninstall" ? await uninstallMod(path, mod, expectedDir)
+        : await installMod(path, mod, action === "adoptManual", expectedDir);
       applyValidation(validation, path);
     }
     closeDialog();
@@ -131,7 +133,8 @@ function primaryAction(mod, name, local) {
     if (action === "retryCheck") return syncGameMods(true);
     if (action === "download") return perform(mod, action, "");
     const path = state.game;
-    show(t(action) + " · " + name, element("p", state.pckDir), button(t(action), () => perform(mod, action, path), "primary"));
+    const target = state.pckDir;
+    show(t(action) + " · " + name, element("p", target), button(t(action), () => perform(mod, action, path, target), "primary"));
   }, ["review", "uninstall", "checking"].includes(action) ? "secondary" : "primary");
   el.disabled = Boolean(state.busyMod) || action === "checking";
   el.classList.add("btn-block");

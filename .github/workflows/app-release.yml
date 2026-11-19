@@ -72,6 +72,7 @@ jobs:
           Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist bootstrap.exe)
       - name: Verify clean install and upgrade from the Chinese directory
         if: runner.environment == 'github-hosted'
+        timeout-minutes: 8
         shell: pwsh
         run: ./scripts/test-windows-install.ps1 -Installer (Resolve-Path dist/setup.exe)
       - uses: actions/upload-artifact@v4

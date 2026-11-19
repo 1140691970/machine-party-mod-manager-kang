@@ -3,6 +3,7 @@ import { button, closeDialog, element, show } from "./dom.js";
 import { render, state, t } from "./state.js";
 
 let generation = 0;
+let selection = 0;
 let active;
 
 export function applyValidation(validation, path) {
@@ -68,16 +69,20 @@ async function selectPath(path) {
 }
 
 export async function pickGame() {
+  const request = ++selection;
   const path = await chooseGame(t("choose"));
-  if (!path) return;
+  if (!path || request !== selection) return;
   const copies = await gameCopies(path);
+  if (request !== selection) return;
   if (copies.length <= 1) return selectPath(path);
   show(t("choose"), element("p", t("multiple")),
     ...copies.map(copy => button(copy, () => selectPath(copy), "secondary", "folder")));
 }
 
 export async function detectGame(rescan = false) {
+  const request = ++selection;
   const candidates = await findGames(rescan);
+  if (request !== selection) return;
   if (candidates.length === 1) {
     if (rescan) await saveGame(candidates[0]);
     await loadGame(candidates[0]);

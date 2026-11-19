@@ -5,6 +5,7 @@ mod commands;
 mod game;
 mod installer;
 mod inventory;
+mod packages;
 mod preferences;
 
 fn main() {

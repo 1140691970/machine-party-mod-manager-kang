@@ -28,9 +28,9 @@ export function downloadMod(mod, onProgress) {
   return invoke("download_mod", {...release(mod), progress});
 }
 
-export const installMod = (path, mod, adopt) =>
-  invoke("install_mod", {...release(mod), path, adopt, progress: new core.Channel()});
-export const uninstallMod = (path, mod) => invoke("uninstall_mod", {...release(mod), path});
+export const installMod = (path, mod, adopt, expectedDir) =>
+  invoke("install_mod", {...release(mod), path, adopt, expectedDir, progress: new core.Channel()});
+export const uninstallMod = (path, mod, expectedDir) => invoke("uninstall_mod", {...release(mod), path, expectedDir});
 
 export function setAppTitle(title) {
   if (isDesktop) invoke("set_app_title", {title}).catch(console.error);

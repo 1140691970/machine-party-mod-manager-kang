@@ -1674,10 +1674,7 @@ pub fn validate_game_mods(
                 })
             {
                 let pkg = item.package.as_ref().ok_or("missingPackage")?;
-                let zip = config_dir
-                    .join("packages")
-                    .join(&item.id)
-                    .join(&pkg.filename);
+                let zip = crate::packages::existing(config_dir, item)?;
                 if zip.is_file() {
                     let tmp = tempfile::tempdir().map_err(|_| "fileWriteError")?;
                     let staging = tmp.path().join("inspect");
@@ -1736,8 +1733,11 @@ fn scan_stamp(config: &Path, root: &Path, mods: &[ModEntry]) -> Result<ScanStamp
     for item in mods {
         if let Some(adapter) = &item.adapter {
             paths.extend(adapter.touches.iter().map(|name| dir.join(name)));
-            if let Some(pkg) = &item.package {
-                paths.push(config.join("packages").join(&item.id).join(&pkg.filename));
+            let backup = backup_dir_for(config, root, &item.id);
+            paths.push(backup.join(&adapter.baseline.file));
+            paths.push(backup.join(RESTORE_DAT));
+            if item.package.is_some() {
+                paths.push(crate::packages::existing(config, item)?);
             }
         }
     }
@@ -2850,14 +2850,14 @@ print("Patched")
         let v3 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v3.mod_states["overtime"], "gameUpdatedOrModified");
 
-        // 4. Steam verify integrity restores vanilla -> clears stale installations.json
+        // 4. A read-only scan hides the stale inventory entry but preserves recovery evidence.
         fs::write(&pck_path, &pck_bytes).unwrap();
         let _ = fs::remove_file(pck_dir.join(RESTORE_DAT));
         let v4 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v4.mod_states["overtime"], "vanilla");
         assert!(v4.installed.is_empty());
 
-        // 5. Manual install with matching MP8R baseline & length -> manualInstall
+        // 5. A plausible MP8R alone cannot authorize adoption.
         let mut patched = pck_bytes.clone();
         patched.extend_from_slice(b"OVERTIME_1_7");
         fs::write(&pck_path, &patched).unwrap();
@@ -2879,6 +2879,47 @@ print("Patched")
         assert_eq!(v5.mod_states["overtime"], "identifyPending");
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_cli_has_no_console_and_running_game_is_detected_by_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let req = CommandRequest {
+            program: PathBuf::from("python"),
+            args: vec![
+                "-c".into(),
+                "import ctypes; print(int(bool(ctypes.windll.kernel32.GetConsoleWindow())))".into(),
+            ],
+            cwd: root.path().to_owned(),
+        };
+        let out = SystemRunner.run(&req).unwrap();
+        assert_eq!(out.code, 0);
+        assert_eq!(out.stdout.trim(), "0");
+        let source =
+            PathBuf::from(std::env::var_os("SystemRoot").unwrap()).join("System32/cmd.exe");
+        for copy in ["running", "idle"] {
+            let dir = root.path().join(copy);
+            fs::create_dir(&dir).unwrap();
+            fs::copy(&source, dir.join("Machine Party.exe")).unwrap();
+            fs::write(dir.join("Machine Party.pck"), b"copy").unwrap();
+        }
+        let running = root.path().join("running");
+        let idle = root.path().join("idle");
+        let mut child = Command::new(running.join("Machine Party.exe"))
+            .args(["/D", "/Q", "/K"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .creation_flags(0x08000000)
+            .spawn()
+            .unwrap();
+        let blocked =
+            SystemGameLockCheck.ensure_unlocked(&running, &running.join("Machine Party.pck"));
+        let allowed = SystemGameLockCheck.ensure_unlocked(&idle, &idle.join("Machine Party.pck"));
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert_eq!(blocked.unwrap_err(), "gameRunning");
+        allowed.unwrap();
     }
 
     #[test]
@@ -2935,6 +2976,25 @@ print("Patched")
         let v2 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v2.mod_states["overtime"], "installed");
         assert_eq!(v2.installed["DarkJadeStone/MachineParty-Overtime"], "v1.7");
+
+        // The very same bytes without manager records model an existing manual install.
+        let manual = root.join("manual-config");
+        let pkg = overtime.package.as_ref().unwrap();
+        let cached = manual
+            .join("packages")
+            .join(&overtime.id)
+            .join(&pkg.filename);
+        copy_atomic(&src_zip, &cached).unwrap();
+        let identified = validate_game_mods(&manual, &game_root, &mods).unwrap();
+        assert_eq!(identified.mod_states["overtime"], "manualInstall");
+        let adopted =
+            adopt_manual_install(&manual, &game_root, &staging_dir, &overtime, &SystemRunner)
+                .unwrap();
+        assert_eq!(adopted.post_pck, tx.post_pck);
+        assert_eq!(
+            file_fingerprint(&adopted.backup_dir.join("Machine Party.pck")).unwrap(),
+            tx.pre_pck
+        );
 
         fs::remove_dir_all(&staging_dir).unwrap();
         fs::remove_file(pck_dir.join(RESTORE_DAT)).unwrap();

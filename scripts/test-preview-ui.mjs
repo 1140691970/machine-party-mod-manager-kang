@@ -18,15 +18,19 @@ try {
   await until(() => app.evaluate('document.documentElement.lang === "zh-TW" && !!document.querySelector("article")'), "Traditional Chinese UI");
   await app.evaluate('document.querySelector("dialog").close()');
   await shot("catalog");
+  const download = `document.querySelector("article .card-actions button").click()`;
+  await app.evaluate(download);
+  await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("已快取")'), "Verified Windows ZIP download");
   const copy = JSON.stringify(process.env.PREVIEW_FIXTURE);
   await app.evaluate(`window.__TAURI__.core.invoke("save_game",{path:${copy}})`);
   // Capture the prior record as soon as it renders, before waiting for disk verification.
   const checking = await app.command("Page.addScriptToEvaluateOnNewDocument", {source:
     `new MutationObserver(() => {
-      if ([...document.querySelectorAll("article button")].some(b => b.textContent === "檢查中")) window.checkingPainted = true;
+      if ([...document.querySelectorAll("article button")].some(b => b.textContent === "檢查中")) window.checkingPainted ??= performance.now();
     }).observe(document, {subtree:true,childList:true});`});
   await app.command("Page.reload");
   await until(() => app.evaluate('window.checkingPainted'), "Startup verification status");
+  console.log("Saved record visible after navigation (ms):", await app.evaluate("window.checkingPainted"));
   await app.command("Page.removeScriptToEvaluateOnNewDocument", {identifier:checking.identifier});
   await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("需要修復")'), "Stale inventory is not adoptable");
   await shot("needs-repair");

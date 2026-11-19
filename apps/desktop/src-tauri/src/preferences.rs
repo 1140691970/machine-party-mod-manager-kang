@@ -24,7 +24,14 @@ pub fn resolve_cached_or_detect(
     rescan: bool,
     detect: impl FnOnce() -> Vec<PathBuf>,
 ) -> Vec<PathBuf> {
-    let saved = saved_game(config_dir).filter(|path| game::is_game_root(path));
+    let prior = saved_game(config_dir);
+    if !rescan && let Some(path) = &prior {
+        let candidates = game::copy_directories(path);
+        if candidates.len() > 1 {
+            return candidates;
+        }
+    }
+    let saved = prior.filter(|path| game::is_game_root(path));
     if !rescan && let Some(path) = saved {
         return vec![path];
     }

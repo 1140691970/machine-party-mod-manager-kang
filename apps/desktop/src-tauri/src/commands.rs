@@ -9,7 +9,7 @@ use std::{
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, ipc::Channel};
 
-use crate::{catalog, game, installer, inventory, preferences};
+use crate::{catalog, game, installer, inventory, packages, preferences};
 
 fn config_dir(app: &AppHandle) -> Result<PathBuf, String> {
     app.path().app_config_dir().map_err(|e| e.to_string())
@@ -31,15 +31,12 @@ async fn download_package_zip(
     if !is_safe_segment(&mod_entry.id) || !is_safe_segment(&pkg.filename) || pkg.size == 0 {
         return Err("packageCorrupt".into());
     }
-    let cache_dir = config_dir.join("packages").join(&mod_entry.id);
-    let cache_path = cache_dir.join(&pkg.filename);
-    if cache_path.is_file()
-        && installer::file_fingerprint(&cache_path)
-            .is_ok_and(|fp| fp.size == pkg.size && fp.sha256.eq_ignore_ascii_case(&pkg.sha256))
-    {
+    if let Ok(path) = packages::verified(config_dir, mod_entry) {
         let _ = progress.send(100);
-        return Ok(cache_path);
+        return Ok(path);
     }
+    let cache_path = packages::destination(config_dir, mod_entry)?;
+    let cache_dir = cache_path.parent().ok_or("fileWriteError")?;
 
     let url = catalog::download_url(mod_entry)?;
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -56,8 +53,8 @@ async fn download_package_zip(
         return Err("downloadFailed".into());
     }
 
-    fs::create_dir_all(&cache_dir).map_err(|_| "fileWriteError".to_string())?;
-    let mut file = tempfile::NamedTempFile::new_in(&cache_dir).map_err(|_| "fileWriteError")?;
+    fs::create_dir_all(cache_dir).map_err(|_| "fileWriteError".to_string())?;
+    let mut file = tempfile::NamedTempFile::new_in(cache_dir).map_err(|_| "fileWriteError")?;
     let mut hasher = Sha256::new();
     let mut received = 0u64;
     let mut reported = None;
@@ -151,11 +148,6 @@ fn trusted(id: &str, version: &str) -> Result<catalog::ModEntry, String> {
         .ok_or_else(|| "unknownMod".into())
 }
 
-fn package_path(dir: &Path, item: &catalog::ModEntry) -> Result<PathBuf, String> {
-    let pkg = item.package.as_ref().ok_or("missingPackage")?;
-    Ok(dir.join("packages").join(&item.id).join(&pkg.filename))
-}
-
 #[tauri::command]
 pub fn game_copies(path: PathBuf) -> Vec<PathBuf> {
     game::copy_directories(&path)
@@ -188,9 +180,7 @@ pub async fn cached_packages(
         let mut found = std::collections::BTreeMap::new();
         for item in catalog::all_entries() {
             if let Some(pkg) = &item.package
-                && let Ok(path) = package_path(&dir, &item)
-                && path.is_file()
-                && installer::file_fingerprint(&path)?.sha256 == pkg.sha256
+                && packages::verified(&dir, &item).is_ok()
             {
                 found.insert(item.id, pkg.sha256.clone());
             }
@@ -207,11 +197,7 @@ pub async fn clear_package(app: AppHandle, id: String, version: String) -> Resul
     let dir = config_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, &format!("package-{}", item.id))?;
-        let path = package_path(&dir, &item)?;
-        if path.exists() {
-            fs::remove_file(path).map_err(|_| "fileWriteError")?;
-        }
-        Ok(())
+        packages::clear(&dir, &item)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -246,6 +232,7 @@ pub async fn install_mod(
     id: String,
     version: String,
     adopt: Option<bool>,
+    expected_dir: PathBuf,
     progress: Channel<u64>,
 ) -> Result<installer::CopyValidation, String> {
     let mod_entry = trusted(&id, &version)?;
@@ -262,20 +249,19 @@ pub async fn install_mod(
     installer::check_platform_supported(&adapter)?;
 
     let dir = config_dir(&app)?;
-    let zip_path = package_path(&dir, &mod_entry)?;
     let list = catalog::all_entries();
 
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
         let _package = lock_file(&dir, &format!("package-{}", mod_entry.id))?;
-        let pkg = mod_entry.package.as_ref().ok_or("missingPackage")?;
-        if !zip_path.is_file() {
-            return Err("downloadFirst".into());
+        let zip_path = packages::verified(&dir, &mod_entry)?;
+        use installer::GameLockCheck;
+        let pck_dir = game::resolve_pck_dir(&path).ok_or("invalidGame")?;
+        if pck_dir != expected_dir {
+            return Err("statusUnavailable".into());
         }
-        let fp = installer::file_fingerprint(&zip_path)?;
-        if fp.size != pkg.size || fp.sha256 != pkg.sha256 {
-            return Err("packageCorrupt".into());
-        }
+        installer::SystemGameLockCheck
+            .ensure_unlocked(&pck_dir, &pck_dir.join(&adapter.baseline.file))?;
         let validation = installer::validate_game_mods(&dir, &path, &list)?;
         let is_manual = adopt.unwrap_or(false);
         let state = validation.mod_states.get(&id).map(String::as_str);
@@ -291,12 +277,7 @@ pub async fn install_mod(
             .package
             .as_ref()
             .ok_or_else(|| "missingPackage".to_string())?;
-        let pck_dir = game::resolve_pck_dir(&path).ok_or_else(|| "invalidGame".to_string())?;
-
         if is_manual {
-            use installer::GameLockCheck;
-            installer::SystemGameLockCheck
-                .ensure_unlocked(&pck_dir, &pck_dir.join(&adapter.baseline.file))?;
             installer::check_exclusive_conflicts(&dir, &path, &mod_entry, &adapter, &list)?;
             installer::stage_package(
                 &zip_path,
@@ -339,6 +320,7 @@ pub async fn uninstall_mod(
     path: PathBuf,
     id: String,
     version: String,
+    expected_dir: PathBuf,
 ) -> Result<installer::CopyValidation, String> {
     let mod_entry = trusted(&id, &version)?;
     if cfg!(windows)
@@ -357,6 +339,9 @@ pub async fn uninstall_mod(
 
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
+        if game::resolve_pck_dir(&path).as_ref() != Some(&expected_dir) {
+            return Err("statusUnavailable".into());
+        }
         installer::check_exclusive_conflicts(
             &dir,
             &path,
