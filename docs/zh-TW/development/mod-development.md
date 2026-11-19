@@ -77,6 +77,14 @@
 | **Tier 2：Rust L1 與 L3 實包模擬** | ZIP 解壓、GDPC v3 寫入與截斷還原、交易安全 | 執行 `npm run test:rust`（覆蓋 `pck_loader`、`installer`）。於 macOS 本機可使用未提交的原版 Steam v2.1.2 `Machine Party.pck` 隔離複本執行 `MPM_L3_VANILLA_PCK="/path/to/Machine Party.pck" npm run test:rust`，確認寫入與原版 SHA-256 逐位元組還原。 |
 | **Tier 3：Windows Steam 實機驗收** | 開放正式安裝前的必要門禁（**`verified: true` 前置條件**） | 於 Windows + Steam `v2.1.2` 完成：桌面端經 Worker 下載並校驗 SHA-256 安裝 → Steam 啟動遊戲 → 大廳預設、輪換池、多人 RPC 聯機對局 → 離線解除安裝並核對原版 `Machine Party.pck` SHA-256 還原；另須確認與外部 MPML 和平共存，以及與直接修補 PCK 模組的互斥保護。 |
 
+### 遊戲模組的回歸測試基準
+
+2026-11-19，Windows 玩家確認滾筒嘉年華 v0.1.3 已恢復正常（目錄套件 `1011`，修正提交 `64be6cc`）。故障版在啟動時編譯 `official_minigame.gd`，Godot 4.5.2 無法推斷 `ids` 的型別。載入器記錄了模組入口已載入，但略過了播放清單註冊。
+
+- **小遊戲從列表消失時**，先查 `user://modloader.log` 的模組版本、第一個編譯失敗的腳本及註冊結果，再對照同一次啟動的 `user://logs/godot.log`，找出第一條解析錯誤與行號。Windows 的兩個路徑都以 `%APPDATA%\Godot\app_userdata\Machine Party` 為起點。
+- **測試遊戲實際載入的入口腳本。** 按遊戲的自動載入順序編譯隨包出貨的腳本，包含以場景載入的單例。若編譯器在啟動初期無法推斷型別，就明確宣告。本次修正是 `var ids: Array = PlayerManager.player_presences.keys()`。回歸測試涵蓋首次編譯、建立可玩的場景，以及大廳已預載原腳本時的註冊行為。[滾筒註冊測試](../../../tests/mods/roller-registration.test.mjs)
+- **保留玩家的顯示設定。** 畫質模組應將解析度目標套用於 3D 渲染。啟用前後，比對全螢幕模式、視窗尺寸與位置、2D 介面縮放，並涵蓋選用的啟動參數。[獨立高清顯示測試](../../../tests/mods/standalone-hd.test.mjs)
+
 ## 5. 目錄接入與桌面端整合
 
 將第一方自研模組接入目錄與 R2／Worker 管線的標準流程：

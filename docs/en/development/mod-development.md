@@ -79,6 +79,14 @@ Every mod change must pass all tiers feasible in the developer's environment bef
 | **Tier 2: Rust L1 & L3 simulation** | ZIP extraction, GDPC v3 patch/restore, install/uninstall transactions | Run `npm run test:rust` (`pck_loader`, `installer`). Locally on macOS with an uncommitted copy of vanilla Steam v2.1.2 `Machine Party.pck`, run `MPM_L3_VANILLA_PCK="/path/to/Machine Party.pck" npm run test:rust` to verify exact append and lossless SHA-256 restore. |
 | **Tier 3: Windows Steam physical** | End-to-end Windows acceptance (**required before `verified: true`**) | On Windows + Steam `v2.1.2`: Worker download + SHA-256 verify + install in desktop manager -> launch via Steam -> gameplay, presets, rotation, multiplayer RPC -> offline uninstall -> confirm vanilla `Machine Party.pck` SHA-256 restored; also verify external MPML coexistence and `overtime` conflict checks. |
 
+### Regression baseline for game mods
+
+On 2026-11-19 a Windows player confirmed that Roller Carnival worked again with v0.1.3 (catalog asset `1011`, fix `64be6cc`). In the failing build, Godot 4.5.2 could not infer the type of `ids` while compiling `official_minigame.gd` during startup. The loader recorded the mod entry as loaded but skipped playlist registration.
+
+- **Diagnose a missing minigame.** In `user://modloader.log`, check the version, the first script that failed to compile and the registration result. Match that failure to the first parser message and line number in `user://logs/godot.log` from the same launch. On Windows, both paths are relative to `%APPDATA%\Godot\app_userdata\Machine Party`.
+- **Test the actual entry path.** Compile the shipped game wrapper with the game's autoload order, including scene-based singletons. Give values an explicit type where the early compiler lacks type information. The fix was `var ids: Array = PlayerManager.player_presences.keys()`. Exercise first-load compilation, playable scene creation and registration when the lobby has preloaded its original script. [Roller registration test](../../../tests/mods/roller-registration.test.mjs)
+- **Preserve player display settings.** For graphics mods, apply resolution targets to 3D rendering. Check fullscreen mode, window size and position, and the 2D UI scale before and after enabling the mod, including with optional launch flags. [Standalone HD display test](../../../tests/mods/standalone-hd.test.mjs)
+
 ## 5. Catalog and desktop UI integration
 
 To publish a first-party mod into the catalog and R2/Worker pipeline:
