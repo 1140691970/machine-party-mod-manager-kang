@@ -57,9 +57,29 @@ pub trait ProcessRunner {
 /// Real OS subprocess runner with stdin closed to prevent interactive hangs.
 pub struct SystemRunner;
 
+#[cfg(not(windows))]
+fn is_pe_executable(path: &Path) -> bool {
+    let Ok(mut file) = File::open(path) else {
+        return false;
+    };
+    let mut magic = [0u8; 2];
+    file.read_exact(&mut magic).is_ok() && magic == *b"MZ"
+}
+
 impl ProcessRunner for SystemRunner {
     fn run(&self, req: &CommandRequest) -> Result<CommandOutput, String> {
-        let output = Command::new(&req.program)
+        #[cfg(not(windows))]
+        let mut cmd = if is_pe_executable(&req.program) {
+            let mut mono = Command::new("mono");
+            mono.arg(&req.program);
+            mono
+        } else {
+            Command::new(&req.program)
+        };
+        #[cfg(windows)]
+        let mut cmd = Command::new(&req.program);
+
+        let output = cmd
             .args(&req.args)
             .current_dir(&req.cwd)
             .stdin(Stdio::null())
@@ -2604,6 +2624,85 @@ print("Patched")
         fs::write(pck_dir.join(RESTORE_DAT), restore).unwrap();
         let v5 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v5.mod_states["overtime"], "manualInstall");
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn l3_real_overtime_cli_and_real_vanilla_pck_when_available() {
+        let (Ok(src_pck), Ok(src_zip)) = (std::env::var("MPM_L3_PCK"), std::env::var("MPM_L3_ZIP"))
+        else {
+            return;
+        };
+        let src_pck = PathBuf::from(src_pck);
+        let src_zip = PathBuf::from(src_zip);
+        assert!(src_pck.is_file(), "MPM_L3_PCK must exist");
+        assert!(src_zip.is_file(), "MPM_L3_ZIP must exist");
+
+        let root = test_root("l3-overtime-real");
+        let game_root = root.join("party project");
+        let pck_dir = game_root.join("Machine Party_Windows");
+        fs::create_dir_all(&pck_dir).unwrap();
+        fs::write(pck_dir.join("Machine Party.exe"), b"MZ_L3").unwrap();
+        let pck_path = pck_dir.join("Machine Party.pck");
+        fs::copy(&src_pck, &pck_path).unwrap();
+        #[cfg(unix)]
+        fs::set_permissions(&pck_path, fs::Permissions::from_mode(0o644)).unwrap();
+
+        let overtime = crate::catalog::entry("overtime").expect("overtime entry present");
+        let mods = vec![overtime.clone()];
+        let config_dir = root.join("config");
+        let staging_dir = root.join("staging");
+
+        let v1 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v1.mod_states["overtime"], "vanilla");
+
+        let tx = install_from_zip(
+            &config_dir,
+            &game_root,
+            &src_zip,
+            &staging_dir,
+            &overtime,
+            &mods,
+            &SystemRunner,
+            &SystemGameLockCheck,
+        )
+        .unwrap();
+        assert_eq!(tx.status, TransactionStatus::Committed);
+
+        let restore = parse_mp8r_restore(&pck_dir.join(RESTORE_DAT)).unwrap();
+        let expected_sha = &overtime.adapter.as_ref().unwrap().baseline.sha256;
+        assert_eq!(restore.format, 2);
+        assert_eq!(restore.orig_len, 634_798_100);
+        assert!(restore.base_sha.eq_ignore_ascii_case(expected_sha));
+        assert_eq!(restore.game_ver, "v2.1.2");
+        assert_eq!(restore.mod_tag, "overtime-1.7");
+        assert_eq!(restore.entry_count, 70);
+
+        let v2 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v2.mod_states["overtime"], "installed");
+        assert_eq!(v2.installed["DarkJadeStone/MachineParty-Overtime"], "v1.7");
+
+        fs::remove_dir_all(&staging_dir).unwrap();
+        fs::remove_file(pck_dir.join(RESTORE_DAT)).unwrap();
+
+        let restored = uninstall_mod(
+            &config_dir,
+            &game_root,
+            &overtime,
+            &SystemRunner,
+            &SystemGameLockCheck,
+        )
+        .unwrap();
+        assert_eq!(restored.size, 634_798_100);
+        assert_eq!(
+            restored.sha256,
+            "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        );
+
+        let v3 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v3.mod_states["overtime"], "vanilla");
+        assert!(v3.installed.is_empty());
 
         fs::remove_dir_all(root).unwrap();
     }
