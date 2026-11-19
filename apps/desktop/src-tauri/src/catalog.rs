@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-8").len(), 6);
+        assert_eq!(preview_entries("0.1.2-9").len(), 6);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -248,10 +248,10 @@ mod tests {
             "lobby-bots",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-8"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-9"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-8"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-9"), "{id}");
         }
     }
 

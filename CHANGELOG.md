@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-9 — 2026-11-19
+
+- Older Roller Carnival records appear as one installed mod. Uninstall verifies the files recorded for that game copy and preserves other mods from the same repository.
+- MPML mods can be uninstalled after an online version or package change. The confirmation shows the installed version. If a clean game reinstall leaves an MPML record marked **Repair needed**, open its details and choose **Uninstall** to clear the record.
+
 ## 0.1.2-8 — 2026-11-19
 
 Windows preview 0.1.2-8 verifies the restored PCK before removing the last managed mod, preserves shared loaders for linked mods, and checks that the game is closed immediately before replacing its PCK.

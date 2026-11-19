@@ -46,12 +46,12 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 | 平台 | 架構 | 下載 | 說明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [測試版 v0.1.2-8（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-8/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
+| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [測試版 v0.1.2-9（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-9/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
 | macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 瀏覽目錄與接收應用更新（遊戲僅限 Windows） |
 
 Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存檔並將 `.app` 移入可寫入的應用程式目錄。
 
-**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-8` 工作區已為目錄內全部六個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
+**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-9` 工作區已為目錄內全部六個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
 
 ## 開始使用
 
@@ -83,7 +83,7 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 
 ## 更新紀錄
 
-Windows 測試版 **0.1.2-8** 在移除最後一個受管模組前驗證還原後的 PCK，為使用目錄連結的模組保留共用載入器，並在替換 PCK 前再次確認遊戲已關閉。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
+Windows 測試版 **0.1.2-9** 可辨認舊版滾筒嘉年華的安裝記錄，並修正線上目錄換版或換包後無法解除安裝 MPML 模組的問題。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 
