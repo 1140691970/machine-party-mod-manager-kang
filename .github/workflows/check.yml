@@ -35,4 +35,5 @@ jobs:
           workspaces: apps/desktop/src-tauri
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked
+      # The game-process fixture starts and stops a Machine Party.exe visible to other tests.
+      - run: cargo test --locked -- --test-threads=1
