@@ -1314,7 +1314,7 @@ fn mirror_delta_backup(
     Ok(())
 }
 
-fn check_space(dir: &Path, required: u64) -> Result<(), String> {
+pub(crate) fn check_space(dir: &Path, required: u64) -> Result<(), String> {
     if fs2::available_space(dir).map_err(|_| "fileReadError")? < required {
         return Err(format!("{}: {}", "diskSpace", dir.display()));
     }
@@ -1417,7 +1417,6 @@ fn install_loader_files(
 
     let loader_backup_dir = backup_dir_for(config_dir, game_root, "_mpm_loader");
     let loader_backup_pck = loader_backup_dir.join(&adapter.baseline.file);
-    let mut installed_fresh_loader = false;
     if adapter.auto_loader {
         check_space(config_dir, pre_pck.size)?;
     }
@@ -1458,8 +1457,6 @@ fn install_loader_files(
     let outcome = (|| -> Result<(), String> {
         if adapter.auto_loader {
             pck_loader::ensure_loader_installed(&pck_dir, &loader_backup_pck, &adapter.baseline)?;
-            installed_fresh_loader =
-                !had_managed_loader && pck_loader::read_managed_marker(&pck_dir)?.is_some();
         }
         record.post_pck = Some(file_fingerprint(&pck_path)?);
 
@@ -1497,7 +1494,8 @@ fn install_loader_files(
                     })
                     && fs::remove_dir_all(&mod_dir).is_ok());
             let _ = fs::remove_dir(pck_dir.join("mods"));
-            if installed_fresh_loader
+            if !had_managed_loader
+                && pck_loader::read_managed_marker(&pck_dir)?.is_some()
                 && !has_other_loader_tx(config_dir, game_root, &mod_entry.id, &adapter.exclusive)
                     .unwrap_or(true)
                 && !has_remaining_mod_dirs(&pck_dir.join("mods")).unwrap_or(true)
@@ -1695,6 +1693,23 @@ fn clear_mod_records(
     Ok(())
 }
 
+fn resumable_loader_cleanup(
+    tx: &TransactionRecord,
+    marker: &pck_loader::ManagedLoaderState,
+    current: &FileFingerprint,
+    baseline: &crate::catalog::BaselineSpec,
+) -> bool {
+    tx.exclusive == "loader"
+        && matches!(
+            tx.status,
+            TransactionStatus::Pending | TransactionStatus::NeedsRepair
+        )
+        && current.size == baseline.size
+        && current.sha256 == baseline.sha256
+        && current.size == marker.vanilla_size
+        && current.sha256 == marker.vanilla_sha256
+}
+
 /// Offline uninstallation using mirrored delta restore + offline CLI or full-PCK backup.
 pub fn uninstall_mod(
     config_dir: &Path,
@@ -1756,22 +1771,26 @@ pub fn uninstall_mod(
 
     if adapter.kind == "loader-files" {
         let managed_marker = pck_loader::read_managed_marker(&pck_dir)?;
+        let current = file_fingerprint(&pck_path)?;
+        let vanilla =
+            current.size == adapter.baseline.size && current.sha256 == adapter.baseline.sha256;
         if let Some(marker) = &managed_marker {
-            let current_pck = file_fingerprint(&pck_path)?;
-            if current_pck.size != marker.patched_size
-                || !current_pck
-                    .sha256
-                    .eq_ignore_ascii_case(&marker.patched_sha256)
+            if (current.size != marker.patched_size || current.sha256 != marker.patched_sha256)
+                && !resumable_loader_cleanup(&tx, marker, &current, &adapter.baseline)
             {
                 return Err("gameUpdatedOrModified".into());
             }
+        } else if adapter.auto_loader && !vanilla && !pck_loader::external_loader_present(&pck_dir)?
+        {
+            return Err("gameUpdatedOrModified".into());
         }
 
         let mod_dir = loader_mod_dir(&pck_dir, mod_entry);
         if pck_dir.join("mods").is_symlink() || mod_dir.is_symlink() {
             return Err("gameUpdatedOrModified".into());
         }
-        if mod_dir.exists() {
+        let mod_present = mod_dir.try_exists().map_err(|_| "fileReadError")?;
+        if mod_present {
             let disk = collect_dir_fingerprints(&mod_dir)?;
             let interrupted = tx.status == TransactionStatus::Pending
                 || tx.failure.as_deref() == Some("uninstall");
@@ -1784,10 +1803,12 @@ pub fn uninstall_mod(
             if tx.owned_files.is_empty() || !matches {
                 return Err("gameUpdatedOrModified".into());
             }
-            let mut undo = tx.clone();
-            undo.status = TransactionStatus::NeedsRepair;
-            undo.failure = Some("uninstall".into());
-            save_transaction(config_dir, game_root, undo)?;
+        }
+        let mut undo = tx.clone();
+        undo.status = TransactionStatus::NeedsRepair;
+        undo.failure = Some("uninstall".into());
+        save_transaction(config_dir, game_root, undo)?;
+        if mod_present {
             fs::remove_dir_all(&mod_dir).map_err(|_| "fileWriteError")?;
             if mod_dir.exists() {
                 return Err("restoreVerifyFailed".into());
@@ -2362,13 +2383,24 @@ pub fn validate_game_mods(
         let restore = pck_dir.join(RESTORE_DAT);
         let state = if adapter.kind == "loader-files" {
             let mod_dir = loader_mod_dir(&pck_dir, item);
-            if managed_loader_tampered {
+            if tx.zip(managed_marker.as_ref()).is_some_and(|(r, marker)| {
+                resumable_loader_cleanup(r, marker, &current_pck, &adapter.baseline)
+            }) {
+                "needsRepair"
+            } else if managed_loader_tampered
+                || (tx.is_some_and(|r| {
+                    r.exclusive == "loader" && r.status != TransactionStatus::RolledBack
+                }) && adapter.auto_loader
+                    && !loader_present
+                    && !vanilla)
+            {
                 "gameUpdatedOrModified"
-            } else if tx.is_some_and(|r| {
-                matches!(
-                    r.status,
-                    TransactionStatus::Pending | TransactionStatus::NeedsRepair
-                )
+            } else if tx.is_some_and(|r| match r.status {
+                TransactionStatus::Committed => {
+                    !mod_dir.is_dir() || (adapter.auto_loader && !loader_present)
+                }
+                TransactionStatus::NeedsRepair | TransactionStatus::Pending => true,
+                TransactionStatus::RolledBack => false,
             }) {
                 "needsRepair"
             } else if mod_dir.exists() {
@@ -2578,7 +2610,7 @@ pub fn scan_copy(
     mods: &[ModEntry],
     force: bool,
 ) -> Result<CopyValidation, String> {
-    let cache = config.join("scan-v1").join(short_hash(root));
+    let cache = config.join("scan-v2").join(short_hash(root));
     let before = scan_stamp(config, root, mods)?;
     if !force
         && let Some((stamp, prior)) = fs::read(&cache)
@@ -4711,6 +4743,70 @@ print("Patched")
             uninstall_mod(&config, &game, &mods[2], &SystemRunner, &UnlockedCheck).unwrap(),
             base
         );
+    }
+
+    #[test]
+    fn missing_loader_files_and_interrupted_cleanup_keep_the_transaction_recoverable() {
+        let root = tempfile::tempdir().unwrap();
+        let vanilla = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game, dir, baseline) = setup_synthetic_game(root.path(), &vanilla);
+        let config = root.path().join("config");
+        let bytes = build_test_zip(&[
+            (
+                "mod.json",
+                br#"{"id":"machineparty_plus","entry":"main.gd"}"#,
+                true,
+            ),
+            ("main.gd", b"extends Node", true),
+        ]);
+        let item = make_loader_entry_from_catalog("machineparty-plus", &bytes, &baseline);
+        let mods = std::slice::from_ref(&item);
+        let archive = root.path().join("release.zip");
+        fs::write(&archive, bytes).unwrap();
+        let mut tx = install_from_zip(
+            &config,
+            &game,
+            &archive,
+            &root.path().join("staging"),
+            &item,
+            mods,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let state =
+            || validate_game_mods(&config, &game, mods).unwrap().mod_states[&item.id].clone();
+        let marker = dir.join(pck_loader::LOADER_SIDECAR);
+        let marker_bytes = fs::read(&marker).unwrap();
+        fs::remove_file(&marker).unwrap();
+        assert_eq!(state(), "gameUpdatedOrModified");
+        assert_eq!(
+            uninstall_mod(&config, &game, &item, &SystemRunner, &UnlockedCheck).unwrap_err(),
+            "gameUpdatedOrModified"
+        );
+        assert!(loader_mod_dir(&dir, &item).is_dir());
+        fs::write(&marker, &marker_bytes).unwrap();
+        fs::remove_dir_all(loader_mod_dir(&dir, &item)).unwrap();
+        assert_eq!(state(), "needsRepair");
+        tx.status = TransactionStatus::NeedsRepair;
+        tx.failure = Some("uninstall".into());
+        save_transaction(&config, &game, tx).unwrap();
+        let pck = dir.join("Machine Party.pck");
+        fs::write(&pck, b"unknown modification").unwrap();
+        assert_eq!(state(), "gameUpdatedOrModified");
+        assert_eq!(
+            uninstall_mod(&config, &game, &item, &SystemRunner, &UnlockedCheck).unwrap_err(),
+            "gameUpdatedOrModified"
+        );
+        fs::write(&pck, vanilla).unwrap();
+        assert_eq!(state(), "needsRepair");
+        assert_eq!(
+            uninstall_mod(&config, &game, &item, &SystemRunner, &UnlockedCheck).unwrap(),
+            baseline
+        );
+        assert!(!marker.exists());
+        assert!(get_transaction(&config, &game, &item.id).unwrap().is_none());
+        assert_eq!(state(), "vanilla");
     }
 
     #[test]

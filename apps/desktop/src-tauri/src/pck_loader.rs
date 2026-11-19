@@ -51,6 +51,15 @@ pub struct ManagedLoaderState {
     pub patched_sha256: String,
 }
 
+// During an upgrade the PCK rename and marker rename cannot be one filesystem operation.
+#[derive(Serialize, Deserialize)]
+struct LoaderMarker {
+    #[serde(flatten)]
+    active: ManagedLoaderState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    previous: Option<ManagedLoaderState>,
+}
+
 #[derive(Clone)]
 struct PckEntry {
     path: String,
@@ -531,14 +540,22 @@ pub fn read_managed_marker(pck_dir: &Path) -> Result<Option<ManagedLoaderState>,
         return Ok(None);
     }
     let bytes = fs::read(&sc).map_err(|_| "fileReadError")?;
-    let Ok(state) = serde_json::from_slice::<ManagedLoaderState>(&bytes) else {
+    let Ok(marker) = serde_json::from_slice::<LoaderMarker>(&bytes) else {
         return Ok(None);
     };
-    if state.managed_by == MANAGED_BY {
-        Ok(Some(state))
-    } else {
-        Ok(None)
+    if marker.active.managed_by != MANAGED_BY {
+        return Ok(None);
     }
+    if let Some(previous) = marker.previous {
+        let disk = file_fingerprint(&pck_dir.join("Machine Party.pck"))?;
+        if previous.managed_by == MANAGED_BY
+            && disk.size == previous.patched_size
+            && disk.sha256.eq_ignore_ascii_case(&previous.patched_sha256)
+        {
+            return Ok(Some(previous));
+        }
+    }
+    Ok(Some(marker.active))
 }
 
 fn truncate_and_restore_header(
@@ -581,8 +598,9 @@ pub fn ensure_loader_installed(
         return Ok(None);
     }
     let pck_path = pck_dir.join(&baseline.file);
-    let mut current = file_fingerprint(&pck_path)?;
-    if let Some(marker) = read_managed_marker(pck_dir)? {
+    let current = file_fingerprint(&pck_path)?;
+    let previous = read_managed_marker(pck_dir)?;
+    let vanilla = if let Some(marker) = &previous {
         if current.size != marker.patched_size
             || !current.sha256.eq_ignore_ascii_case(&marker.patched_sha256)
         {
@@ -593,17 +611,23 @@ pub fn ensure_loader_installed(
             return Err("gameUpdatedOrModified".into());
         };
         if got_boot == BOOTSTRAP_SRC.as_bytes() {
-            return Ok(Some(marker));
+            return Ok(previous);
         }
-        // Upgrade an older manager-owned bootstrap cleanly before re-applying.
-        current = restore_managed_loader(pck_dir, backup_pck)?;
-    }
-
-    if current.size != baseline.size || !current.sha256.eq_ignore_ascii_case(&baseline.sha256) {
+        FileFingerprint {
+            size: marker.vanilla_size,
+            sha256: marker.vanilla_sha256.clone(),
+        }
+    } else {
+        current.clone()
+    };
+    if vanilla.size != baseline.size || !vanilla.sha256.eq_ignore_ascii_case(&baseline.sha256) {
         return Err("baselineMismatch".into());
     }
-
-    let mut pck = PckArchive::open(&pck_path)?;
+    let candidate = stage_pck(&pck_path, &current)?;
+    if let Some(marker) = &previous {
+        restore_candidate(&candidate, backup_pck, marker)?;
+    }
+    let mut pck = PckArchive::open(&candidate)?;
     let Some(pb) = pck.read_file(PROJECT_BINARY_RES)? else {
         return Err("gameUpdatedOrModified".into());
     };
@@ -616,13 +640,13 @@ pub fn ensure_loader_installed(
     }
 
     let vanilla_dir_offset = pck.dir_offset;
-    let vanilla_size = current.size;
-    let vanilla_sha256 = current.sha256.clone();
+    let vanilla_size = vanilla.size;
+    let vanilla_sha256 = vanilla.sha256.clone();
     let dir_field = pck.dir_field;
     let dir_field_base = pck.dir_field_base;
 
-    installer::copy_atomic(&pck_path, backup_pck)?;
-    if file_fingerprint(backup_pck)? != current {
+    installer::copy_atomic(&candidate, backup_pck)?;
+    if file_fingerprint(backup_pck)? != vanilla {
         return Err("fileWriteError".into());
     }
 
@@ -632,37 +656,21 @@ pub fn ensure_loader_installed(
     pck.put(BOOTSTRAP_RES, BOOTSTRAP_SRC.as_bytes().to_vec());
     pck.put(STAMP_RES, stamp.into_bytes());
 
-    let apply_res = (|| -> Result<FileFingerprint, String> {
-        pck.append_patch_v3()?;
-        let verify = PckArchive::open(&pck_path)?;
-        let got_boot = verify
-            .read_file(BOOTSTRAP_RES)?
-            .ok_or_else(|| "installFailed".to_string())?;
-        let got_pb = verify
-            .read_file(PROJECT_BINARY_RES)?
-            .ok_or_else(|| "installFailed".to_string())?;
-        let parsed_pb = ecfg_parse(&got_pb)?;
-        if got_boot != BOOTSTRAP_SRC.as_bytes()
-            || parsed_pb.first().map(|(k, _)| k.as_str()) != Some(AUTOLOAD_KEY)
-        {
-            return Err("installFailed".into());
-        }
-        file_fingerprint(&pck_path)
-    })();
-
-    let patched = match apply_res {
-        Ok(fp) => fp,
-        Err(err) => {
-            let _ = truncate_and_restore_header(
-                &pck_path,
-                dir_field,
-                dir_field_base,
-                vanilla_dir_offset,
-                vanilla_size,
-            );
-            return Err(err);
-        }
-    };
+    pck.append_patch_v3()?;
+    let verify = PckArchive::open(&candidate)?;
+    let got_boot = verify.read_file(BOOTSTRAP_RES)?.ok_or("installFailed")?;
+    let got_pb = verify
+        .read_file(PROJECT_BINARY_RES)?
+        .ok_or("installFailed")?;
+    if got_boot != BOOTSTRAP_SRC.as_bytes()
+        || ecfg_parse(&got_pb)?.first().map(|(k, _)| k.as_str()) != Some(AUTOLOAD_KEY)
+    {
+        return Err("installFailed".into());
+    }
+    let patched = file_fingerprint(&candidate)?;
+    if file_fingerprint(&pck_path)? != current {
+        return Err("gameUpdatedOrModified".into());
+    }
 
     let state = ManagedLoaderState {
         managed_by: MANAGED_BY.into(),
@@ -676,8 +684,36 @@ pub fn ensure_loader_installed(
         patched_sha256: patched.sha256,
     };
     let state_bytes = serde_json::to_vec_pretty(&state).map_err(|_| "fileWriteError")?;
-    installer::write_atomic(&sidecar_path(pck_dir), &state_bytes)?;
+    let sidecar = sidecar_path(pck_dir);
+    let marker_bytes = if previous.is_some() {
+        let transition = LoaderMarker {
+            active: state.clone(),
+            previous,
+        };
+        Some(serde_json::to_vec_pretty(&transition).map_err(|_| "fileWriteError")?)
+    } else {
+        None
+    };
+    installer::write_atomic(&sidecar, marker_bytes.as_ref().unwrap_or(&state_bytes))?;
+    candidate.persist(&pck_path).map_err(|_| "fileWriteError")?;
+    if marker_bytes.is_some() {
+        // Both fingerprints still work if only this compaction fails.
+        let _ = installer::write_atomic(&sidecar, &state_bytes);
+    }
     Ok(Some(state))
+}
+
+fn stage_pck(path: &Path, expected: &FileFingerprint) -> Result<tempfile::TempPath, String> {
+    let dir = path.parent().ok_or("invalidGame")?;
+    installer::check_space(dir, expected.size)?;
+    let candidate = tempfile::NamedTempFile::new_in(dir)
+        .map_err(|_| "fileWriteError")?
+        .into_temp_path();
+    fs::copy(path, &candidate).map_err(|_| "fileWriteError")?;
+    if file_fingerprint(&candidate)? != *expected {
+        return Err("gameUpdatedOrModified".into());
+    }
+    Ok(candidate)
 }
 
 /// Restores a manager-patched `Machine Party.pck` back to the exact original vanilla fingerprint.
@@ -705,19 +741,36 @@ pub fn restore_managed_loader(
         return Err("gameUpdatedOrModified".into());
     }
 
-    if state.vanilla_dir_offset < state.dir_field_base || state.vanilla_size > current.size {
+    let candidate = stage_pck(&pck_path, &current)?;
+    let restored = restore_candidate(&candidate, backup_pck, &state)?;
+    if file_fingerprint(&pck_path)? != current {
+        return Err("gameUpdatedOrModified".into());
+    }
+    candidate.persist(&pck_path).map_err(|_| "fileWriteError")?;
+    let sc = sidecar_path(pck_dir);
+    if sc.exists() {
+        fs::remove_file(&sc).map_err(|_| "fileWriteError")?;
+    }
+    Ok(restored)
+}
+
+fn restore_candidate(
+    candidate: &Path,
+    backup_pck: &Path,
+    state: &ManagedLoaderState,
+) -> Result<FileFingerprint, String> {
+    if state.vanilla_dir_offset < state.dir_field_base || state.vanilla_size > state.patched_size {
         return Err("restoreCorrupt".into());
     }
-
     let truncated_ok = truncate_and_restore_header(
-        &pck_path,
+        candidate,
         state.dir_field,
         state.dir_field_base,
         state.vanilla_dir_offset,
         state.vanilla_size,
     )
     .is_ok();
-    let mut restored = file_fingerprint(&pck_path)?;
+    let mut restored = file_fingerprint(candidate)?;
     if (!truncated_ok
         || restored.size != state.vanilla_size
         || !restored.sha256.eq_ignore_ascii_case(&state.vanilla_sha256))
@@ -727,8 +780,13 @@ pub fn restore_managed_loader(
         if backup_fp.size == state.vanilla_size
             && backup_fp.sha256.eq_ignore_ascii_case(&state.vanilla_sha256)
         {
-            installer::copy_atomic(backup_pck, &pck_path)?;
-            restored = file_fingerprint(&pck_path)?;
+            fs::copy(backup_pck, candidate).map_err(|_| "fileWriteError")?;
+            File::options()
+                .write(true)
+                .open(candidate)
+                .and_then(|f| f.sync_all())
+                .map_err(|_| "fileWriteError")?;
+            restored = file_fingerprint(candidate)?;
         }
     }
 
@@ -738,10 +796,6 @@ pub fn restore_managed_loader(
         return Err("restoreVerifyFailed".into());
     }
 
-    let sc = sidecar_path(pck_dir);
-    if sc.exists() {
-        fs::remove_file(&sc).map_err(|_| "fileWriteError")?;
-    }
     Ok(restored)
 }
 
@@ -897,6 +951,34 @@ mod tests {
     }
 
     #[test]
+    fn invalid_restore_data_leaves_the_installed_pck_intact() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path();
+        let pck = dir.join("Machine Party.pck");
+        fs::write(&pck, build_synthetic_pck_v3(false, true)).unwrap();
+        let vanilla = file_fingerprint(&pck).unwrap();
+        let baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: vanilla.size,
+            sha256: vanilla.sha256,
+        };
+        let backup = dir.join("backup.pck");
+        let mut marker = ensure_loader_installed(dir, &backup, &baseline)
+            .unwrap()
+            .unwrap();
+        let installed = fs::read(&pck).unwrap();
+        marker.dir_field += 1;
+        fs::write(sidecar_path(dir), serde_json::to_vec(&marker).unwrap()).unwrap();
+        fs::write(&backup, b"incomplete backup").unwrap();
+        assert_eq!(
+            restore_managed_loader(dir, &backup).unwrap_err(),
+            "restoreVerifyFailed"
+        );
+        assert_eq!(fs::read(&pck).unwrap(), installed);
+        assert_eq!(read_managed_marker(dir).unwrap(), Some(marker));
+    }
+
+    #[test]
     fn steam_update_rejects_managed_restore() {
         let tmp = tempfile::tempdir().unwrap();
         let pck_dir = tmp.path().join("Machine Party_Windows");
@@ -989,6 +1071,19 @@ mod tests {
         )
         .unwrap();
 
+        // A failed backup write must leave the previous bootstrap available to its mods.
+        fs::create_dir(&backup_pck).unwrap();
+        assert_eq!(
+            ensure_loader_installed(&pck_dir, &backup_pck, &baseline).unwrap_err(),
+            "fileWriteError"
+        );
+        assert_eq!(file_fingerprint(&pck_path).unwrap(), old_patched);
+        assert_eq!(
+            read_managed_marker(&pck_dir).unwrap().as_ref(),
+            Some(&old_marker)
+        );
+        fs::remove_dir(&backup_pck).unwrap();
+        let old_bytes = fs::read(&pck_path).unwrap();
         let upgraded = ensure_loader_installed(&pck_dir, &backup_pck, &baseline)
             .unwrap()
             .expect("upgraded loader marker created");
@@ -1000,6 +1095,21 @@ mod tests {
             parsed.read_file(BOOTSTRAP_RES).unwrap().as_deref(),
             Some(BOOTSTRAP_SRC.as_bytes())
         );
+        // Model both crash boundaries of publishing the new PCK while the dual marker exists.
+        let new_bytes = fs::read(&pck_path).unwrap();
+        let transition = LoaderMarker {
+            active: upgraded.clone(),
+            previous: Some(old_marker.clone()),
+        };
+        fs::write(
+            sidecar_path(&pck_dir),
+            serde_json::to_vec(&transition).unwrap(),
+        )
+        .unwrap();
+        fs::write(&pck_path, old_bytes).unwrap();
+        assert_eq!(read_managed_marker(&pck_dir).unwrap(), Some(old_marker));
+        fs::write(&pck_path, new_bytes).unwrap();
+        assert_eq!(read_managed_marker(&pck_dir).unwrap(), Some(upgraded));
         let restored = restore_managed_loader(&pck_dir, &backup_pck).unwrap();
         assert_eq!(restored, vanilla_fp);
     }

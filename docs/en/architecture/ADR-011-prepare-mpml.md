@@ -10,4 +10,6 @@ The installer records the source digest, recipe revision and installed file fing
 
 Older clients receive their compatible catalog and download URLs. Existing Overtime MPML installations keep working. Select the migration action in the details of a managed legacy PCK patch to verify the replacement, restore the recorded copy, and install through the loader. Move a manual mods/broadcast-8p folder out of the game first. Unknown file changes stop recovery.
 
+Installing, upgrading or removing the built-in loader prepares and verifies a temporary PCK on the game drive before replacing the live file. Allow space for an extra PCK (about 606 MiB for v2.1.2) in addition to backups. During a loader upgrade the manager records both loader fingerprints so it can identify the active version after an interruption.
+
 Release-fixture checks compare 70 compiled Overtime scripts and the resource trees of 65 Broadcast and 56 Binary1936 files. Steam multiplayer acceptance remains pending.
