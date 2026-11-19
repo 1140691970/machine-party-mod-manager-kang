@@ -33,7 +33,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
-      - name: Reject an unsigned Windows executable
+      - name: Verify optional Windows publisher signing
         working-directory: .
         run: ./scripts/test-windows-signature.ps1
       - run: cargo fmt --check

@@ -15,7 +15,7 @@ on:
         required: false
         type: string
 env:
-  UNSIGNED_PREVIEW: ${{ inputs.publish_preview && !inputs.verify_only && vars.WINDOWS_SIGNING_PROVIDER == '' && vars.WINDOWS_SIGNING_THUMBPRINT == '' && vars.WINDOWS_SIGNING_SUBJECT == '' }}
+  UNSIGNED_WINDOWS: ${{ vars.WINDOWS_SIGNING_PROVIDER == '' && vars.WINDOWS_SIGNING_THUMBPRINT == '' && vars.WINDOWS_SIGNING_SUBJECT == '' }}
   WINDOWS_SIGNING_PROVIDER: ${{ vars.WINDOWS_SIGNING_PROVIDER }}
   WINDOWS_SIGNING_SUBJECT: ${{ vars.WINDOWS_SIGNING_SUBJECT }}
   WINDOWS_SIGNING_THUMBPRINT: ${{ vars.WINDOWS_SIGNING_THUMBPRINT }}
@@ -44,7 +44,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          if ($env:UNSIGNED_PREVIEW -eq 'true') { Write-Host 'Building unsigned Windows prerelease'; exit 0 }
+          if ($env:UNSIGNED_WINDOWS -eq 'true') { Write-Host 'Building Windows installer without Authenticode'; exit 0 }
           $config = Get-Content tauri.windows.conf.json -Raw | ConvertFrom-Json -AsHashtable
           if ($env:WINDOWS_SIGNING_PROVIDER -eq 'azure') {
             if (!$env:WINDOWS_SIGNING_SUBJECT -or $env:ENDPOINT -notmatch '^https://[a-z0-9-]+\.codesigning\.azure\.net/?$') {
@@ -80,11 +80,7 @@ jobs:
           npx --yes --package @tauri-apps/cli@2.12.5 tauri build --bundles nsis -- --locked
           Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist setup.exe)
           foreach ($file in @('target/release/machine-party-mod-manager.exe', "$dist/setup.exe")) {
-            if ($env:UNSIGNED_PREVIEW -eq 'true') {
-              if ((Get-AuthenticodeSignature $file).Status -ne 'NotSigned') { throw "Unexpected signature on $file" }
-            } else {
-              & "$env:GITHUB_WORKSPACE/scripts/verify-windows-signature.ps1" -Path $file
-            }
+            & "$env:GITHUB_WORKSPACE/scripts/verify-windows-signature.ps1" -Path $file
           }
           $overlay = @{version='0.0.1'; plugins=@{updater=@{endpoints=@("https://machineparty.ailaogong.men/v1/app-downloads/$version/manifest.json")}}}
           $overlay | ConvertTo-Json -Depth 6 | Set-Content acceptance.json
@@ -183,12 +179,10 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
+          ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe
           $notes = @('--generate-notes')
-          if ($env:UNSIGNED_PREVIEW -eq 'true') {
-            if ((Get-AuthenticodeSignature dist/setup.exe).Status -ne 'NotSigned') { throw 'Unexpected installer signature' }
+          if ($env:UNSIGNED_WINDOWS -eq 'true') {
             $notes = @('--notes', 'Windows x64 測試版，安裝檔為 setup.exe。本版未簽署 Authenticode，Windows SmartScreen 可能顯示「發行者未知」。')
-          } else {
-            ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe
           }
           $version = (Get-Content apps/desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           if ($version -notmatch '^\d+\.\d+\.\d+-\d+$') { throw 'Choose a new Windows prerelease version.' }

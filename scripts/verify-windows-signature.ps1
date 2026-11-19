@@ -5,7 +5,14 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $signature = Get-AuthenticodeSignature -LiteralPath $Path
-if ($env:WINDOWS_SIGNING_PROVIDER -eq 'azure') {
+if (!$env:WINDOWS_SIGNING_PROVIDER -and !$Thumbprint -and !$Subject) {
+    if ($signature.Status -eq 'NotSigned') {
+        Write-Host "No publisher configured; accepting unsigned Windows artifact $Path."
+        return
+    }
+    # Reused builds may already have a valid publisher even when none is pinned.
+    $publisherMatches = $true
+} elseif ($env:WINDOWS_SIGNING_PROVIDER -eq 'azure') {
     # Public Trust leaf certificates rotate. Pin the validated publisher's full X.500 name.
     $publisherMatches = $Subject -and ($signature.SignerCertificate.Subject -ceq $Subject)
 } else {
