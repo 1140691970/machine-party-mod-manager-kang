@@ -27,10 +27,10 @@
 </div>
 
 <p align="center">
-  <img src="../images/screenshot-catalog.zh-CN.png" width="100%" alt="Machine Party 模组管理器目录界面，展示五个 v2.1.2 测试版条目">
+  <img src="../images/screenshot-catalog.zh-CN.png" width="100%" alt="Machine Party 模组管理器目录界面，展示六个 v2.1.2 测试版条目">
 </p>
 
-<p align="center"><sub>桌面端目录界面，展示全部五个 <code>v2.1.2</code> Windows 测试版条目。</sub></p>
+<p align="center"><sub>桌面端目录界面，展示全部六个 <code>v2.1.2</code> Windows 测试版条目。</sub></p>
 
 ## 一目了然
 
@@ -65,6 +65,8 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | 设置页 | 应用内更新提示 |
 | --- | --- |
 | ![设置页](../images/screenshot-settings.zh-CN.png) | ![应用内更新提示](../images/screenshot-update.zh-CN.png) |
+
+更新提示截图演示从 0.1.2-6 到 0.1.2-7 的模拟升级。
 
 ## 已收录模组
 

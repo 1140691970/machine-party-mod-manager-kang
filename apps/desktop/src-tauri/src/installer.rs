@@ -1712,9 +1712,12 @@ pub fn uninstall_mod(
 
     let tx = get_transaction(config_dir, game_root, &mod_entry.id)?
         .ok_or_else(|| "missingTransaction".to_string())?;
-    if tx.pck_dir != pck_dir
+    // Loader uninstall uses the installed transaction's fingerprints across catalog updates.
+    let recorded_loader = tx.exclusive == "loader" && adapter.kind == "loader-files";
+    if tx.mod_id != mod_entry.id
+        || tx.pck_dir != pck_dir
         || tx.backup_dir != backup_dir_for(config_dir, game_root, &mod_entry.id)
-        || tx.version != mod_entry.version.as_deref().unwrap_or_default()
+        || (!recorded_loader && tx.version != mod_entry.version.as_deref().unwrap_or_default())
         || tx.repo != mod_entry.repo
     {
         return Err("gameUpdatedOrModified".into());
@@ -4590,8 +4593,17 @@ print("Patched")
 
         uninstall_mod(&config_dir, &game_root, &overtime, &runner, &UnlockedCheck).unwrap();
         uninstall_mod(&config_dir, &game_root, &plus, &runner, &UnlockedCheck).unwrap();
-        let restored =
-            uninstall_mod(&config_dir, &game_root, &roller, &runner, &UnlockedCheck).unwrap();
+        let current_roller = crate::catalog::entry("roller-carnival").unwrap();
+        assert_eq!(roller.version.as_deref(), Some("v0.1.0"));
+        assert_ne!(current_roller.version, roller.version);
+        let restored = uninstall_mod(
+            &config_dir,
+            &game_root,
+            &current_roller,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
         assert_eq!(restored, baseline);
         assert!(pck_loader::read_managed_marker(&pck_dir).unwrap().is_none());
 

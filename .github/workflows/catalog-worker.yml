@@ -67,7 +67,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 3 "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1" -o "$RUNNER_TEMP/live-catalog.json"
+          for attempt in {1..12}; do
+            curl --fail --silent --show-error --retry 3 "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1" -o "$RUNNER_TEMP/live-catalog.json"
+            if cmp -s catalog/mods.json "$RUNNER_TEMP/live-catalog.json"; then break; fi
+            sleep 5
+          done
           cmp catalog/mods.json "$RUNNER_TEMP/live-catalog.json"
           while read -r id version asset size; do
             url="https://machineparty.ailaogong.men/v1/downloads/$id/$version/$asset"

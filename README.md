@@ -27,10 +27,10 @@ Browse hand-curated mods for [Machine Party](https://store.steampowered.com/app/
 </div>
 
 <p align="center">
-  <img src="docs/images/screenshot-catalog.png" width="100%" alt="Machine Party Mod Manager catalog view showing five v2.1.2 preview entries">
+  <img src="docs/images/screenshot-catalog.png" width="100%" alt="Machine Party Mod Manager catalog view showing six v2.1.2 preview entries">
 </p>
 
-<p align="center"><sub>Desktop catalog UI displaying all five <code>v2.1.2</code> Windows preview entries.</sub></p>
+<p align="center"><sub>Desktop catalog UI displaying all six <code>v2.1.2</code> Windows preview entries.</sub></p>
 
 ## At a glance
 
@@ -65,6 +65,8 @@ On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive an
 | Settings | In-app update prompt |
 | --- | --- |
 | ![Settings](docs/images/screenshot-settings.png) | ![In-app update prompt](docs/images/screenshot-update.png) |
+
+The update prompt illustrates a simulated upgrade from 0.1.2-6 to 0.1.2-7.
 
 ## Catalogued mods
 
