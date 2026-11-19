@@ -6,6 +6,7 @@ export const state = {
   locale: locales.includes(savedLocale) ? savedLocale : systemLocale(navigator.language),
   page: "catalog",
   mods: [],
+  previewMod: null,
   game: localStorage.getItem("game-path") || "",
   pckDir: "",
   inventory: {},

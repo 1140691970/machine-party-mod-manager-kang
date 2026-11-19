@@ -1097,7 +1097,9 @@ pub fn install_from_zip(
     };
     save_transaction(config_dir, game_root, record.clone())?;
 
-    if !uses_delta_restore(adapter) {
+    if !uses_delta_restore(adapter)
+        || crate::catalog::matches_preview(mod_entry, env!("CARGO_PKG_VERSION"))
+    {
         let full_backup = backup_dir.join(&adapter.baseline.file);
         copy_atomic(&pck_path, &full_backup)?;
         if file_fingerprint(&full_backup)? != pre_pck {

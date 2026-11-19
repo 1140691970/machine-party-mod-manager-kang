@@ -6,7 +6,7 @@ Notable changes for players and contributors. Versions follow the desktop app ve
 
 ## 0.1.2-1 — 2026-11-19
 
-Windows x64 preview for testing the refreshed interface, online mod catalog, game folder detection and per-copy status. Overtime installation remains gated pending Windows validation.
+Windows x64 preview for testing the refreshed interface, online mod catalog, game folder detection and per-copy status. This preview enables installation and offline restoration of the bundled Overtime v1.7 profile on Windows for testing.
 
 ### Changed
 

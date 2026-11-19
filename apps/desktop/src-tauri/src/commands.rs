@@ -109,7 +109,11 @@ pub fn app_version(app: AppHandle) -> String {
 
 #[tauri::command]
 pub fn catalog() -> serde_json::Value {
-    catalog::bundled()
+    let mut snapshot = catalog::bundled();
+    if cfg!(windows) {
+        snapshot["previewMod"] = catalog::preview_entry(env!("CARGO_PKG_VERSION")).into();
+    }
+    snapshot
 }
 
 #[tauri::command]
@@ -154,6 +158,13 @@ pub fn validate_game_mods(
     installer::validate_game_mods(&config_dir(&app)?, &path, &list)
 }
 
+fn authorized_mod(item: &catalog::ModEntry) -> bool {
+    if cfg!(windows) && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some() {
+        return catalog::matches_preview(item, env!("CARGO_PKG_VERSION"));
+    }
+    item.verified
+}
+
 #[tauri::command]
 pub async fn install_mod(
     app: AppHandle,
@@ -162,7 +173,7 @@ pub async fn install_mod(
     mods: Option<Vec<catalog::ModEntry>>,
     progress: Channel<u64>,
 ) -> Result<installer::CopyValidation, String> {
-    if !mod_entry.verified {
+    if !authorized_mod(&mod_entry) {
         return Err("installPending".into());
     }
     if catalog::project_url(&mod_entry.repo).is_none() {
@@ -234,6 +245,12 @@ pub async fn uninstall_mod(
     mod_entry: catalog::ModEntry,
     mods: Option<Vec<catalog::ModEntry>>,
 ) -> Result<installer::CopyValidation, String> {
+    if cfg!(windows)
+        && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some()
+        && !authorized_mod(&mod_entry)
+    {
+        return Err("installPending".into());
+    }
     let adapter = mod_entry
         .adapter
         .as_ref()

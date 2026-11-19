@@ -9,6 +9,7 @@ export function appVersion() {
   return isDesktop ? invoke("app_version").catch(() => "") : Promise.resolve("");
 }
 
+export const bundledCatalog = () => invoke("catalog");
 export const findGames = rescan => invoke("find_games", {rescan});
 export const chooseGame = title => invoke("choose_game", {title});
 export const saveGame = path => invoke("save_game", {path});

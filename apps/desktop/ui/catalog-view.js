@@ -66,7 +66,8 @@ function cover(mod, name, status) {
   const tags = element("div", "", "cover-tags");
   const version = tag(mod.version || t("unlisted"));
   if (mod.version) version.classList.add("tag-mono");
-  tags.append(version, tag(t(status), statusTone[status]));
+  const label = mod === state.previewMod && status === "pending" ? "testRelease" : status;
+  tags.append(version, tag(t(label), statusTone[status]));
   box.append(tags);
   return box;
 }
@@ -107,17 +108,18 @@ async function runUninstall(mod, name) {
 
 function primaryAction(mod, name, local, status) {
   const modState = state.modStates[mod.id];
+  const canInstall = mod.verified || mod === state.previewMod;
   let action = "install";
   if (status === "review" || modState === "gameUpdatedOrModified" || modState === "needsRepair")
     action = "review";
   else if (status === "available" || status === "waiting") action = "update";
   else if (local !== undefined) action = "uninstall";
-  else if (modState === "manualInstall" && mod.verified) action = "adoptManual";
+  else if (modState === "manualInstall" && canInstall) action = "adoptManual";
   const el = button(t(action), () => {
     if (action === "review") return details(mod);
     if (action === "update" && status === "waiting")
       return show(t(action) + " · " + name, element("p", t("hold")));
-    if ((action === "install" || action === "adoptManual") && !mod.verified)
+    if ((action === "install" || action === "adoptManual") && !canInstall)
       return show(t(action) + " · " + name, element("p", t("installPending")));
     if (!isDesktop || !mod.adapter)
       return show(t(action) + " · " + name, element("p", t("enginePending")));

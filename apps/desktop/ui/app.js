@@ -1,5 +1,5 @@
 import { checkApp, showRelease } from "./app-update.js";
-import { appVersion, isDesktop, setAppTitle } from "./bridge.js";
+import { appVersion, bundledCatalog, isDesktop, setAppTitle } from "./bridge.js";
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
@@ -60,13 +60,14 @@ function render() {
 onRender(render);
 state.appVersion = await appVersion();
 const cached = cachedCatalog(localStorage);
-if (cached) state.mods = sortMods(cached);
+if (isDesktop) state.previewMod = (await bundledCatalog()).previewMod ?? null;
+state.mods = sortMods(cached ?? {mods: []}, state.previewMod);
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
   render();
   try {
-    state.mods = sortMods(await loadCatalog(localStorage));
+    state.mods = sortMods(await loadCatalog(localStorage), state.previewMod);
     catalogStatus = "";
   } catch {
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";

@@ -88,6 +88,24 @@ pub fn bundled() -> serde_json::Value {
     serde_json::from_str(BUNDLED).expect("catalog/mods.json is validated by tests")
 }
 
+/// A preview can exercise only the exact adapter and package embedded in that build.
+pub fn preview_entry(version: &str) -> Option<serde_json::Value> {
+    bundled()["mods"]
+        .as_array()?
+        .iter()
+        .find(|item| {
+            item["windowsPreview"].as_str() == Some(version) && item["adapter"].is_object()
+        })
+        .cloned()
+}
+
+pub fn matches_preview(request: &ModEntry, version: &str) -> bool {
+    preview_entry(version)
+        .and_then(|entry| serde_json::from_value::<ModEntry>(entry).ok())
+        .as_ref()
+        == Some(request)
+}
+
 /// Returns all entries from the bundled catalog.
 pub fn all_entries() -> Vec<ModEntry> {
     let catalog: Catalog =
@@ -155,6 +173,15 @@ pub fn project_url(repo: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preview_requires_matching_build_and_pinned_package() {
+        let mut item = entry("overtime").unwrap();
+        assert!(matches_preview(&item, "0.1.2-1"));
+        assert!(!matches_preview(&item, "0.1.2"));
+        item.package.as_mut().unwrap().sha256.clear();
+        assert!(!matches_preview(&item, "0.1.2-1"));
+    }
 
     #[test]
     fn bundled_catalog_parses_with_unique_repositories() {

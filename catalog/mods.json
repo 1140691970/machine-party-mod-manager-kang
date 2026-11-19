@@ -16,6 +16,7 @@
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
+      "windowsPreview": "0.1.2-1",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],

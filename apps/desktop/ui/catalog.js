@@ -1,7 +1,8 @@
 // Pure helpers over catalog/mods.json entries.
 
-export function sortMods(catalog) {
-  return [...catalog.mods].sort((a, b) => a.order - b.order);
+export function sortMods(catalog, preview = null) {
+  const entries = preview ? [...catalog.mods.filter(mod => mod.id !== preview.id), preview] : [...catalog.mods];
+  return entries.sort((a, b) => a.order - b.order);
 }
 
 export function searchText(mod) {
