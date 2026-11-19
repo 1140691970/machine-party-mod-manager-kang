@@ -53,7 +53,7 @@ test("the installed page lists only mods recorded for the selected copy", () => 
 test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(catalog.repo, "JamesGZM/machine-party-mod-manager");
   for (const mod of catalog.mods) {
-    assert.equal(mod.windowsPreview, "0.1.2-9", mod.id);
+    assert.equal(mod.windowsPreview, "0.1.2-10", mod.id);
     assert.deepEqual(mod.adapter.platforms, ["windows"], mod.id);
     assert.equal(mod.adapter.target, "pckDir", mod.id);
     assert.ok(mod.adapter.exclusive, mod.id);
@@ -79,7 +79,7 @@ test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(plus.adapter.autoLoader, true);
 
   const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
-  assert.equal(roller.package.filename, "roller-carnival-0.1.1.zip");
+  assert.equal(roller.package.filename, "roller-carnival-0.1.2.zip");
   assert.equal(roller.package.mirrorApproved, true);
   assert.equal(roller.adapter.kind, "loader-files");
   assert.equal(roller.adapter.autoLoader, true);
@@ -109,7 +109,7 @@ test("every mod under mods/ has matching manifest, README and deterministic ZIP 
 });
 
 test("the preview displays exactly the remotely supplied catalog rows and metadata", () => {
-  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-9");
+  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-10");
   const live = {...preview, name:{...preview.name,en:"Updated online"}};
   assert.equal(sortMods({mods:[live]})[0], live);
   assert.deepEqual(sortMods({mods:[]}), []);

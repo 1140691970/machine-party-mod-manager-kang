@@ -15,6 +15,7 @@ fn main() {
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
         .manage(commands::Downloads::default())
+        .manage(commands::UpdateCatalog::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_version,
             commands::catalog,
@@ -29,6 +30,8 @@ fn main() {
             commands::cached_packages,
             commands::clear_package,
             commands::install_mod,
+            commands::authorize_mod_updates,
+            commands::update_mod,
             commands::uninstall_mod,
             commands::set_app_title,
             commands::find_games,

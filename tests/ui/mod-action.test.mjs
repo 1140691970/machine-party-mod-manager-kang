@@ -45,3 +45,12 @@ test("an installed mod uses the bundled uninstall entry after the online release
   }
   assert.equal(uninstallEntry("unlisted", "installed", pinned), undefined);
 });
+
+test("a single mod can update only from a confirmed managed installation", () => {
+  assert.equal(modAction({...copy, disk:"installed", update:true}), "updateMod");
+  assert.equal(modAction({...copy, disk:"installed", update:false}), "uninstall");
+  for (const disk of ["needsRepair", "manualInstall", "modConflict", "legacyInstalled", "vanilla"])
+    assert.notEqual(modAction({...copy, disk, update:true}), "updateMod");
+  for (const changes of [{scan:"failed"}, {scan:"checking"}, {game:""}, {verified:false}])
+    assert.notEqual(modAction({...copy, disk:"installed", update:true, ...changes}), "updateMod");
+});

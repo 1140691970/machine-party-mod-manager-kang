@@ -5,11 +5,12 @@ export function uninstallEntry(id, disk, bundled) {
   return bundled.find(item => item.id === id && item.adapter);
 }
 
-export function modAction({managed, verified, game, scan, disk}) {
+export function modAction({managed, verified, game, scan, disk, update}) {
   if (!managed || !verified) return "review";
   if (!game) return "install";
   if (scan === "checking") return "checking";
   if (scan === "failed") return "retryCheck";
+  if (disk === "installed" && update) return "updateMod";
   if (disk === "installed" || disk === "legacyInstalled") return "uninstall";
   if (disk === "manualInstall") return "adoptManual";
   if (disk === "identifyPending") return "identify";

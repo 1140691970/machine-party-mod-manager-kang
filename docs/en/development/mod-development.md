@@ -101,6 +101,8 @@ To publish a first-party mod into the catalog and R2/Worker pipeline:
 - **Automated Worker + R2 staging**: Dispatching `.github/workflows/catalog-worker.yml` runs `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`, uploads missing `packages/sha256/<sha256>.zip` objects to Cloudflare R2 (`machine-party-mods`), verifies every `mirrorApproved` package object size in R2, stages `catalog/revisions/<revision>.json`, deploys `services/catalog-worker`, and checks every live `/v1/downloads/<id>/<version>/<assetId>` HEAD response.
 - **Updating an existing mod**: Bump `version` in `mods/<id>/mod.json`, re-run `node scripts/pack-mod.mjs <id>` to update `catalog/mods.json` (`version`, `revision`, `package.assetId`/`filename`/`size`/`sha256`), update `mods/<id>/README.md`, push to `main`, and dispatch `Deploy mod catalog Worker`. Keep `"verified": false` during `windowsPreview` testing and set `"verified": true` only after Tier 3 passes; for desktop manager updates see [Releasing manager updates](releasing.md).
 
+For a native MPML release already known to the manager, set `"updateChannel": "preview"` to offer the new package to Windows preview users. The catalog workflow signs that revision. Clients with single-mod update support can then update an existing installation from **Installed**. Promote to `"verified": true` after Steam acceptance. See [ADR-012](../architecture/ADR-012-single-mod-updates.md).
+
 ## References
 
 - [ADR-009: First-party mods, deterministic R2 packaging, and self-managed loader](../architecture/ADR-009-bundled-first-party-mods.md)

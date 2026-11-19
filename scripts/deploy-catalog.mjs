@@ -17,7 +17,10 @@ const snapshot = await read("../catalog/mods.json");
 const form = new FormData();
 form.set("metadata", JSON.stringify({
   main_module: config.main, compatibility_date: config.compatibility_date,
-  bindings: config.r2_buckets.map(({binding, bucket_name}) => ({type: "r2_bucket", name: binding, bucket_name}))
+  bindings: [
+    ...config.r2_buckets.map(({binding, bucket_name}) => ({type: "r2_bucket", name: binding, bucket_name})),
+    {type:"plain_text", name:"CATALOG_SIGNATURE", text:(await readFile(process.env.CATALOG_SIGNATURE_FILE, "utf8")).trim()}
+  ]
 }));
 // JSON modules are bundled by Wrangler locally. Upload the same snapshot as a JS module via the API.
 const source = (await read("../services/catalog-worker/" + config.main))

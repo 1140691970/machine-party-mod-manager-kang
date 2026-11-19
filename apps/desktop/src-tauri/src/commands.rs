@@ -153,6 +153,114 @@ fn trusted(id: &str, version: &str) -> Result<catalog::ModEntry, String> {
         .ok_or_else(|| "unknownMod".into())
 }
 
+#[derive(Default)]
+pub struct UpdateCatalog(Mutex<Vec<catalog::ModEntry>>);
+
+#[tauri::command]
+pub fn authorize_mod_updates(
+    app: AppHandle,
+    document: String,
+    signature: String,
+) -> Result<Vec<catalog::ModEntry>, String> {
+    let state = app.state::<UpdateCatalog>();
+    let mut entries = state.0.lock().map_err(|_| "catalogUnavailable")?;
+    entries.clear();
+    if signature.is_empty() {
+        return Ok(Vec::new());
+    }
+    let cfg: serde_json::Value =
+        serde_json::from_str(include_str!("../tauri.conf.json")).map_err(|_| "catalogInvalid")?;
+    *entries = catalog::signed_updates(
+        &document,
+        &signature,
+        cfg["plugins"]["updater"]["pubkey"]
+            .as_str()
+            .ok_or("catalogInvalid")?,
+        cfg!(windows) && env!("CARGO_PKG_VERSION").contains('-'),
+    )?;
+    entries.retain(|item| {
+        item.adapter
+            .as_ref()
+            .is_some_and(|a| installer::check_platform_supported(a).is_ok())
+    });
+    Ok(entries.clone())
+}
+
+fn package_entry(
+    app: &AppHandle,
+    id: &str,
+    version: &str,
+    sha256: Option<&str>,
+) -> Result<catalog::ModEntry, String> {
+    if let Ok(item) = trusted(id, version) {
+        if sha256.is_none_or(|s| item.package.as_ref().is_some_and(|pkg| pkg.sha256 == s)) {
+            return Ok(item);
+        }
+        return Err("releaseChanged".into());
+    }
+    let state = app.state::<UpdateCatalog>();
+    state
+        .0
+        .lock()
+        .map_err(|_| "catalogUnavailable")?
+        .iter()
+        .find(|item| {
+            item.id == id
+                && item.version.as_deref() == Some(version)
+                && item
+                    .package
+                    .as_ref()
+                    .is_some_and(|pkg| Some(pkg.sha256.as_str()) == sha256)
+        })
+        .cloned()
+        .ok_or("releaseChanged".into())
+}
+
+#[tauri::command]
+pub async fn update_mod(
+    app: AppHandle,
+    path: PathBuf,
+    id: String,
+    version: String,
+    sha256: String,
+    from: String,
+    expected_dir: PathBuf,
+) -> Result<installer::CopyValidation, String> {
+    let item = package_entry(&app, &id, &version, Some(&sha256))?;
+    if !authorized_mod(&item)
+        && !app
+            .state::<UpdateCatalog>()
+            .0
+            .lock()
+            .map_err(|_| "catalogUnavailable")?
+            .contains(&item)
+    {
+        return Err("installPending".into());
+    }
+    installer::check_platform_supported(item.adapter.as_ref().ok_or("unsupportedAdapter")?)?;
+    let dir = config_dir(&app)?;
+    let list = catalog::all_entries();
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, "inventory")?;
+        let _pkg = lock_file(&dir, &format!("package-{}", item.id))?;
+        let zip = packages::verified(&dir, &item)?;
+        installer::update::apply(
+            &dir,
+            &path,
+            &expected_dir,
+            &zip,
+            &item,
+            &from,
+            &list,
+            &installer::SystemGameLockCheck,
+        )?;
+        installer::scan_copy(&dir, &path, &list, true)
+            .map_err(|reason| format!("modUpdatedRescan: {reason}"))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn game_copies(path: PathBuf) -> Vec<PathBuf> {
     game::copy_directories(&path)
@@ -173,9 +281,10 @@ pub async fn download_mod(
     app: AppHandle,
     id: String,
     version: String,
+    sha256: Option<String>,
     progress: Channel<u64>,
 ) -> Result<(), String> {
-    let item = trusted(&id, &version)?;
+    let item = package_entry(&app, &id, &version, sha256.as_deref())?;
     let dir = config_dir(&app)?;
     let name = format!("package-{}", item.id);
     let downloads = app.state::<Downloads>();
@@ -201,8 +310,13 @@ pub async fn download_mod(
 }
 
 #[tauri::command]
-pub async fn verify_package(app: AppHandle, id: String, version: String) -> Result<(), String> {
-    let item = trusted(&id, &version)?;
+pub async fn verify_package(
+    app: AppHandle,
+    id: String,
+    version: String,
+    sha256: Option<String>,
+) -> Result<(), String> {
+    let item = package_entry(&app, &id, &version, sha256.as_deref())?;
     let dir = config_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, &format!("package-{}", item.id))?;
@@ -233,8 +347,13 @@ pub async fn cached_packages(
 }
 
 #[tauri::command]
-pub async fn clear_package(app: AppHandle, id: String, version: String) -> Result<(), String> {
-    let item = trusted(&id, &version)?;
+pub async fn clear_package(
+    app: AppHandle,
+    id: String,
+    version: String,
+    sha256: Option<String>,
+) -> Result<(), String> {
+    let item = package_entry(&app, &id, &version, sha256.as_deref())?;
     let dir = config_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, &format!("package-{}", item.id))?;
@@ -253,7 +372,9 @@ pub async fn validate_game_mods(
     let dir = config_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
-        installer::scan_copy(&dir, &path, &catalog::all_entries(), force.unwrap_or(false))
+        let list = catalog::all_entries();
+        installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
+        installer::scan_copy(&dir, &path, &list, force.unwrap_or(false))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -305,6 +426,7 @@ pub async fn install_mod(
         }
         installer::SystemGameLockCheck
             .ensure_unlocked(&pck_dir, &pck_dir.join(&adapter.baseline.file))?;
+        installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         let validation = installer::validate_game_mods(&dir, &path, &list)?;
         let is_manual = adopt.unwrap_or(false);
         let state = validation.mod_states.get(&id).map(String::as_str);
@@ -386,12 +508,6 @@ pub async fn uninstall_mod(
     expected_dir: PathBuf,
 ) -> Result<installer::CopyValidation, String> {
     let mod_entry = trusted(&id, &version)?;
-    if cfg!(windows)
-        && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some()
-        && !authorized_mod(&mod_entry)
-    {
-        return Err("installPending".into());
-    }
     let adapter = mod_entry
         .adapter
         .as_ref()
@@ -404,6 +520,16 @@ pub async fn uninstall_mod(
         let _guard = lock_file(&dir, "inventory")?;
         if game::resolve_pck_dir(&path).as_ref() != Some(&expected_dir) {
             return Err("statusUnavailable".into());
+        }
+        installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
+        // Offline loader removal is authorized by the installation transaction.
+        if cfg!(windows)
+            && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some()
+            && !authorized_mod(&mod_entry)
+            && !installer::get_transaction(&dir, &path, &id)?
+                .is_some_and(|tx| tx.exclusive == "loader")
+        {
+            return Err("installPending".into());
         }
         installer::uninstall_mod(
             &dir,

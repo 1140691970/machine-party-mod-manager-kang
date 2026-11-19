@@ -18,6 +18,9 @@ var _meshes = null
 signal round_finished(scores: Dictionary)
 var _hosted_in_official_game := false
 var _roster: Array = []
+const COUNTDOWN_SECONDS := 3.0
+const ENTRANCE_SECONDS := 0.75
+const ENTRANCE_HEIGHT := 3.0
 const RELEASE_CROUCH := 4
 var _held_controls := {}
 var _snapshot_timer := 0.0
@@ -113,9 +116,19 @@ func _ready() -> void:
 func start_round(roster: Array) -> void:
 	_roster = roster
 	_start_new_round()
-	_countdown = 3.0
-	_countdown_label.text = "3"
+	# The briefing and the stage share a viewport in the official game.
+	$StageCamera.make_current()
+	_countdown = COUNTDOWN_SECONDS
+	_update_entrance()
+	_countdown_label.text = str(ceili(_countdown))
 	_countdown_label.show()
+
+
+func _update_entrance() -> void:
+	var progress := clampf((COUNTDOWN_SECONDS - _countdown) / ENTRANCE_SECONDS, 0.0, 1.0)
+	for player in _players:
+		var visual: Node3D = player["visual"]
+		visual.position.y = ENTRANCE_HEIGHT * (1.0 - progress * progress)
 
 
 func player_disconnected(_network_id: int) -> void:
@@ -308,6 +321,7 @@ func _process(delta: float) -> void:
 
 	if _countdown > 0:
 		_countdown = maxf(0, _countdown - delta)
+		_update_entrance()
 		_countdown_label.text = str(ceili(_countdown))
 		_countdown_label.visible = _countdown > 0
 		return
@@ -1283,7 +1297,21 @@ func _run_self_tests() -> void:
 		return
 
 	_hosted_in_official_game = true
+	var intro_camera := Camera3D.new()
+	add_child(intro_camera)
+	intro_camera.make_current()
 	start_round([{"id":0, "network_id":1, "nickname":"Host"}, {"id":1, "network_id":42, "nickname":"Guest"}])
+	if not _assert_true(get_viewport().get_camera_3d() == $StageCamera, "Countdown must take the camera back from the intro"):
+		return
+	intro_camera.queue_free()
+	for player in _players:
+		if not _assert_true(player.visual.position.y > 0 and player.node.position.y == 0, "Entrance raises each visual above its seat"):
+			return
+	_countdown -= ENTRANCE_SECONDS
+	_update_entrance()
+	for player in _players:
+		if not _assert_true(is_zero_approx(player.visual.position.y), "All players land before GO"):
+			return
 	var tap := InputEventKey.new()
 	tap.keycode = KEY_S
 	tap.pressed = true

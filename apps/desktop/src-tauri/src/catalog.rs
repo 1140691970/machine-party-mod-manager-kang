@@ -232,13 +232,173 @@ pub fn legacy_entry(item: &ModEntry) -> Option<ModEntry> {
     Some(entry)
 }
 
+pub fn numeric_version(version: &str) -> Option<Vec<u64>> {
+    let parts = version.trim_start_matches(['v', 'V']);
+    if parts.len() > 64 || version.len() - parts.len() > 1 {
+        return None;
+    }
+    let mut parsed = parts
+        .split('.')
+        .map(|n| {
+            if n.is_empty() || !n.bytes().all(|c| c.is_ascii_digit()) {
+                return None;
+            }
+            n.parse().ok()
+        })
+        .collect::<Option<Vec<u64>>>()?;
+    while parsed.last() == Some(&0) {
+        parsed.pop();
+    }
+    Some(parsed)
+}
+
+pub fn newer(version: &str, installed: &str) -> bool {
+    numeric_version(version)
+        .zip(numeric_version(installed))
+        .is_some_and(|(a, b)| a > b)
+}
+
+pub fn signed_updates(
+    document: &str,
+    signature: &str,
+    key: &str,
+    preview: bool,
+) -> Result<Vec<ModEntry>, String> {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    use minisign_verify::{PublicKey, Signature};
+    let invalid = "catalogInvalid";
+    if document.len() > 1024 * 1024 || signature.len() > 4096 {
+        return Err(invalid.into());
+    }
+    let decode = |s: &str| {
+        String::from_utf8(STANDARD.decode(s.trim()).map_err(|_| invalid)?).map_err(|_| invalid)
+    };
+    PublicKey::decode(&decode(key)?)
+        .map_err(|_| invalid)?
+        .verify(
+            format!("machine-party-mod-catalog-v1\n{document}").as_bytes(),
+            &Signature::decode(&decode(signature)?).map_err(|_| invalid)?,
+            false,
+        )
+        .map_err(|_| invalid)?;
+    approved_updates(document, preview)
+}
+
+fn approved_updates(document: &str, preview: bool) -> Result<Vec<ModEntry>, String> {
+    let data: serde_json::Value = serde_json::from_str(document).map_err(|_| "catalogInvalid")?;
+    if data["schema"].as_u64() != Some(1) {
+        return Err("catalogInvalid".into());
+    }
+    let mut approved = Vec::new();
+    let mut seen = std::collections::BTreeSet::new();
+    for raw in data["mods"].as_array().ok_or("catalogInvalid")? {
+        let id = raw["id"].as_str().ok_or("catalogInvalid")?;
+        if !seen.insert(id) {
+            return Err("catalogInvalid".into());
+        }
+        let Some(mut local) = entry(id) else { continue };
+        let remote: ModEntry = serde_json::from_value(raw.clone()).map_err(|_| "catalogInvalid")?;
+        let Some(pkg) = remote.package else { continue };
+        let version = remote.version.as_deref().unwrap_or("");
+        // A signed promotion can approve the exact ZIP already known to a stable client.
+        let same_release =
+            local.version.as_deref() == Some(version) && local.package.as_ref() == Some(&pkg);
+        if !(remote.verified || preview && raw["updateChannel"] == "preview")
+            || (!same_release && !newer(version, local.version.as_deref().unwrap_or("")))
+            || local.repo != remote.repo
+            || local.adapter != remote.adapter
+            || !local
+                .adapter
+                .as_ref()
+                .is_some_and(|a| a.kind == "loader-files" && a.source_rule.is_none())
+            || !pkg.mirror_approved
+            || pkg.size == 0
+            || !crate::installer::is_hex_sha256(&pkg.sha256)
+            || !pkg.filename.ends_with(".zip")
+            || pkg.filename.contains("..")
+            || !pkg
+                .filename
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+            || pkg.asset_id.is_empty()
+            || !pkg.asset_id.bytes().all(|b| b.is_ascii_digit())
+        {
+            continue;
+        }
+        local.version = remote.version;
+        local.package = Some(pkg);
+        approved.push(local);
+    }
+    Ok(approved)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
+    fn detached_catalog_signature_binds_the_exact_document() {
+        // Public verification fixture generated with the release signer and a temporary key.
+        let key = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcwRTNCMjlERjRFMEMxQzQKUldURXdlRDBuYkxqY05iaFF1ejJnTFdOS05ScWN6UHJvMnBTOGYwOWNjYktjWGIyNXljeUdJdkoK";
+        let signature = "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVURXdlRDBuYkxqY0dEdTZZL01jV0hxMHpzRFEzaE5hWVYzMjJ1ejQ4dnM4TjViRFBScGp6V0xVWDJ1Q3NpZVVmZHo0TW10cmowbFhOWE1qYVZuaUhNWCs0ZmNMUW5aNFFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1MDkxOTkyCWZpbGU6Y2F0YWxvZwprcmYwTUVPaEExMlpiSitzd1FSMWxObXIzVFcvS2tUTnFLbFg1K3oweGhuRlhLaTB1MktSeFFVZWRkOFR0SGpwMGxwamFWZDVsNHJyTitzRUpCcHFDQT09Cg==";
+        let doc = r#"{"schema":1,"mods":[]}"#;
+        assert!(
+            signed_updates(doc, signature, key, true)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(signed_updates(&format!("{doc} "), signature, key, true).is_err());
+        assert!(signed_updates(doc, "", key, true).is_err());
+    }
+
+    #[test]
+    fn only_compatible_native_packages_can_advance_from_a_signed_catalog() {
+        let snapshot = bundled();
+        let candidate = |id: &str| {
+            let mut m = snapshot["mods"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|m| m["id"] == id)
+                .unwrap()
+                .clone();
+            m["version"] = "v9.0".into();
+            m["updateChannel"] = "preview".into();
+            m
+        };
+        let allowed = |m: &serde_json::Value, preview| {
+            let doc = serde_json::json!({"schema":1,"mods":[m]}).to_string();
+            !approved_updates(&doc, preview).unwrap().is_empty()
+        };
+        let mut roller = candidate("roller-carnival");
+        assert!(allowed(&roller, true));
+        assert!(!allowed(&roller, false));
+        roller["verified"] = true.into();
+        assert!(allowed(&roller, false));
+        let mut promoted = roller.clone();
+        promoted["version"] = entry("roller-carnival").unwrap().version.unwrap().into();
+        assert!(allowed(&promoted, false));
+        promoted["package"]["sha256"] = "0".repeat(64).into();
+        assert!(!allowed(&promoted, false));
+        for (path, value) in [
+            ("/version", "v0.0.1"),
+            ("/repo", "different/project"),
+            ("/package/filename", "../bad.zip"),
+            ("/adapter/exclusive", "pck"),
+        ] {
+            let mut invalid = roller.clone();
+            *invalid.pointer_mut(path).unwrap() = value.into();
+            assert!(!allowed(&invalid, true));
+        }
+        assert!(!allowed(&candidate("overtime"), true));
+        assert!(!newer("v1.00.0", "1"));
+        assert!(!newer("v1.9-beta", "v1.0"));
+        assert!(newer("v1.10", "v1.9"));
+    }
+
+    #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-9").len(), 6);
+        assert_eq!(preview_entries("0.1.2-10").len(), 6);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -248,10 +408,10 @@ mod tests {
             "lobby-bots",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-9"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-10"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-9"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-10"), "{id}");
         }
     }
 
@@ -331,7 +491,7 @@ mod tests {
             .package
             .as_ref()
             .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.1.zip");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.2.zip");
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
@@ -344,7 +504,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.1/1001"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.2/1001"
         );
     }
 }

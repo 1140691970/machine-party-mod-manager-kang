@@ -99,6 +99,8 @@
 - **CI 自動上傳 R2 與部署 Worker**：執行 `.github/workflows/catalog-worker.yml` 時，會自動跑 `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`、將缺少的 `packages/sha256/<sha256>.zip` 上傳至 R2（`machine-party-mods`）、驗證全部 `mirrorApproved` 套件的 R2 `ContentLength`，接著上傳 `catalog/revisions/<revision>.json`、部署 `services/catalog-worker` 並以 `HEAD /v1/downloads/...` 確認線上端點回傳 200。
 - **更新既有自研模組**：調升 `mods/<id>/mod.json` 版本號後，重新執行 `node scripts/pack-mod.mjs <id>`，更新 `catalog/mods.json`（`revision`、`version`、`package.assetId`/`filename`/`size`/`sha256`）與 `mods/<id>/README.md`，推送至 `main` 後執行 `Deploy mod catalog Worker` 即可（僅更新桌面用戶端本身時再依[發布管理器更新](releasing.md)流程辦理）。
 
+若管理器已收錄這個原生 MPML 模組，可設 `"updateChannel": "preview"` 將新版提供給 Windows 測試版玩家。目錄部署流程會簽署這次修訂。支援單模組更新的管理器可從「已安裝」升級現有安裝，通過 Steam 驗收後再設 `"verified": true`。詳見 [ADR-012](../architecture/ADR-012-single-mod-updates.md)。
+
 ## 延伸閱讀
 
 - [ADR-009：自研模組、R2 確定性打包與自管載入器規範](../architecture/ADR-009-bundled-first-party-mods.md)

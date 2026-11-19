@@ -1,6 +1,6 @@
 [package]
 name = "machine-party-mod-manager"
-version = "0.1.2-9"
+version = "0.1.2-10"
 edition = "2024"
 license = "GPL-3.0-only"
 build = "build.rs"
@@ -21,6 +21,8 @@ tempfile = "3"
 zip = { version = "9.7", default-features = false }
 crc32fast = "1"
 flate2 = "1"
+minisign-verify = "0.3"
+base64 = "0.23"
 hex = "0.4"
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls-no-provider", "system-proxy"] }

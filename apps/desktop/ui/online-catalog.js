@@ -75,7 +75,7 @@ export function cachedCatalog(storage) {
   } catch { return null; }
 }
 
-export async function loadCatalog(storage, request = fetch) {
+export async function loadCatalog(storage, request = fetch, authorize) {
   let catalog;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -83,8 +83,14 @@ export async function loadCatalog(storage, request = fetch) {
         cache: "no-cache", credentials: "omit", signal: AbortSignal.timeout(15000)
       });
       if (!response.ok) throw Error("HTTP " + response.status);
-      catalog = await response.json();
+      const document = await response.text();
+      catalog = JSON.parse(document);
       if (!validCatalog(catalog)) throw Error("catalogInvalid");
+      if (authorize) {
+        const signature = response.headers.get("X-Mod-Catalog-Signature") || "";
+        await authorize(document, signature);
+        try { storage.setItem(cacheKey + "-proof", JSON.stringify({document,signature})); } catch { /* Optional offline cache. */ }
+      }
       break;
     } catch (error) {
       const timedOut = ["TimeoutError", "AbortError"].includes(error.name);
@@ -102,4 +108,9 @@ export async function loadCatalog(storage, request = fetch) {
 
 export function downloadUrl(mod) {
   return origin + `/v1/downloads/${mod.id}/${mod.version}/${mod.package.assetId}`;
+}
+
+export async function restoreCatalogProof(storage, authorize) {
+  const proof = JSON.parse(storage.getItem(cacheKey + "-proof") || "null");
+  if (proof?.signature) await authorize(proof.document, proof.signature);
 }

@@ -18,7 +18,11 @@ export const validateGameMods = (path, force) => invoke("validate_game_mods", {p
 export const gameCopies = path => invoke("game_copies", {path});
 export const cachedPackages = () => invoke("cached_packages");
 
-const release = mod => ({id: mod.id, version: mod.version});
+const release = mod => ({id: mod.id, version: mod.version, sha256: mod.package?.sha256});
+
+export const authorizeUpdates = (document, signature) => invoke("authorize_mod_updates", {document, signature});
+export const updateMod = (path, mod, from, expectedDir) =>
+  invoke("update_mod", {...release(mod), path, from, expectedDir});
 
 export const verifyPackage = mod => invoke("verify_package", release(mod));
 export const clearPackage = mod => invoke("clear_package", release(mod));

@@ -123,10 +123,31 @@ func run():
 		lobby.lobby_handler.players.append(model)
 		lobby.lobby_handler.nametags.append(tag)
 	lobby.add_child(lobby.lobby_handler)
-	lobby.lobby_handler.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lobby.lobby_handler.size = Vector2(640, 360)
+	lobby.loading = true
+	lobby.lobby_handler.hide()
 	bots._enter_lobby(lobby)
 	root.add_child(lobby)
-	for i in 4:
+	await process_frame
+	await process_frame
+	lobby.loading = false
+	lobby.lobby_handler.show()
+	await process_frame
+	await process_frame
+	check_button_position(bots, "empty room")
+	if OS.get_cmdline_user_args().size() > 2:
+		await RenderingServer.frame_post_draw
+		expect(root.get_texture().get_image().save_png(OS.get_cmdline_user_args()[2]) == OK, "capture empty room")
+	bots.add_button.pressed.emit()
+	await process_frame
+	await process_frame
+	check_button_position(bots, "after adding first bot")
+	lobby.lobby_handler.size.x = 480
+	await process_frame
+	await process_frame
+	check_button_position(bots, "resized room")
+	lobby.lobby_handler.size.x = 640
+	for i in 3:
 		bots.add_button.pressed.emit()
 	expect(bots.bots.size() == 3 and bots.steam.limit == 1, "host plus three bots fills room")
 	var ids := bots.bots.keys()
@@ -330,6 +351,12 @@ func check_junk(bots, players):
 	players.player_presences = roster
 	arena.free()
 	DirAccess.remove_absolute(path)
+
+func check_button_position(bots, stage: String):
+	var button: Rect2 = bots.add_button.get_global_rect()
+	var room: Rect2 = bots.lobby.lobby_handler.root.get_global_rect()
+	expect(button.has_area() and room.encloses(button), "entire button visible in " + stage)
+	expect(is_equal_approx(room.end.x - button.end.x, 24.0) and is_equal_approx(button.position.y - room.position.y, 24.0), "button margins in " + stage)
 
 func check_failed_override():
 	for result in [false, null]:

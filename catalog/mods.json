@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.17-mpml1",
+  "revision": "2026-11-19.20-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -18,7 +18,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-9",
+      "windowsPreview": "0.1.2-10",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -62,6 +62,7 @@
     },
     {
       "id": "machineparty-plus",
+      "updateChannel": "preview",
       "order": 2,
       "repo": "Ghostx10742/MachineParty-Plus",
       "image": "plus",
@@ -75,7 +76,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-9",
+      "windowsPreview": "0.1.2-10",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -118,7 +119,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-9",
+      "windowsPreview": "0.1.2-10",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -172,7 +173,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-9",
+      "windowsPreview": "0.1.2-10",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -215,20 +216,21 @@
     },
     {
       "id": "roller-carnival",
+      "updateChannel": "preview",
       "order": 5,
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
       "image": "roller-carnival",
-      "version": "v0.1.1",
+      "version": "v0.1.2",
       "package": {
         "assetId": "1001",
-        "filename": "roller-carnival-0.1.1.zip",
-        "size": 99769,
-        "sha256": "a7f323e7c0fec56b2ec124dd591bf5898b57cb7333a25539322d8b3e00d56986",
+        "filename": "roller-carnival-0.1.2.zip",
+        "size": 101208,
+        "sha256": "a6688967907bb5d5bce791c8e9c5be19c06dcf3224ec884ff92e00e362c0b470",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-9",
+      "windowsPreview": "0.1.2-10",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -274,22 +276,23 @@
     },
     {
       "id": "lobby-bots",
+      "updateChannel": "preview",
       "order": 6,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "image": "lobby-bots",
-      "version": "v0.1.4",
+      "version": "v0.1.5",
       "package": {
-        "assetId": "1006",
-        "filename": "lobby-bots-0.1.4.zip",
-        "size": 14900,
-        "sha256": "098e69f28452bc146142b83706060d4334f6d0c2b0b1fca1a7636048c6f54845",
+        "assetId": "1007",
+        "filename": "lobby-bots-0.1.5.zip",
+        "size": 15056,
+        "sha256": "785f546271202fd3ea46c87407260f8b7c260e445eb7ff3e93c8698bdcc5caaf",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-9",
+      "windowsPreview": "0.1.2-10",
       "adapter": {
         "kind": "loader-files",
         "platforms": [

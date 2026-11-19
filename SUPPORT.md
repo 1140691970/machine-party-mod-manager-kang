@@ -7,6 +7,12 @@
 - Check the [README](README.md) for downloads and the mod installation features available in the Windows preview.
 - Check [existing issues](https://github.com/JamesGZM/machine-party-mod-manager/issues), including closed ones.
 
+## Updating one installed mod
+
+Close the game, open **Installed**, and select **Update to** on the mod you want to update. The dialog shows the installed and target versions. If a package fails verification, the previous version stays installed. After an interrupted replacement, close the game and reopen the manager to recover the recorded version. The mod’s details also offer **Uninstall**.
+
+![Updating one installed mod](docs/images/screenshot-mod-update.png)
+
 ## Removing an MPML mod
 
 Open **Installed** and choose **Uninstall**. The dialog shows the version installed in that game copy. If you reinstalled a clean copy of the same supported game build in the same folder and a previous MPML installation shows **Repair needed**, open **View details** and choose **Uninstall** to clear its record. Once verification completes, you can install the mod again.

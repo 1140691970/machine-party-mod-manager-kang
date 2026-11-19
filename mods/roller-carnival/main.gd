@@ -25,10 +25,11 @@ func _mod_init(loader) -> void:
 
 	_official_script = loader.compile(_mod_dir.path_join("official_minigame.gd"))
 	_register_mod_scripts(loader)
+	if not _prepare_packed_minigame_scene():
+		return
 	if _meshes_script != null:
 		_roller_icon_texture = _meshes_script.build_roller_icon()
 		_roller_icon_texture.take_over_path("res://minigames/intermission_new/minigame_icons/placeholder_icons/minigame icon_placeholder11.png")
-	_prepare_packed_minigame_scene()
 
 	if loader.has_method("override_script_rel"):
 		loader.override_script_rel(MOD_ID, "res://scripts/scenes/game/game.gd", "override_game.gd")
@@ -82,9 +83,10 @@ func _register_mod_scripts(loader) -> void:
 			_game_script.take_over_path(REG_RES_DIR + "roller_carnival_game.gd")
 
 
-func _prepare_packed_minigame_scene() -> void:
-	if _game_script == null or _official_script == null:
-		return
+func _prepare_packed_minigame_scene() -> bool:
+	if _game_script == null or _official_script == null or _meshes_script == null or _config_script == null:
+		_loader.note(MOD_ID + ": missing runtime script, skipping playlist registration")
+		return false
 	var dummy_root: Node = _official_script.new()
 	dummy_root.name = "RollerCarnival"
 	var stage: Node3D = _game_script.new()
@@ -98,11 +100,14 @@ func _prepare_packed_minigame_scene() -> void:
 	if err != OK:
 		if _loader != null:
 			_loader.note(MOD_ID + ": failed to pack RollerCarnival scene, err=" + str(err))
-		return
+		return false
 
+	packed.take_over_path(TARGET_SCENE_PATH)
+	if ResourceLoader.load(TARGET_SCENE_PATH) != packed:
+		_loader.note(MOD_ID + ": scene registration failed at " + TARGET_SCENE_PATH)
+		return false
 	_packed_minigame_scene = packed
-	if ResourceLoader.exists(TARGET_SCENE_PATH) or TARGET_SCENE_PATH.begins_with("res://"):
-		_packed_minigame_scene.take_over_path(TARGET_SCENE_PATH)
+	return true
 
 
 func _get_globals_node() -> Node:
@@ -112,6 +117,8 @@ func _get_globals_node() -> Node:
 
 
 func _ensure_default_playlist_entry() -> void:
+	if _packed_minigame_scene == null:
+		return
 	var glb := _get_globals_node()
 	if glb == null:
 		return
@@ -133,7 +140,7 @@ func _ensure_default_playlist_entry() -> void:
 
 
 func _on_game_entered(game_node: Node) -> void:
-	if game_node == null:
+	if game_node == null or _packed_minigame_scene == null:
 		return
+	_packed_minigame_scene.take_over_path(TARGET_SCENE_PATH)
 	_ensure_default_playlist_entry()
-	_prepare_packed_minigame_scene()

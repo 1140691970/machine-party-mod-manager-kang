@@ -2266,14 +2266,16 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "machine-party-mod-manager"
-version = "0.1.2-9"
+version = "0.1.2-10"
 dependencies = [
+ "base64 0.23.1",
  "crc32fast",
  "file-id",
  "flate2",
  "fs2",
  "futures-util",
  "hex",
+ "minisign-verify",
  "regex",
  "reqwest",
  "rfd",

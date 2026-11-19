@@ -66,3 +66,4 @@ Steam 上的 Machine Party（App ID 4108000）僅支援 Windows，不考慮在 m
 - [ADR-009：自研模組、R2 確定性打包與自管載入器規範（提議）](ADR-009-bundled-first-party-mods.md)
 - [ADR-010 · 同倉庫模組的獨立安裝紀錄](ADR-010-shared-repository-mods.md)
 - [ADR-011 · 安裝前統一準備 MPML](ADR-011-prepare-mpml.md)
+- [ADR-012 · 更新單一已安裝模組](ADR-012-single-mod-updates.md)

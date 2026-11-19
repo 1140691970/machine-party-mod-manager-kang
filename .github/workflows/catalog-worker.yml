@@ -59,6 +59,14 @@ jobs:
             r2 get-object --bucket "$BUCKET" --key "$key" "$RUNNER_TEMP/catalog.json"
           fi
           cmp catalog/mods.json "$RUNNER_TEMP/catalog.json"
+      - name: Sign the full catalog for compatible mod updates
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          { printf 'machine-party-mod-catalog-v1\n'; cat catalog/mods.json; } > "$RUNNER_TEMP/mod-catalog"
+          npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign -p '' "$RUNNER_TEMP/mod-catalog" > /dev/null
+          test -s "$RUNNER_TEMP/mod-catalog.sig"
+          echo "CATALOG_SIGNATURE_FILE=$RUNNER_TEMP/mod-catalog.sig" >> "$GITHUB_ENV"
       - run: node scripts/deploy-catalog.mjs
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -68,10 +76,12 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in {1..12}; do
-            curl --fail --silent --show-error --retry 3 "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1" -o "$RUNNER_TEMP/live-catalog.json"
-            if cmp -s catalog/mods.json "$RUNNER_TEMP/live-catalog.json"; then break; fi
+            curl --fail --silent --show-error --retry 3 -D "$RUNNER_TEMP/catalog.headers" "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1" -o "$RUNNER_TEMP/live-catalog.json"
+            signature=$(tr -d '\r' < "$RUNNER_TEMP/catalog.headers" | awk 'tolower($1) == "x-mod-catalog-signature:" {print $2}')
+            if cmp -s catalog/mods.json "$RUNNER_TEMP/live-catalog.json" && test "$signature" = "$(cat "$CATALOG_SIGNATURE_FILE")"; then break; fi
             sleep 5
           done
+          test "$signature" = "$(cat "$CATALOG_SIGNATURE_FILE")"
           cmp catalog/mods.json "$RUNNER_TEMP/live-catalog.json"
           while read -r id version asset size; do
             url="https://machineparty.ailaogong.men/v1/downloads/$id/$version/$asset"

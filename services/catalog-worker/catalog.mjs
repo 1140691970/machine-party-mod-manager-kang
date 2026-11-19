@@ -19,6 +19,10 @@ export default {
       const prepared = new URL(request.url).searchParams.get("prepare") === "1" && !legacy;
       const etag = !legacy && !prepared ? '"' + snapshot.revision + '-native"' : legacy ? '"' + snapshot.revision + '-legacy"' : fullEtag;
       const metadata = {...headers, ETag: etag, "Content-Type": "application/json; charset=utf-8"};
+      if (prepared && env.CATALOG_SIGNATURE) {
+        metadata["X-Mod-Catalog-Signature"] = env.CATALOG_SIGNATURE;
+        metadata["Access-Control-Expose-Headers"] = "X-Mod-Catalog-Signature";
+      }
       if (request.headers.get("If-None-Match") === etag)
         return new Response(null, {status: 304, headers: metadata});
       const object = head ? await env.PACKAGES.head(catalogKey) : await env.PACKAGES.get(catalogKey);

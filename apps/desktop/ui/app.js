@@ -1,5 +1,5 @@
 import { checkApp } from "./app-update.js";
-import { appVersion, bundledCatalog, cachedPackages, isDesktop, setAppTitle } from "./bridge.js";
+import { authorizeUpdates, appVersion, bundledCatalog, cachedPackages, isDesktop, setAppTitle } from "./bridge.js";
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
@@ -8,7 +8,7 @@ import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
 
-import { cachedCatalog, loadCatalog } from "./online-catalog.js";
+import { cachedCatalog, loadCatalog, restoreCatalogProof } from "./online-catalog.js";
 
 let catalogStatus = "catalogLoading";
 let catalogError = "";
@@ -79,15 +79,23 @@ state.previewMods = bundled.previewMods ?? (bundled.previewMod ? [bundled.previe
 state.appRepo = bundled.repo || state.appRepo;
 state.mods = cached ? sortMods(cached, state.pinned) : [];
 
+async function authorize(document, signature) {
+  state.updateTargets = [];
+  state.updateTargets = await authorizeUpdates(document, signature);
+}
+if (isDesktop) {
+  try { await restoreCatalogProof(localStorage, authorize); } catch { /* Refresh online. */ }
+}
+
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
   catalogError = "";
   render();
   try {
-    state.mods = sortMods(await loadCatalog(localStorage), state.pinned);
+    state.mods = sortMods(await loadCatalog(localStorage, fetch, isDesktop ? authorize : undefined), state.pinned);
     catalogStatus = "";
   } catch (error) {
-    catalogError = error.message;
+    catalogError = error.message || String(error);
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";
   }
   render();

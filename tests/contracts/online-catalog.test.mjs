@@ -4,7 +4,7 @@ import test from "node:test";
 import gateway from "../../services/update-worker/app-updates.mjs";
 import worker from "../../services/catalog-worker/catalog.mjs";
 import snapshot from "../../catalog/mods.json" with {type: "json"};
-import {cachedCatalog, downloadUrl, loadCatalog, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
+import {cachedCatalog, downloadUrl, loadCatalog, restoreCatalogProof, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
 
 const compatibleSnapshot = () => ({...snapshot,mods:snapshot.mods.map(m=>({...m,...previous[m.id]}))});
 const catalogStore = {PACKAGES:{get:async key => {
@@ -157,4 +157,29 @@ test("previous Roller Carnival download still serves the published v0.1.0 packag
   }, {method:"HEAD"});
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-length"), "138033");
+});
+
+test("only the full catalog carries the proof for its exact bytes, including over the gateway", async () => {
+  const env = {...catalogStore, CATALOG_SIGNATURE:"example-signature"};
+  for (const suffix of ["", "?inventory=id", "?prepare=1"]) {
+    const result = await serve("https://machineparty.ailaogong.men/v1/catalog.json" + suffix, env);
+    assert.equal(result.headers.get("X-Mod-Catalog-Signature"), null);
+  }
+  const raw = JSON.stringify(snapshot, null, 2) + "\n";
+  env.PACKAGES = {get:async () => ({body:raw})};
+  const storage = new Map();
+  const local = {setItem:(k,v) => storage.set(k,v), getItem:k => storage.get(k)};
+  const request = url => gateway.fetch(new Request(url), {CATALOG:{fetch:req => worker.fetch(req, env)}});
+  let called = 0;
+  const authorize = (document, signature) => {
+    assert.equal(document, raw);
+    assert.equal(signature, env.CATALOG_SIGNATURE);
+    called++;
+  };
+  assert.deepEqual(await loadCatalog(local, request, authorize), snapshot);
+  await restoreCatalogProof(local, authorize);
+  assert.equal(called, 2);
+  const prior = new Map(storage);
+  await assert.rejects(loadCatalog(local, request, () => { throw Error("catalogInvalid"); }), /catalogInvalid/);
+  assert.deepEqual(storage, prior);
 });

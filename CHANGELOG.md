@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-10 — 2026-11-19
+
+- Open **Installed** and select **Update to** on a managed mod. The manager verifies the new package and restores the old version if replacement fails before commit. Other installed mods keep their versions.
+- Roller Carnival v0.1.2 adds an overhead view and player drop-in at the start of a round. Lobby Bots v0.1.5 aligns the host controls in the upper-right corner.
+
 ## 0.1.2-9 — 2026-11-19
 
 - Older Roller Carnival records appear as one installed mod. Uninstall verifies the files recorded for that game copy and preserves other mods from the same repository.

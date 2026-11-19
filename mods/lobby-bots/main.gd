@@ -71,11 +71,16 @@ func _enter_lobby(node: Node) -> void:
 
 func _setup_panel() -> void:
 	var handler = lobby.lobby_handler
+	var toolbar := HBoxContainer.new()
+	toolbar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toolbar.alignment = BoxContainer.ALIGNMENT_END
+	handler.root.add_child(toolbar)
+	toolbar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	toolbar.offset_right = -24
+	toolbar.offset_top = 24
+	toolbar.offset_bottom = 24
 	panel = VBoxContainer.new()
-	handler.root.add_child(panel)
-	panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	panel.position += Vector2(-24, 24)
+	toolbar.add_child(panel)
 	add_button = Button.new()
 	add_button.text = _label("Add bot", "添加机器人", "加入機器人")
 	if not junk_override_ready:

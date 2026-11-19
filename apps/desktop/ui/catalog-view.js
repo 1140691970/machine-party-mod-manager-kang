@@ -1,6 +1,6 @@
 import { downloadUrl } from "./online-catalog.js";
 import { installationProblem, modAction, uninstallEntry } from "./mod-action.js";
-import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod } from "./bridge.js";
+import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
 import { inventoryKey, installedRows, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
 import { applyValidation, syncGameMods, withGameCopy } from "./game-folder.js";
@@ -19,6 +19,9 @@ const support = mod => {
   return versions?.length ? t("supportedGame") + " · " + versions.join(", ") : t("supportUnknown");
 };
 const trustedPackage = mod => isDesktop && Boolean(mod.package?.mirrorApproved) && Boolean(pinnedOf(mod));
+
+const approvedUpdate = mod => isDesktop && (state.updateTargets.some(item => matchesMod(item, mod))
+  || (trustedPackage(mod) && (pinnedOf(mod).verified || isPreview(mod))));
 
 const statusTone = {
   pending: "", release: "", waiting: "", same: "success",
@@ -49,7 +52,7 @@ function conflictNames(mod) {
 
 function details(mod) {
   const local = state.inventory[inventoryKey(mod)];
-  const status = versionState(local, mod.version, mod.verified);
+  const status = versionState(local, mod.version, mod.verified || approvedUpdate(mod));
   const modState = state.modStates[mod.id];
   const parts = [
     element("p", mod.detail[state.locale]),
@@ -58,16 +61,21 @@ function details(mod) {
   ];
   if (local !== undefined) {
     parts.push(element("p", t("local") + " · " + local), element("p", t(status)));
-    if (status === "waiting" || status === "newer")
+    const bundled = state.pinned.find(item => item.id === mod.id);
+    if (bundled && !pinnedOf(mod) && (bundled.adapter?.sourceRule || mod.adapter?.sourceRule)
+        && versionState(bundled.version, mod.version, true) === "available")
+      parts.push(element("p", t("updateManagerForMod")));
+    else if (status === "waiting" || status === "newer")
       parts.push(element("p", t(status === "waiting" ? "hold" : "noDowngrade")));
   }
+  if (modState === "installed" && currentAction(mod) === "updateMod") parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
   if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id] && uninstallEntry(mod.id, modState, state.pinned)) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
   if (modState === "legacyInstalled" && trustedPackage(mod) && (mod.verified || isPreview(mod))) parts.push(button(t("migrateLoader"), () => startInstall(mod, "switch"), "primary"));
   if (modState === "manualInstall") parts.push(element("p", t("manualDetected")));
   else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
     parts.push(element("p", t(modState), "error"));
   if (state.scan === "failed") parts.push(element("p", t(state.scanError) || t("statusUnavailable"), "error"));
-  if (!mod.verified && !isPreview(mod)) parts.push(element("p", t("installPending")));
+  if (!mod.verified && !isPreview(mod) && !approvedUpdate(mod)) parts.push(element("p", t("installPending")));
   if (state.lastScan?.pckPath) parts.push(element("p", state.lastScan.pckPath, "file-detail"));
   const adapter = mod.adapter || pinnedOf(mod)?.adapter;
   const versions = mod.supportedGameVersions?.length ? mod.supportedGameVersions : pinnedOf(mod)?.supportedGameVersions;
@@ -76,7 +84,10 @@ function details(mod) {
   if (state.lastScan?.pckSha256) parts.push(element("p", "SHA-256 · " + state.lastScan.pckSha256, "file-detail"));
   const repair = state.lastScan?.repair?.[mod.id];
   if (repair) parts.push(element("p", t("backup") + " · " + repair[0], "file-detail"));
-  if (repair?.[1]) parts.push(element("p", t(repair[1]) || repair[1]));
+  if (repair?.[1]) {
+    const [key, ...detail] = repair[1].split(": ");
+    parts.push(element("p", [t(key) || key, ...detail].join(" · ")));
+  }
   if (modState === "modConflict") {
     const names = conflictNames(mod);
     parts.push(element("p", names ? t("modConflictWith").replace("{mods}", names) : t("modConflict")));
@@ -148,12 +159,13 @@ async function installDialog(mod, action, removals = []) {
   if (state.busyMod) return;
   const path = state.game;
   const target = state.pckDir;
-  const title = key => t(key) + " · " + nameOf(mod) + " " + mod.version;
+  const from = state.inventory[inventoryKey(mod)];
+  const title = key => t(key) + " · " + nameOf(mod) + " " + (action === "updateMod" ? from + " → " : "") + mod.version;
   const steps = element("ol", "", "install-steps");
   const lastStep = action === "identify" ? "identify"
     : action === "adoptManual" ? "adoptManual"
     : action === "switch" ? "switchStep"
-    : "installStep";
+    : action === "updateMod" ? "updateModStep" : "installStep";
   const stepKeys = ["downloadStep", "verifyStep", lastStep];
   const names = action === "switch" ? conflictNames(mod) : "";
   const notice = names ? element("p", t("switchNotice").replace("{mods}", names)) : null;
@@ -216,7 +228,8 @@ async function installDialog(mod, action, removals = []) {
         return;
       }
     } else {
-      const result = await installMod(path, mod, action === "adoptManual", target, removals);
+      const result = action === "updateMod" ? await updateMod(path, mod, from, target)
+        : await installMod(path, mod, action === "adoptManual", target, removals);
       applyValidation(result, path);
       const problem = installationProblem(result, mod);
       if (problem) throw problem;
@@ -227,6 +240,12 @@ async function installDialog(mod, action, removals = []) {
     if (!ownsDialog()) return;
     const [key, ...detail] = String(error).split(": ");
     if (["downloadFirst", "packageCorrupt"].includes(key)) delete state.packages[mod.id];
+    if (action === "updateMod" && key === "modUpdatedRescan") {
+      rows[stage].textContent = t("done");
+      show(title("updateModSuccess"), steps, element("p", t(key)), location);
+      if (state.game === path) await syncGameMods(true);
+      return;
+    }
     rows[stage].textContent = t("failed");
     let retryButton;
     if (ownsDialog()) {
@@ -253,9 +272,11 @@ async function installDialog(mod, action, removals = []) {
 
 function currentAction(mod) {
   const disk = state.modStates[mod.id];
-  const entry = (state.game && uninstallEntry(mod.id, disk, state.pinned)) || mod;
-  return modAction({managed:trustedPackage(entry), verified:entry.verified || isPreview(entry),
-    game:state.game, scan:state.scan, disk});
+  const installed = state.game && uninstallEntry(mod.id, disk, state.pinned);
+  const entry = installed || mod;
+  const update = disk === "installed" && approvedUpdate(mod) && versionState(state.inventory[inventoryKey(mod)], mod.version, true) === "available";
+  return modAction({managed:update || trustedPackage(entry), verified:update || Boolean(installed) || pinnedOf(entry)?.verified || isPreview(entry),
+    game:state.game, scan:state.scan, disk, update});
 }
 
 function uninstallDialog(cardMod) {
@@ -319,7 +340,8 @@ function uninstallDialog(cardMod) {
 
 function primaryAction(mod, name) {
   const action = currentAction(mod);
-  const el = button(t(action === "review" ? "viewReason" : action), () => {
+  const label = action === "updateMod" ? t("updateModTo").replace("{version}", mod.version) : t(action === "review" ? "viewReason" : action);
+  const el = button(label, () => {
     if (action === "review") return details(mod);
     if (action === "retryCheck") return syncGameMods(true);
     if (action !== "uninstall") return startInstall(mod, action);
@@ -333,7 +355,7 @@ function primaryAction(mod, name) {
 function card(mod, index) {
   const name = nameOf(mod);
   const local = state.inventory[inventoryKey(mod)];
-  const status = state.scan === "failed" ? "review" : versionState(local, mod.version, mod.verified);
+  const status = state.scan === "failed" ? "review" : versionState(local, mod.version, mod.verified || approvedUpdate(mod));
   const item = element("article", "", "card");
   item.style.setProperty("--i", String(index));
 

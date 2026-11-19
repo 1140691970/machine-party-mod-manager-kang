@@ -1,4 +1,5 @@
 mod prepare;
+pub mod update;
 
 use std::{
     collections::BTreeMap,
@@ -415,7 +416,7 @@ fn remove_transaction(config_dir: &Path, game_root: &Path, mod_id: &str) -> Resu
     write_transactions(config_dir, &txs)
 }
 
-fn get_transaction(
+pub(crate) fn get_transaction(
     config_dir: &Path,
     game_root: &Path,
     mod_id: &str,
@@ -1143,13 +1144,16 @@ fn collect_dir_fingerprints_into(
     for item in entries {
         let item = item.map_err(|_| "fileReadError".to_string())?;
         let path = item.path();
-        let file_type = item.file_type().map_err(|_| "fileReadError".to_string())?;
-        if file_type.is_symlink() {
-            return Err("fileReadError".into());
+        let meta = fs::symlink_metadata(&path).map_err(|_| "fileReadError")?;
+        if update::redirected(&meta) || !(meta.is_file() || meta.is_dir()) {
+            return Err(format!(
+                "gameUpdatedOrModified: {}",
+                path.strip_prefix(base).unwrap_or(&path).display()
+            ));
         }
-        if file_type.is_dir() {
+        if meta.is_dir() {
             collect_dir_fingerprints_into(base, &path, out)?;
-        } else if file_type.is_file() {
+        } else {
             let rel = path
                 .strip_prefix(base)
                 .map_err(|_| "fileReadError".to_string())?
@@ -2451,6 +2455,7 @@ pub fn validate_game_mods(
         let vanilla = current_pck.size == adapter.baseline.size
             && current_pck.sha256 == adapter.baseline.sha256;
         let restore = pck_dir.join(RESTORE_DAT);
+        let mut failure = tx.and_then(|r| r.failure.clone());
         let state = if adapter.kind == "loader-files" {
             let mod_dir = loader_mod_dir(&pck_dir, item);
             if tx.zip(managed_marker.as_ref()).is_some_and(|(r, marker)| {
@@ -2477,10 +2482,18 @@ pub fn validate_game_mods(
             } else if mod_dir.exists() {
                 if let Some(record) = tx.filter(|r| r.status == TransactionStatus::Committed)
                     && !record.owned_files.is_empty()
-                    && collect_dir_fingerprints(&mod_dir).ok().as_ref() == Some(&record.owned_files)
                 {
-                    installed.insert(item.inventory_key().to_owned(), record.version.clone());
-                    "installed"
+                    match update::verify_files(&mod_dir, &record.owned_files) {
+                        Ok(()) => {
+                            installed
+                                .insert(item.inventory_key().to_owned(), record.version.clone());
+                            "installed"
+                        }
+                        Err(reason) => {
+                            failure = Some(reason);
+                            "needsRepair"
+                        }
+                    }
                 } else if installed.contains_key(item.inventory_key()) {
                     "needsRepair"
                 } else {
@@ -2582,10 +2595,7 @@ pub fn validate_game_mods(
                 "needsRepair" | "gameUpdatedOrModified" | "restoreResidue"
             )
         {
-            repair.insert(
-                item.id.clone(),
-                (record.backup_dir.clone(), record.failure.clone()),
-            );
+            repair.insert(item.id.clone(), (record.backup_dir.clone(), failure));
         }
         let state = if state == "installed"
             && tx.is_some_and(|r| r.exclusive == "pck")
@@ -4591,6 +4601,248 @@ print("Patched")
             sha256: baseline.sha256.clone(),
         };
         entry
+    }
+
+    #[test]
+    fn single_mod_update_and_recovery_keep_sibling_and_loader_intact() {
+        fn fixture(id: &str, version: &str) -> Vec<u8> {
+            let manifest = format!(r#"{{"id":"{id}","version":"{version}","entry":"main.gd"}}"#);
+            build_test_zip(&[
+                ("mod.json", manifest.as_bytes(), true),
+                ("main.gd", version.as_bytes(), true),
+            ])
+        }
+        exercise_single_update(
+            fixture("roller-carnival", "0.1.0"),
+            fixture("roller-carnival", "0.1.1"),
+            fixture("lobby-bots", "0.1.4"),
+            false,
+        );
+    }
+
+    #[test]
+    #[ignore = "requires three published archives in MPM_SOURCE_FIXTURES"]
+    fn released_roller_010_to_011_with_lobby_bots() {
+        let dir = PathBuf::from(std::env::var_os("MPM_SOURCE_FIXTURES").unwrap());
+        let read = |name: &str, sha: &str| {
+            let bytes = fs::read(dir.join(name)).unwrap();
+            assert_eq!(hex::encode(Sha256::digest(&bytes)), sha);
+            bytes
+        };
+        exercise_single_update(
+            read(
+                "roller-carnival-0.1.0.zip",
+                "ec10da25ecd98ac6e9179d81c2188f82ae752baf4783058c87f93ea020802ca4",
+            ),
+            read(
+                "roller-carnival-0.1.1.zip",
+                "a7f323e7c0fec56b2ec124dd591bf5898b57cb7333a25539322d8b3e00d56986",
+            ),
+            read(
+                "lobby-bots-0.1.4.zip",
+                "098e69f28452bc146142b83706060d4334f6d0c2b0b1fca1a7636048c6f54845",
+            ),
+            true,
+        );
+    }
+
+    fn exercise_single_update(old_zip: Vec<u8>, new_zip: Vec<u8>, bot_zip: Vec<u8>, real: bool) {
+        use std::cell::Cell;
+        // Fail (or simulate loss of the process) after the replacement is live,
+        // before its version has been committed.
+        struct Interrupt {
+            live: PathBuf,
+            new: FileFingerprint,
+            crash: bool,
+            triggered: Cell<bool>,
+            between_renames: bool,
+        }
+        impl GameLockCheck for Interrupt {
+            fn ensure_unlocked(&self, _: &Path, _: &Path) -> Result<(), String> {
+                if !self.triggered.get()
+                    && (if self.between_renames {
+                        !self.live.exists()
+                    } else {
+                        file_fingerprint(&self.live).ok() == Some(self.new.clone())
+                    })
+                {
+                    self.triggered.set(true);
+                    if self.crash {
+                        panic!("simulated process stop");
+                    }
+                    return Err("gameRunning".into());
+                }
+                Ok(())
+            }
+        }
+        let root = tempfile::tempdir().unwrap();
+        let (game, dir, baseline) = setup_synthetic_game(
+            root.path(),
+            &pck_loader::build_synthetic_pck_v3(false, true),
+        );
+        let config = root.path().join("config");
+        let make = |id: &str, version: &str, bytes: &[u8]| {
+            let mut item = make_loader_entry_from_catalog(id, bytes, &baseline);
+            item.version = Some(version.into());
+            let pkg = item.package.as_mut().unwrap();
+            pkg.filename = format!("{id}-{}.zip", version.trim_start_matches('v'));
+            pkg.asset_id = if id == "lobby-bots" { "1006" } else { "1001" }.into();
+            if !real {
+                item.adapter.as_mut().unwrap().required_files =
+                    vec!["mod.json".into(), "main.gd".into()];
+            }
+            let file = root.path().join(format!("{id}-{version}.zip"));
+            fs::write(&file, bytes).unwrap();
+            (item, file)
+        };
+        let (mut old, archive) = make("roller-carnival", "v0.1.0", &old_zip);
+        if !real {
+            old.repo = "JamesGZM/roller-carnival".into();
+        }
+        old.legacy_inventory_repos.clear();
+        let (new, target) = make("roller-carnival", "v0.1.1", &new_zip);
+        let (bot, bots) = make("lobby-bots", "v0.1.4", &bot_zip);
+        let stage = root.path().join("stage");
+        let list = [new.clone(), bot.clone()];
+        let mut before = install_from_zip(
+            &config,
+            &game,
+            &archive,
+            &stage,
+            &old,
+            &list,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        // Older managers recorded ownership before source/recipe provenance was added.
+        before.source_sha256 = None;
+        before.preparation_rule = None;
+        save_transaction(&config, &game, before.clone()).unwrap();
+        let sibling = install_from_zip(
+            &config,
+            &game,
+            &bots,
+            &stage,
+            &bot,
+            &list,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let marker = dir.join(pck_loader::LOADER_SIDECAR);
+        let loader = fs::read(&marker).unwrap();
+        let pck = dir.join("Machine Party.pck");
+        let patched = file_fingerprint(&pck).unwrap();
+        let live = loader_mod_dir(&dir, &new);
+        let apply = |lock: &dyn GameLockCheck| {
+            update::apply(&config, &game, &dir, &target, &new, "v0.1.0", &list, lock)
+        };
+        let verify_old = || {
+            assert_eq!(
+                get_transaction(&config, &game, &new.id).unwrap(),
+                Some(before.clone())
+            );
+            assert_eq!(collect_dir_fingerprints(&live).unwrap(), before.owned_files);
+            assert_eq!(
+                inventory::installed_versions(&config, &game).unwrap()[new.inventory_key()],
+                "v0.1.0"
+            );
+        };
+        fs::write(&target, b"corrupt").unwrap();
+        assert_eq!(apply(&UnlockedCheck).unwrap_err(), "packageCorrupt");
+        verify_old();
+        fs::write(&target, &new_zip).unwrap();
+        fs::write(live.join("player.cfg"), b"user data").unwrap();
+        assert!(apply(&UnlockedCheck).unwrap_err().contains("player.cfg"));
+        assert_eq!(fs::read(live.join("player.cfg")).unwrap(), b"user data");
+        fs::remove_file(live.join("player.cfg")).unwrap();
+        stage_package(
+            &target,
+            &stage,
+            new.package.as_ref().unwrap(),
+            new.adapter.as_ref().unwrap(),
+            &dir,
+            &SystemRunner,
+        )
+        .unwrap();
+        for (crash, between_renames) in [(false, false), (true, true), (true, false)] {
+            let fault = Interrupt {
+                live: live.join("mod.json"),
+                new: file_fingerprint(&stage.join("mod.json")).unwrap(),
+                crash,
+                triggered: Cell::new(false),
+                between_renames,
+            };
+            if crash {
+                assert!(
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| apply(&fault)))
+                        .is_err()
+                );
+                if !between_renames {
+                    // The inventory write is durable just before the transaction commit.
+                    inventory::record_installed(&config, &game, new.inventory_key(), "v0.1.1")
+                        .unwrap();
+                }
+                update::recover(&config, &game, &list, &UnlockedCheck).unwrap();
+            } else {
+                assert_eq!(apply(&fault).unwrap_err(), "gameRunning");
+            }
+            assert!(fault.triggered.get());
+            verify_old();
+            assert_eq!(
+                get_transaction(&config, &game, &bot.id).unwrap(),
+                Some(sibling.clone())
+            );
+            assert_eq!(
+                collect_dir_fingerprints(&loader_mod_dir(&dir, &bot)).unwrap(),
+                sibling.owned_files
+            );
+        }
+        // A lock after the commit delays cleanup without turning success into a rollback.
+        struct LockAfterCommit<'a>(&'a Path, &'a Path, &'a ModEntry);
+        impl GameLockCheck for LockAfterCommit<'_> {
+            fn ensure_unlocked(&self, _: &Path, _: &Path) -> Result<(), String> {
+                let tx = get_transaction(self.0, self.1, &self.2.id)?.unwrap();
+                if Some(&tx.version) == self.2.version.as_ref() {
+                    return Err("gameRunning".into());
+                }
+                Ok(())
+            }
+        }
+        let journal = before.backup_dir.join("update.json");
+        apply(&LockAfterCommit(&config, &game, &new)).unwrap();
+        assert!(journal.is_file());
+        update::recover(&config, &game, &list, &UnlockedCheck).unwrap();
+        assert!(!journal.exists());
+        assert_eq!(apply(&UnlockedCheck).unwrap_err(), "statusUnavailable");
+        let scan = validate_game_mods(&config, &game, &list).unwrap();
+        assert_eq!(scan.installed[new.inventory_key()], "v0.1.1");
+        assert_eq!(scan.installed[bot.inventory_key()], "v0.1.4");
+        assert_eq!(scan.installed.len(), 2);
+        let after = get_transaction(&config, &game, &new.id).unwrap().unwrap();
+        assert_eq!(after.owned_files, collect_dir_fingerprints(&stage).unwrap());
+        assert_eq!(after.owned_files, collect_dir_fingerprints(&live).unwrap());
+        assert_eq!(
+            after.source_sha256,
+            Some(hex::encode(Sha256::digest(new_zip)))
+        );
+        assert_eq!(fs::read(&marker).unwrap(), loader);
+        assert_eq!(file_fingerprint(&pck).unwrap(), patched);
+        fs::remove_file(target).unwrap();
+        uninstall_mod(&config, &game, &new, &SystemRunner, &UnlockedCheck).unwrap();
+        assert_eq!(
+            get_transaction(&config, &game, &bot.id).unwrap(),
+            Some(sibling.clone())
+        );
+        assert_eq!(
+            collect_dir_fingerprints(&loader_mod_dir(&dir, &bot)).unwrap(),
+            sibling.owned_files
+        );
+        assert_eq!(
+            uninstall_mod(&config, &game, &bot, &SystemRunner, &UnlockedCheck).unwrap(),
+            baseline
+        );
     }
 
     #[test]
