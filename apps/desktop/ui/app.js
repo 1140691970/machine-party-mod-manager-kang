@@ -1,9 +1,9 @@
 import { checkApp, showRelease } from "./app-update.js";
-import { appVersion, bundledCatalog, isDesktop, setAppTitle } from "./bridge.js";
+import { appVersion, bundledCatalog, cachedPackages, isDesktop, setAppTitle } from "./bridge.js";
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
-import { detectGame, pickGame, syncGameMods } from "./game-folder.js";
+import { detectGame, pickGame } from "./game-folder.js";
 import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
@@ -60,8 +60,10 @@ function render() {
 onRender(render);
 state.appVersion = await appVersion();
 const cached = cachedCatalog(localStorage);
-if (isDesktop) state.previewMod = (await bundledCatalog()).previewMod ?? null;
-state.mods = sortMods(cached ?? {mods: []}, state.previewMod);
+const bundled = isDesktop ? await bundledCatalog() : {mods: []};
+state.pinned = bundled.mods;
+state.previewMod = bundled.previewMod ?? null;
+state.mods = sortMods(cached ?? bundled, state.previewMod);
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
@@ -73,7 +75,7 @@ async function refreshCatalog() {
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";
   }
   render();
-  if (isDesktop && state.game) void syncGameMods();
+
 }
 
 hydrateIcons();
@@ -86,6 +88,7 @@ $("#close").onclick = closeDialog;
 applyLocale();
 void refreshCatalog();
 if (isDesktop) {
+  cachedPackages().then(result => { state.packages = {...result, ...state.packages}; render(); }).catch(() => {});
   detectGame().catch(error => show(t("failed"), element("p", String(error)), button(t("choose"), pickGame, "primary")));
   void checkApp(false);
 }

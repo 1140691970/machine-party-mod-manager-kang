@@ -32,8 +32,8 @@ export function button(text, action, variant = "secondary", iconName) {
     try {
       await action();
     } catch (error) {
-      const key = String(error);
-      show(t("failed"), element("p", messages[key] ? t(key) : key, "error"));
+      const [key, ...detail] = String(error).split(": ");
+      show(t("failed"), element("p", [messages[key] ? t(key) : key, ...detail].join(" · "), "error"));
     }
   };
   return el;

@@ -1,7 +1,7 @@
 import { checkApp } from "./app-update.js";
 import { isDesktop } from "./bridge.js";
 import { $, button, element } from "./dom.js";
-import { detectGame, pickGame } from "./game-folder.js";
+import { detectGame, pickGame, syncGameMods } from "./game-folder.js";
 import { locales } from "./languages.js";
 import { render, setLocale, state, t } from "./state.js";
 
@@ -35,6 +35,7 @@ function folderPanel() {
     const actions = element("div", "", "panel-actions");
     actions.append(button(t("choose"), pickGame, "primary", "folder"),
       button(t("rescan"), () => detectGame(true), "secondary", "refresh"));
+    if (state.game) actions.append(button(t("fullCheck"), () => syncGameMods(true), "secondary", "refresh"));
     panel.append(actions);
   }
   return panel;

@@ -268,3 +268,5 @@
     animation: none;
   }
 }
+
+.file-detail { overflow-wrap: anywhere; }

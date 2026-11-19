@@ -44,6 +44,7 @@ function validEntry(mod) {
     && Number.isSafeInteger(mod.order) && mod.order > 0 && typeof mod.verified === "boolean"
     && (!mod.image || typeof mod.image === "string" && slug.test(mod.image))
     && (!mod.version || typeof mod.version === "string" && version.test(mod.version))
+    && (mod.supportedGameVersions === undefined || stringArray(mod.supportedGameVersions))
     && Array.isArray(mod.aliases) && mod.aliases.every(alias => typeof alias === "string")
     && ["name", "summary", "detail"].every(key => languages.every(lang =>
       typeof mod[key]?.[lang] === "string" && mod[key][lang].length))

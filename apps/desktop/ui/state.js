@@ -11,7 +11,10 @@ export const state = {
   pckDir: "",
   inventory: {},
   modStates: {},
-  inventoryFailed: false,
+  scan: "checking",
+  packages: {},
+  pinned: [],
+  scanError: "",
   appVersion: "",
   release: undefined,
   checking: false,
@@ -20,7 +23,7 @@ export const state = {
   checkResult: ""
 };
 
-export const t = key => messages[key][locales.indexOf(state.locale)];
+export const t = key => messages[key]?.[locales.indexOf(state.locale)];
 
 export function setLocale(locale) {
   state.locale = locale;

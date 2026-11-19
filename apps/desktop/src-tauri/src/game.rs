@@ -13,18 +13,24 @@ fn game_files(dir: &Path) -> bool {
 
 /// Returns the directory directly containing `Machine Party.exe` and `Machine Party.pck`.
 pub fn resolve_pck_dir(dir: &Path) -> Option<PathBuf> {
+    let copies = copy_directories(dir);
+    (copies.len() == 1).then(|| copies[0].clone())
+}
+
+pub fn copy_directories(dir: &Path) -> Vec<PathBuf> {
     if game_files(dir) {
-        return Some(dir.to_path_buf());
+        return vec![dir.to_owned()];
     }
-    let mut subdirs: Vec<PathBuf> = fs::read_dir(dir)
+    let mut copies: Vec<_> = fs::read_dir(dir)
         .into_iter()
         .flatten()
         .flatten()
         .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
         .map(|entry| entry.path())
+        .filter(|path| game_files(path))
         .collect();
-    subdirs.sort();
-    subdirs.into_iter().find(|sub| game_files(sub))
+    copies.sort();
+    copies
 }
 
 /// A game copy may keep its files directly in the folder or in one version subfolder.
@@ -38,7 +44,10 @@ pub fn steam_installations() -> Vec<PathBuf> {
         for library in steam.libraries().into_iter().flatten().flatten() {
             if let Some(Ok(info)) = library.app(STEAM_APP_ID) {
                 let path = library.resolve_app_dir(&info);
-                if is_game_root(&path) && !games.contains(&path) {
+                let copies = copy_directories(&path);
+                if copies.len() > 1 {
+                    games.extend(copies);
+                } else if copies.len() == 1 && !games.contains(&path) {
                     games.push(path);
                 }
             }
@@ -74,6 +83,13 @@ mod tests {
         fs::write(nested.join("Machine Party.pck"), []).unwrap();
         assert_eq!(resolve_pck_dir(&root), Some(nested.clone()));
         assert_eq!(resolve_pck_dir(&nested), Some(nested));
+        let second = root.join("another version");
+        fs::create_dir(&second).unwrap();
+        for name in ["Machine Party.exe", "Machine Party.pck"] {
+            fs::write(second.join(name), []).unwrap();
+        }
+        assert!(resolve_pck_dir(&root).is_none());
+        assert_eq!(copy_directories(&root).len(), 2);
         fs::remove_dir_all(root).unwrap();
     }
 }

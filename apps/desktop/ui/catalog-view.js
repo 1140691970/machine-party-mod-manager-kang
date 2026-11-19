@@ -1,12 +1,19 @@
 import { downloadUrl } from "./online-catalog.js";
-import { installMod, isDesktop, openProject, uninstallMod } from "./bridge.js";
+import { modAction } from "./mod-action.js";
+import { clearPackage, downloadMod, installMod, isDesktop, openProject, uninstallMod } from "./bridge.js";
 import { visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
-import { applyValidation, pickGame } from "./game-folder.js";
+import { applyValidation, pickGame, syncGameMods } from "./game-folder.js";
 import { render, state, t } from "./state.js";
 import { versionState } from "./versions.js";
 
 const nameOf = mod => mod.name[state.locale];
+
+const cached = mod => Boolean(mod.package && state.packages[mod.id] === mod.package.sha256);
+const support = mod => mod.supportedGameVersions?.length
+  ? t("supportedGame") + " · " + mod.supportedGameVersions.join(", ") : t("supportUnknown");
+const trustedPackage = mod => isDesktop && mod.package?.mirrorApproved && state.pinned.some(item =>
+  item.id === mod.id && item.version === mod.version && item.package?.sha256 === mod.package.sha256);
 
 const statusTone = {
   pending: "", release: "", waiting: "", same: "success",
@@ -23,6 +30,7 @@ function details(mod) {
   const modState = state.modStates[mod.id];
   const parts = [
     element("p", mod.detail[state.locale]),
+    element("p", support(mod)),
     element("p", t("release") + " · " + (mod.version || t("unlisted")))
   ];
   if (local !== undefined) {
@@ -33,6 +41,20 @@ function details(mod) {
   if (modState === "manualInstall") parts.push(element("p", t("manualDetected")));
   else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
     parts.push(element("p", t(modState), "error"));
+  if (state.scan === "failed") parts.push(element("p", t(state.scanError) || t("statusUnavailable"), "error"));
+  if (!mod.verified && mod !== state.previewMod) parts.push(element("p", t("installPending")));
+  if (state.pckDir) parts.push(element("p", state.pckDir));
+  if (state.lastScan?.pckSha256) parts.push(element("p", "SHA-256 · " + state.lastScan.pckSha256, "file-detail"));
+  const repair = state.lastScan?.repair?.[mod.id];
+  if (repair) parts.push(element("p", t("backup") + " · " + repair[0], "file-detail"));
+  if (repair?.[1]) parts.push(element("p", t(repair[1]) || repair[1]));
+  if (["restoreResidue", "identifyPending", "loaderConflict"].includes(modState)) parts.push(element("p", t(modState)));
+  if (cached(mod)) parts.push(button(t("clearCache"), async () => {
+    await clearPackage(mod);
+    delete state.packages[mod.id];
+    closeDialog();
+    render();
+  }));
   if (mod.package) {
     parts.push(element("p", mod.package.filename));
     const link = element("a", t(mod.package.mirrorApproved ? "downloadPackage" : "authorRelease"), "btn btn-link");
@@ -72,62 +94,46 @@ function cover(mod, name, status) {
   return box;
 }
 
-async function runInstall(mod, name, action) {
-  if (state.busyMod || state.installing) return;
+async function perform(mod, action, path) {
+  if (state.busyMod || (path && path !== state.game)) return;
   state.busyMod = mod.id;
   render();
-  const statusEl = element("p", t("installingMod"));
   const bar = progress();
-  show(t(action) + " · " + name, statusEl, bar.el);
+  show(t(action) + " · " + nameOf(mod), action === "download" ? bar.el : element("p", t(action === "uninstall" ? "uninstallingMod" : "installingMod")));
   try {
-    const validation = await installMod(state.game, mod, state.mods, pct => {
-      statusEl.textContent = t("installingMod") + " · " + pct + "%";
-      bar.set(pct);
-    });
-    applyValidation(validation);
+    if (action === "download") {
+      await downloadMod(mod, pct => bar.set(pct));
+      state.packages[mod.id] = mod.package.sha256;
+      if (state.modStates[mod.id] === "identifyPending") await syncGameMods(true);
+    } else {
+      const validation = action === "uninstall" ? await uninstallMod(path, mod)
+        : await installMod(path, mod, action === "adoptManual");
+      applyValidation(validation, path);
+    }
     closeDialog();
+  } catch (error) {
+    if (["downloadFirst", "packageCorrupt"].includes(String(error))) delete state.packages[mod.id];
+    if (path && path === state.game) await syncGameMods(true);
+    if (String(error).startsWith("internalPackage:")) throw String(error) + " · " + mod.version;
+    throw error;
   } finally {
     state.busyMod = "";
     render();
   }
 }
 
-async function runUninstall(mod, name) {
-  if (state.busyMod || state.installing) return;
-  state.busyMod = mod.id;
-  render();
-  show(t("uninstall") + " · " + name, element("p", t("uninstallingMod")));
-  try {
-    applyValidation(await uninstallMod(state.game, mod, state.mods));
-    closeDialog();
-  } finally {
-    state.busyMod = "";
-    render();
-  }
-}
-
-function primaryAction(mod, name, local, status) {
-  const modState = state.modStates[mod.id];
-  const canInstall = mod.verified || mod === state.previewMod;
-  let action = "install";
-  if (status === "review" || modState === "gameUpdatedOrModified" || modState === "needsRepair")
-    action = "review";
-  else if (status === "available" || status === "waiting") action = "update";
-  else if (local !== undefined) action = "uninstall";
-  else if (modState === "manualInstall" && canInstall) action = "adoptManual";
-  const el = button(t(action), () => {
+function primaryAction(mod, name, local) {
+  const action = modAction({managed: trustedPackage(mod), verified: mod.verified || mod === state.previewMod,
+    cached: cached(mod), game: state.game, scan: state.scan, disk: state.modStates[mod.id], local});
+  const el = button(t(action === "review" ? "viewReason" : action), () => {
     if (action === "review") return details(mod);
-    if (action === "update" && status === "waiting")
-      return show(t(action) + " · " + name, element("p", t("hold")));
-    if ((action === "install" || action === "adoptManual") && !canInstall)
-      return show(t(action) + " · " + name, element("p", t("installPending")));
-    if (!isDesktop || !mod.adapter)
-      return show(t(action) + " · " + name, element("p", t("enginePending")));
-    if (!state.game) return pickGame();
-    if (action === "uninstall") return runUninstall(mod, name);
-    return runInstall(mod, name, action);
-  }, action === "uninstall" || action === "review" ? "secondary" : "primary");
-  el.disabled = Boolean(state.busyMod);
+    if (action === "choose") return pickGame();
+    if (action === "retryCheck") return syncGameMods(true);
+    if (action === "download") return perform(mod, action, "");
+    const path = state.game;
+    show(t(action) + " · " + name, element("p", state.pckDir), button(t(action), () => perform(mod, action, path), "primary"));
+  }, ["review", "uninstall", "checking"].includes(action) ? "secondary" : "primary");
+  el.disabled = Boolean(state.busyMod) || action === "checking";
   el.classList.add("btn-block");
   return el;
 }
@@ -135,7 +141,7 @@ function primaryAction(mod, name, local, status) {
 function card(mod, index) {
   const name = nameOf(mod);
   const local = state.inventory[mod.repo];
-  const status = state.inventoryFailed ? "review" : versionState(local, mod.version, mod.verified);
+  const status = state.scan === "failed" ? "review" : versionState(local, mod.version, mod.verified);
   const item = element("article", "", "card");
   item.style.setProperty("--i", String(index));
 
@@ -146,6 +152,11 @@ function card(mod, index) {
   link.onclick = event => { event.preventDefault(); details(mod); };
   heading.append(link);
   body.append(heading, element("p", mod.summary[state.locale], "card-summary"));
+  body.append(element("p", support(mod), "panel-note"));
+  const disk = state.modStates[mod.id];
+  const label = !state.game ? "" : state.scan === "checking" ? "checking" : state.scan === "failed" ? "retryCheck" : disk;
+  const summary = [cached(mod) && t("cached"), label && t("disk_" + label)].filter(Boolean);
+  if (summary.length) body.append(element("p", summary.join(" · "), "panel-note"));
   if (local !== undefined) {
     const versions = element("div", "", "comparison");
     versions.append(
@@ -156,20 +167,22 @@ function card(mod, index) {
   }
 
   const footer = element("div", "", "card-actions");
-  footer.append(primaryAction(mod, name, local, status));
+  footer.append(primaryAction(mod, name, local));
   item.append(cover(mod, name, status), body, footer);
   return item;
 }
 
 export function renderModList(content) {
-  if (state.inventoryFailed) content.append(element("p", t("inventoryError"), "empty error"));
+  if (state.scan === "failed") content.append(button(t("retryCheck"), () => syncGameMods(true), "secondary", "refresh"));
   const query = $("input").value.trim().toLowerCase();
   const matches = visibleMods(state.mods, {page: state.page, query, inventory: state.inventory});
   if (matches.length) {
     const grid = element("div", "", "grid");
     grid.append(...matches.map(card));
     content.append(grid);
-  } else if (!state.inventoryFailed || state.page === "catalog") {
+  } else if (state.page === "installed" && state.scan === "checking") {
+    content.append(element("p", t("checking"), "empty"));
+  } else if (state.scan !== "failed" || state.page === "catalog") {
     content.append(element("p", t(state.page === "installed" ? "noMods" : "noMatch"), "empty"));
   }
 }

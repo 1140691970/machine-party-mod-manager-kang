@@ -1,42 +1,63 @@
-import { chooseGame, findGames, installedVersions, saveGame, validateGameMods } from "./bridge.js";
+import { chooseGame, gameCopies, findGames, installedVersions, saveGame, validateGameMods } from "./bridge.js";
 import { button, closeDialog, element, show } from "./dom.js";
 import { render, state, t } from "./state.js";
 
-export function applyValidation(validation) {
-  state.inventory = validation.installed || {};
-  state.modStates = validation.modStates || {};
-  state.pckDir = validation.pckDir || "";
-  state.inventoryFailed = false;
+let generation = 0;
+let active;
+
+export function applyValidation(validation, path) {
+  if (state.game !== path) return;
+  generation++;
+  active = null;
+  state.inventory = validation.installed;
+  state.modStates = validation.modStates;
+  state.pckDir = validation.pckDir;
+  state.lastScan = validation;
+  state.scan = "ready";
   render();
 }
 
-export async function syncGameMods() {
-  if (!state.game) return;
-  state.inventoryFailed = false;
-  try {
-    const mods = state.mods.length ? state.mods : null;
-    applyValidation(await validateGameMods(state.game, mods));
-  } catch {
+export function syncGameMods(force = false) {
+  const path = state.game;
+  if (!path) return;
+  if (active?.path === path) return active.promise;
+  const token = ++generation;
+  state.scan = "checking";
+  state.scanError = "";
+  render();
+  const promise = (async () => {
     try {
-      state.inventory = await installedVersions(state.game);
-      state.modStates = {};
-    } catch {
-      state.inventory = {};
-      state.modStates = {};
-      state.inventoryFailed = true;
+      const previous = await installedVersions(path);
+      if (generation !== token) return;
+      state.inventory = previous;
+      render();
+      const result = await validateGameMods(path, force);
+      if (generation === token) applyValidation(result, path);
+    } catch (error) {
+      if (generation !== token) return;
+      state.scan = "failed";
+      state.scanError = String(error);
+      render();
+    } finally {
+      if (generation === token) active = null;
     }
-    render();
-  }
+  })();
+  active = {path, promise};
+  return promise;
 }
 
 async function loadGame(path) {
   localStorage.setItem("game-path", path);
   localStorage.removeItem("game-prompt-dismissed");
+  if (state.game !== path) {
+    generation++;
+    active = null;
+    state.inventory = {};
+    state.modStates = {};
+    state.pckDir = "";
+    state.lastScan = null;
+  }
   state.game = path;
-  state.inventory = {};
-  state.modStates = {};
-  state.pckDir = "";
-  state.inventoryFailed = false;
   await syncGameMods();
 }
 
@@ -48,7 +69,11 @@ async function selectPath(path) {
 
 export async function pickGame() {
   const path = await chooseGame(t("choose"));
-  if (path) await selectPath(path);
+  if (!path) return;
+  const copies = await gameCopies(path);
+  if (copies.length <= 1) return selectPath(path);
+  show(t("choose"), element("p", t("multiple")),
+    ...copies.map(copy => button(copy, () => selectPath(copy), "secondary", "folder")));
 }
 
 export async function detectGame(rescan = false) {
@@ -63,7 +88,9 @@ export async function detectGame(rescan = false) {
   state.inventory = {};
   state.modStates = {};
   state.pckDir = "";
-  state.inventoryFailed = false;
+  generation++;
+  active = null;
+  state.scan = "idle";
   render();
   if (!rescan && candidates.length === 0 && localStorage.getItem("game-prompt-dismissed")) return;
   show(t("choose"), element("p", t(candidates.length ? "multiple" : "missing")),

@@ -37,7 +37,7 @@ async fn download_package_zip(
         && installer::file_fingerprint(&cache_path)
             .is_ok_and(|fp| fp.size == pkg.size && fp.sha256.eq_ignore_ascii_case(&pkg.sha256))
     {
-        let _ = progress.send(80);
+        let _ = progress.send(100);
         return Ok(cache_path);
     }
 
@@ -57,48 +57,29 @@ async fn download_package_zip(
     }
 
     fs::create_dir_all(&cache_dir).map_err(|_| "fileWriteError".to_string())?;
-    let temp_path = cache_dir.join(format!("{}.part-{}", pkg.filename, std::process::id()));
-    let mut file = File::create(&temp_path).map_err(|_| "fileWriteError".to_string())?;
+    let mut file = tempfile::NamedTempFile::new_in(&cache_dir).map_err(|_| "fileWriteError")?;
     let mut hasher = Sha256::new();
     let mut received = 0u64;
     let mut reported = None;
 
-    while let Some(chunk) = response.chunk().await.map_err(|_| {
-        let _ = fs::remove_file(&temp_path);
-        "downloadFailed".to_string()
-    })? {
+    while let Some(chunk) = response.chunk().await.map_err(|_| "downloadFailed")? {
         received = received.saturating_add(chunk.len() as u64);
         if received > pkg.size {
-            let _ = fs::remove_file(&temp_path);
             return Err("packageCorrupt".into());
         }
-        if file.write_all(&chunk).is_err() {
-            let _ = fs::remove_file(&temp_path);
-            return Err("fileWriteError".into());
-        }
+        file.write_all(&chunk).map_err(|_| "fileWriteError")?;
         hasher.update(&chunk);
-        let pct = (received.saturating_mul(80) / pkg.size).min(80);
+        let pct = received.saturating_mul(100) / pkg.size;
         if reported != Some(pct) {
             let _ = progress.send(pct);
             reported = Some(pct);
         }
     }
-
-    if file.sync_all().is_err() {
-        let _ = fs::remove_file(&temp_path);
-        return Err("fileWriteError".into());
-    }
-    drop(file);
-
-    let digest = hex::encode(hasher.finalize());
-    if received != pkg.size || !digest.eq_ignore_ascii_case(&pkg.sha256) {
-        let _ = fs::remove_file(&temp_path);
+    if received != pkg.size || !hex::encode(hasher.finalize()).eq_ignore_ascii_case(&pkg.sha256) {
         return Err("packageCorrupt".into());
     }
-    fs::rename(&temp_path, &cache_path).map_err(|_| {
-        let _ = fs::remove_file(&temp_path);
-        "fileWriteError".to_string()
-    })?;
+    file.as_file().sync_all().map_err(|_| "fileWriteError")?;
+    file.persist(&cache_path).map_err(|_| "fileWriteError")?;
     Ok(cache_path)
 }
 
@@ -148,14 +129,107 @@ pub fn installed_versions(app: AppHandle, path: PathBuf) -> Result<inventory::In
     inventory::installed_versions(&dir, &path)
 }
 
+// Both inventory files contain all copies. Keep read/modify/write transactions serialized
+// across app instances, including scans that publish a snapshot of the two files.
+fn lock_file(dir: &Path, name: &str) -> Result<File, String> {
+    let locks = dir.join("locks");
+    fs::create_dir_all(&locks).map_err(|_| "fileWriteError")?;
+    let file = File::options()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(locks.join(name))
+        .map_err(|_| "fileWriteError")?;
+    fs2::FileExt::lock_exclusive(&file).map_err(|_| "fileWriteError")?;
+    Ok(file)
+}
+
+fn trusted(id: &str, version: &str) -> Result<catalog::ModEntry, String> {
+    catalog::entry(id)
+        .filter(|m| m.version.as_deref() == Some(version))
+        .ok_or_else(|| "unknownMod".into())
+}
+
+fn package_path(dir: &Path, item: &catalog::ModEntry) -> Result<PathBuf, String> {
+    let pkg = item.package.as_ref().ok_or("missingPackage")?;
+    Ok(dir.join("packages").join(&item.id).join(&pkg.filename))
+}
+
 #[tauri::command]
-pub fn validate_game_mods(
+pub fn game_copies(path: PathBuf) -> Vec<PathBuf> {
+    game::copy_directories(&path)
+}
+
+#[tauri::command]
+pub async fn download_mod(
+    app: AppHandle,
+    id: String,
+    version: String,
+    progress: Channel<u64>,
+) -> Result<(), String> {
+    let item = trusted(&id, &version)?;
+    let dir = config_dir(&app)?;
+    let name = format!("package-{}", item.id);
+    let lock_dir = dir.clone();
+    let _guard = tauri::async_runtime::spawn_blocking(move || lock_file(&lock_dir, &name))
+        .await
+        .map_err(|e| e.to_string())??;
+    download_package_zip(&dir, &item, &progress).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cached_packages(
+    app: AppHandle,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let dir = config_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut found = std::collections::BTreeMap::new();
+        for item in catalog::all_entries() {
+            if let Some(pkg) = &item.package
+                && let Ok(path) = package_path(&dir, &item)
+                && path.is_file()
+                && installer::file_fingerprint(&path)?.sha256 == pkg.sha256
+            {
+                found.insert(item.id, pkg.sha256.clone());
+            }
+        }
+        Ok(found)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn clear_package(app: AppHandle, id: String, version: String) -> Result<(), String> {
+    let item = trusted(&id, &version)?;
+    let dir = config_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, &format!("package-{}", item.id))?;
+        let path = package_path(&dir, &item)?;
+        if path.exists() {
+            fs::remove_file(path).map_err(|_| "fileWriteError")?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn validate_game_mods(
     app: AppHandle,
     path: PathBuf,
-    mods: Option<Vec<catalog::ModEntry>>,
+    force: Option<bool>,
 ) -> Result<installer::CopyValidation, String> {
-    let list = mods.unwrap_or_else(catalog::all_entries);
-    installer::validate_game_mods(&config_dir(&app)?, &path, &list)
+    let dir = config_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, "inventory")?;
+        installer::scan_copy(&dir, &path, &catalog::all_entries(), force.unwrap_or(false))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn authorized_mod(item: &catalog::ModEntry) -> bool {
@@ -169,10 +243,12 @@ fn authorized_mod(item: &catalog::ModEntry) -> bool {
 pub async fn install_mod(
     app: AppHandle,
     path: PathBuf,
-    mod_entry: catalog::ModEntry,
-    mods: Option<Vec<catalog::ModEntry>>,
+    id: String,
+    version: String,
+    adopt: Option<bool>,
     progress: Channel<u64>,
 ) -> Result<installer::CopyValidation, String> {
+    let mod_entry = trusted(&id, &version)?;
     if !authorized_mod(&mod_entry) {
         return Err("installPending".into());
     }
@@ -186,15 +262,30 @@ pub async fn install_mod(
     installer::check_platform_supported(&adapter)?;
 
     let dir = config_dir(&app)?;
-    let zip_path = download_package_zip(&dir, &mod_entry, &progress).await?;
-    let list = mods.unwrap_or_else(catalog::all_entries);
+    let zip_path = package_path(&dir, &mod_entry)?;
+    let list = catalog::all_entries();
 
     tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, "inventory")?;
+        let _package = lock_file(&dir, &format!("package-{}", mod_entry.id))?;
+        let pkg = mod_entry.package.as_ref().ok_or("missingPackage")?;
+        if !zip_path.is_file() {
+            return Err("downloadFirst".into());
+        }
+        let fp = installer::file_fingerprint(&zip_path)?;
+        if fp.size != pkg.size || fp.sha256 != pkg.sha256 {
+            return Err("packageCorrupt".into());
+        }
         let validation = installer::validate_game_mods(&dir, &path, &list)?;
-        let is_manual = validation
-            .mod_states
-            .get(&mod_entry.id)
-            .is_some_and(|s| s == "manualInstall");
+        let is_manual = adopt.unwrap_or(false);
+        let state = validation.mod_states.get(&id).map(String::as_str);
+        match (state, is_manual) {
+            (Some("manualInstall"), true) | (Some("vanilla"), false) => {}
+            (Some("manualInstall"), false) => return Err("manualDetected".into()),
+            (Some("vanilla"), true) => return Err("statusUnavailable".into()),
+            (Some(reason), _) => return Err(reason.into()),
+            _ => return Err("unsupportedAdapter".into()),
+        }
         let staging_dir = dir.join("staging").join(&mod_entry.id);
         let pkg = mod_entry
             .package
@@ -203,6 +294,10 @@ pub async fn install_mod(
         let pck_dir = game::resolve_pck_dir(&path).ok_or_else(|| "invalidGame".to_string())?;
 
         if is_manual {
+            use installer::GameLockCheck;
+            installer::SystemGameLockCheck
+                .ensure_unlocked(&pck_dir, &pck_dir.join(&adapter.baseline.file))?;
+            installer::check_exclusive_conflicts(&dir, &path, &mod_entry, &adapter, &list)?;
             installer::stage_package(
                 &zip_path,
                 &staging_dir,
@@ -232,7 +327,7 @@ pub async fn install_mod(
         }
         let _ = fs::remove_dir_all(&staging_dir);
         let _ = progress.send(100);
-        installer::validate_game_mods(&dir, &path, &list)
+        installer::scan_copy(&dir, &path, &list, true)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -242,9 +337,10 @@ pub async fn install_mod(
 pub async fn uninstall_mod(
     app: AppHandle,
     path: PathBuf,
-    mod_entry: catalog::ModEntry,
-    mods: Option<Vec<catalog::ModEntry>>,
+    id: String,
+    version: String,
 ) -> Result<installer::CopyValidation, String> {
+    let mod_entry = trusted(&id, &version)?;
     if cfg!(windows)
         && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some()
         && !authorized_mod(&mod_entry)
@@ -257,9 +353,17 @@ pub async fn uninstall_mod(
         .ok_or_else(|| "unsupportedAdapter".to_string())?;
     installer::check_platform_supported(adapter)?;
     let dir = config_dir(&app)?;
-    let list = mods.unwrap_or_else(catalog::all_entries);
+    let list = catalog::all_entries();
 
     tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, "inventory")?;
+        installer::check_exclusive_conflicts(
+            &dir,
+            &path,
+            &mod_entry,
+            mod_entry.adapter.as_ref().ok_or("unsupportedAdapter")?,
+            &list,
+        )?;
         installer::uninstall_mod(
             &dir,
             &path,
@@ -267,7 +371,7 @@ pub async fn uninstall_mod(
             &installer::SystemRunner,
             &installer::SystemGameLockCheck,
         )?;
-        installer::validate_game_mods(&dir, &path, &list)
+        installer::scan_copy(&dir, &path, &list, true)
     })
     .await
     .map_err(|e| e.to_string())?

@@ -43,6 +43,8 @@ pub struct AdapterProfile {
     pub touches: Vec<String>,
     pub exclusive: String,
     pub baseline: BaselineSpec,
+    #[serde(default, rename = "requiredFiles")]
+    pub required_files: Vec<String>,
     #[serde(rename = "verifyFiles")]
     pub verify_files: Option<String>,
     #[serde(rename = "upstreamUninstall", default = "default_true")]
@@ -177,10 +179,10 @@ mod tests {
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
         let mut item = entry("overtime").unwrap();
-        assert!(matches_preview(&item, "0.1.2-1"));
+        assert!(matches_preview(&item, "0.1.2-2"));
         assert!(!matches_preview(&item, "0.1.2"));
         item.package.as_mut().unwrap().sha256.clear();
-        assert!(!matches_preview(&item, "0.1.2-1"));
+        assert!(!matches_preview(&item, "0.1.2-2"));
     }
 
     #[test]

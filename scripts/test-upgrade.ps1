@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
-$installDir = Join-Path $env:LOCALAPPDATA 'Machine Party 模组管理器'
+$installDir = Join-Path $env:LOCALAPPDATA 'MachinePartyModManager'
 $installed = Start-Process dist/bootstrap.exe -ArgumentList '/S' -Wait -PassThru
 if ($installed.ExitCode -ne 0) { throw "Bootstrap installer exited $($installed.ExitCode)" }
 $binary = Join-Path $installDir 'machine-party-mod-manager.exe'

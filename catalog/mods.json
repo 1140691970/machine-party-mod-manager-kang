@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-18.2",
+  "revision": "2026-11-19.1",
   "mods": [
     {
       "id": "overtime",
@@ -16,7 +16,8 @@
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
-      "windowsPreview": "0.1.2-1",
+      "supportedGameVersions": ["v2.1.2"],
+      "windowsPreview": "0.1.2-2",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],
@@ -28,6 +29,7 @@
           "size": 634798100,
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
+        "requiredFiles": ["overtime_payload.zip"],
         "verifyFiles": "SHA256SUMS.txt",
         "run": {
           "interpreter": "exe",

@@ -14,15 +14,23 @@ export const findGames = rescan => invoke("find_games", {rescan});
 export const chooseGame = title => invoke("choose_game", {title});
 export const saveGame = path => invoke("save_game", {path});
 export const installedVersions = path => invoke("installed_versions", {path});
-export const validateGameMods = (path, mods) => invoke("validate_game_mods", {path, mods});
+export const validateGameMods = (path, force) => invoke("validate_game_mods", {path, force});
+export const gameCopies = path => invoke("game_copies", {path});
+export const cachedPackages = () => invoke("cached_packages");
 
-export function installMod(path, modEntry, mods, onProgress) {
+const release = mod => ({id: mod.id, version: mod.version});
+
+export const clearPackage = mod => invoke("clear_package", release(mod));
+
+export function downloadMod(mod, onProgress) {
   const progress = new core.Channel();
   progress.onmessage = onProgress;
-  return invoke("install_mod", {path, modEntry, mods, progress});
+  return invoke("download_mod", {...release(mod), progress});
 }
 
-export const uninstallMod = (path, modEntry, mods) => invoke("uninstall_mod", {path, modEntry, mods});
+export const installMod = (path, mod, adopt) =>
+  invoke("install_mod", {...release(mod), path, adopt, progress: new core.Channel()});
+export const uninstallMod = (path, mod) => invoke("uninstall_mod", {...release(mod), path});
 
 export function setAppTitle(title) {
   if (isDesktop) invoke("set_app_title", {title}).catch(console.error);

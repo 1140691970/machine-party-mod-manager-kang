@@ -11,7 +11,7 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 #[cfg(windows)]
-use std::os::windows::fs::OpenOptionsExt;
+use std::os::windows::{fs::OpenOptionsExt, process::CommandExt};
 
 use flate2::read::DeflateDecoder;
 use regex::Regex;
@@ -78,6 +78,8 @@ impl ProcessRunner for SystemRunner {
         };
         #[cfg(windows)]
         let mut cmd = Command::new(&req.program);
+        #[cfg(windows)]
+        cmd.creation_flags(0x08000000);
 
         let output = cmd
             .args(&req.args)
@@ -109,7 +111,27 @@ impl GameLockCheck for SystemGameLockCheck {
         let mut opts = OpenOptions::new();
         opts.read(true).write(true);
         #[cfg(windows)]
-        opts.share_mode(0);
+        {
+            use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+            let exe = _pck_dir.join("Machine Party.exe");
+            let target = file_id::get_file_id(&exe).map_err(|_| "invalidGame")?;
+            let system = System::new_with_specifics(
+                RefreshKind::nothing()
+                    .with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
+            );
+            for proc in system.processes().values().filter(|p| {
+                p.name()
+                    .eq_ignore_ascii_case(std::ffi::OsStr::new("Machine Party.exe"))
+            }) {
+                let Some(path) = proc.exe() else {
+                    return Err("gameRunning".into());
+                };
+                if !matches!(file_id::get_file_id(path), Ok(id) if id != target) {
+                    return Err("gameRunning".into());
+                }
+            }
+            opts.share_mode(0);
+        }
         match opts.open(pck_path) {
             Ok(_) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
@@ -160,6 +182,8 @@ pub struct TransactionRecord {
     pub upstream_uninstall: bool,
     pub backup_dir: PathBuf,
     pub touched_files: Vec<String>,
+    #[serde(default)]
+    pub failure: Option<String>,
 }
 
 type Transactions = BTreeMap<PathBuf, BTreeMap<String, TransactionRecord>>;
@@ -195,6 +219,8 @@ pub struct ModInspection {
 pub struct CopyValidation {
     pub pck_dir: PathBuf,
     pub pck_size: u64,
+    pub pck_sha256: String,
+    pub repair: BTreeMap<String, (PathBuf, Option<String>)>,
     pub installed: inventory::Installed,
     pub mod_states: BTreeMap<String, String>,
 }
@@ -251,8 +277,17 @@ fn backup_dir_for(config_dir: &Path, game_root: &Path, mod_id: &str) -> PathBuf 
         .join(mod_id)
 }
 
+#[cfg(test)]
+thread_local! {
+    static PCK_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
 /// Computes byte size and lowercase SHA-256 digest by streaming the file.
 pub fn file_fingerprint(path: &Path) -> Result<FileFingerprint, String> {
+    #[cfg(test)]
+    if path.file_name() == Some(std::ffi::OsStr::new("Machine Party.pck")) {
+        PCK_READS.with(|count| count.set(count.get() + 1));
+    }
     let file = File::open(path).map_err(|_| "fileReadError".to_string())?;
     let mut reader = BufReader::with_capacity(64 * 1024, file);
     let mut hasher = Sha256::new();
@@ -780,7 +815,7 @@ pub fn parse_status(adapter: &AdapterProfile, stdout: &str) -> Result<DiskModSta
     Ok(DiskModState::Unrecognized(stdout.trim().to_string()))
 }
 
-fn run_status_cmd(
+pub fn run_status_cmd(
     adapter: &AdapterProfile,
     work_dir: &Path,
     pck_dir: &Path,
@@ -788,6 +823,9 @@ fn run_status_cmd(
 ) -> Result<DiskModState, String> {
     let req = build_command(adapter, work_dir, pck_dir, &adapter.actions.status)?;
     let out = runner.run(&req)?;
+    if out.code != 0 {
+        return Err("statusUnavailable".into());
+    }
     parse_status(adapter, &out.stdout)
 }
 
@@ -795,11 +833,12 @@ fn verify_checksum_manifest(
     dir: &Path,
     manifest_name: &str,
     required_program: &str,
+    required_files: &[String],
 ) -> Result<(), String> {
     let manifest_path = dir.join(manifest_name);
     let content = fs::read_to_string(&manifest_path).map_err(|_| "packageCorrupt".to_string())?;
     let mut verified_program = false;
-    let mut verified_any = 0usize;
+    let mut verified_names = std::collections::BTreeSet::new();
 
     for raw_line in content.lines() {
         let line = raw_line.trim();
@@ -819,16 +858,21 @@ fn verify_checksum_manifest(
             if !fp.sha256.eq_ignore_ascii_case(expected_sha) {
                 return Err("packageCorrupt".into());
             }
-            verified_any += 1;
+            verified_names.insert(filename.to_owned());
             if filename == required_program {
                 verified_program = true;
             }
-        } else if filename == required_program {
+        } else if required_files.iter().any(|name| name == filename) || filename == required_program
+        {
             return Err("packageCorrupt".into());
         }
     }
 
-    if verified_any == 0 || !verified_program {
+    if !verified_program
+        || !required_files
+            .iter()
+            .all(|name| verified_names.contains(name))
+    {
         return Err("packageCorrupt".into());
     }
     Ok(())
@@ -851,9 +895,21 @@ pub fn stage_package(
     if staging_dir.exists() {
         fs::remove_dir_all(staging_dir).map_err(|_| "fileWriteError".to_string())?;
     }
-    extract_zip(zip_path, staging_dir)?;
+    extract_zip(zip_path, staging_dir).map_err(|e| {
+        if e == "packageCorrupt" {
+            format!("internalPackage: {}", pkg.filename)
+        } else {
+            e
+        }
+    })?;
     if let Some(manifest) = &adapter.verify_files {
-        verify_checksum_manifest(staging_dir, manifest, &adapter.run.program)?;
+        verify_checksum_manifest(
+            staging_dir,
+            manifest,
+            &adapter.run.program,
+            &adapter.required_files,
+        )
+        .map_err(|_| format!("internalPackage: {manifest}"))?;
     } else if !staging_dir.join(&adapter.run.program).is_file() {
         return Err("packageCorrupt".into());
     }
@@ -861,7 +917,7 @@ pub fn stage_package(
         let req = build_command(adapter, staging_dir, pck_dir, &adapter.actions.preflight)?;
         let out = runner.run(&req)?;
         if out.code != 0 {
-            return Err("packageCorrupt".into());
+            return Err(format!("internalPackage: {}", pkg.filename));
         }
     }
     Ok(())
@@ -960,13 +1016,22 @@ fn uses_delta_restore(adapter: &AdapterProfile) -> bool {
     adapter.upstream_uninstall && adapter.touches.iter().any(|name| name == RESTORE_DAT)
 }
 
-fn check_exclusive_conflicts(
+pub fn check_exclusive_conflicts(
     config_dir: &Path,
     game_root: &Path,
     mod_entry: &ModEntry,
     adapter: &AdapterProfile,
     all_mods: &[ModEntry],
 ) -> Result<(), String> {
+    let target = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
+    if adapter.exclusive == "pck"
+        && target
+            .join("MachinePartyModLoader.exe")
+            .try_exists()
+            .map_err(|_| "fileReadError")?
+    {
+        return Err("loaderConflict".into());
+    }
     let installed = inventory::installed_versions(config_dir, game_root)?;
     for repo in installed.keys() {
         if repo == &mod_entry.repo {
@@ -1018,30 +1083,25 @@ fn mirror_delta_backup(
     Ok(())
 }
 
-fn rollback_failed_install(
-    adapter: &AdapterProfile,
-    staging_dir: &Path,
-    pck_dir: &Path,
-    pck_path: &Path,
-    backup_dir: &Path,
-    pre_pck: &FileFingerprint,
-    runner: &dyn ProcessRunner,
-) -> bool {
-    let full_backup = backup_dir.join(&adapter.baseline.file);
-    if full_backup.is_file() {
-        if copy_atomic(&full_backup, pck_path).is_err() {
-            return false;
-        }
-    } else if pck_dir.join(RESTORE_DAT).is_file() && !adapter.actions.uninstall.is_empty() {
-        let Ok(req) = build_command(adapter, staging_dir, pck_dir, &adapter.actions.uninstall)
-        else {
-            return false;
-        };
-        if !runner.run(&req).is_ok_and(|out| out.code == 0) {
-            return false;
+fn check_space(dir: &Path, required: u64) -> Result<(), String> {
+    if fs2::available_space(dir).map_err(|_| "fileReadError")? < required {
+        return Err(format!("{}: {}", "diskSpace", dir.display()));
+    }
+    Ok(())
+}
+
+// This adapter owns only the baseline and sidecars created during its transaction.
+fn sidecars_absent(adapter: &AdapterProfile, dir: &Path) -> Result<bool, String> {
+    for name in adapter
+        .touches
+        .iter()
+        .filter(|n| *n != &adapter.baseline.file)
+    {
+        if dir.join(name).try_exists().map_err(|_| "fileReadError")? {
+            return Ok(false);
         }
     }
-    file_fingerprint(pck_path).is_ok_and(|fp| &fp == pre_pck)
+    Ok(true)
 }
 
 /// Runs the full verified installation transaction from a downloaded package ZIP.
@@ -1094,18 +1154,24 @@ pub fn install_from_zip(
         upstream_uninstall: adapter.upstream_uninstall,
         backup_dir: backup_dir.clone(),
         touched_files: adapter.touches.clone(),
+        failure: None,
     };
-    save_transaction(config_dir, game_root, record.clone())?;
-
-    if !uses_delta_restore(adapter)
-        || crate::catalog::matches_preview(mod_entry, env!("CARGO_PKG_VERSION"))
-    {
-        let full_backup = backup_dir.join(&adapter.baseline.file);
-        copy_atomic(&pck_path, &full_backup)?;
-        if file_fingerprint(&full_backup)? != pre_pck {
-            return Err("fileWriteError".into());
-        }
+    if !sidecars_absent(adapter, &pck_dir)? {
+        return Err("restoreResidue".into());
     }
+    fs::create_dir_all(config_dir).map_err(|_| "fileWriteError")?;
+    check_space(config_dir, pre_pck.size)?;
+    let full_backup = backup_dir.join(&adapter.baseline.file);
+    copy_atomic(&pck_path, &full_backup)?;
+    if file_fingerprint(&full_backup)? != pre_pck {
+        return Err("fileWriteError".into());
+    }
+    check_space(&pck_dir, pre_pck.size)?;
+    lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+    if file_fingerprint(&pck_path)? != pre_pck || !sidecars_absent(adapter, &pck_dir)? {
+        return Err("gameUpdatedOrModified".into());
+    }
+    save_transaction(config_dir, game_root, record.clone())?;
 
     let outcome: Result<FileFingerprint, String> = (|| {
         let req = build_command(adapter, staging_dir, &pck_dir, &adapter.actions.install)?;
@@ -1137,15 +1203,31 @@ pub fn install_from_zip(
             Ok(record)
         }
         Err(err) => {
-            let recovered = rollback_failed_install(
-                adapter,
-                staging_dir,
-                &pck_dir,
-                &pck_path,
-                &backup_dir,
-                &pre_pck,
-                runner,
-            );
+            let recovered = (|| -> Result<(), String> {
+                lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+                copy_atomic(&full_backup, &pck_path)?;
+                for name in adapter
+                    .touches
+                    .iter()
+                    .filter(|n| *n != &adapter.baseline.file)
+                {
+                    let path = pck_dir.join(name);
+                    if path.is_file() {
+                        fs::remove_file(path).map_err(|_| "fileWriteError")?;
+                    }
+                }
+                verify_only_touches(
+                    &before_snapshot,
+                    &snapshot_dir(&pck_dir, &adapter.baseline.file)?,
+                    &adapter.touches,
+                )?;
+                if file_fingerprint(&pck_path)? != pre_pck || !sidecars_absent(adapter, &pck_dir)? {
+                    return Err("restoreVerifyFailed".into());
+                }
+                Ok(())
+            })()
+            .is_ok();
+            record.failure = Some(err.clone());
             record.status = if recovered {
                 TransactionStatus::RolledBack
             } else {
@@ -1167,11 +1249,12 @@ fn clear_mod_records(
     mod_entry: &ModEntry,
     backup_dir: Option<&Path>,
 ) -> Result<(), String> {
+    inventory::remove_installed(config_dir, game_root, &mod_entry.repo)?;
+    remove_transaction(config_dir, game_root, &mod_entry.id)?;
     if let Some(dir) = backup_dir {
         let _ = fs::remove_dir_all(dir);
     }
-    remove_transaction(config_dir, game_root, &mod_entry.id)?;
-    inventory::remove_installed(config_dir, game_root, &mod_entry.repo)
+    Ok(())
 }
 
 /// Offline uninstallation using mirrored delta restore + offline CLI or full-PCK backup.
@@ -1191,6 +1274,13 @@ pub fn uninstall_mod(
 
     let tx = get_transaction(config_dir, game_root, &mod_entry.id)?
         .ok_or_else(|| "missingTransaction".to_string())?;
+    if tx.pck_dir != pck_dir
+        || tx.backup_dir != backup_dir_for(config_dir, game_root, &mod_entry.id)
+        || tx.version != mod_entry.version.as_deref().unwrap_or_default()
+        || tx.repo != mod_entry.repo
+    {
+        return Err("gameUpdatedOrModified".into());
+    }
     if !matches!(
         tx.status,
         TransactionStatus::Committed | TransactionStatus::NeedsRepair
@@ -1200,29 +1290,42 @@ pub fn uninstall_mod(
 
     let current_pck = file_fingerprint(&pck_path)?;
     if current_pck == tx.pre_pck {
+        if !sidecars_absent(adapter, &pck_dir)? {
+            return Err("restoreResidue".into());
+        }
         clear_mod_records(config_dir, game_root, mod_entry, Some(&tx.backup_dir))?;
         return Ok(current_pck);
     }
-    if tx
-        .post_pck
-        .as_ref()
-        .is_some_and(|expected_post| expected_post != &current_pck)
-    {
+    if tx.post_pck.as_ref() != Some(&current_pck) {
         return Err("gameUpdatedOrModified".into());
     }
 
+    check_space(&pck_dir, tx.pre_pck.size)?;
+    let full_backup = tx.backup_dir.join(&adapter.baseline.file);
+    let disk_restore = pck_dir.join(RESTORE_DAT);
+    if uses_delta_restore(adapter)
+        && disk_restore.is_file()
+        && file_fingerprint(&disk_restore)? != file_fingerprint(&tx.backup_dir.join(RESTORE_DAT))?
+    {
+        return Err("gameUpdatedOrModified".into());
+    }
+    lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+    if file_fingerprint(&pck_path)? != current_pck {
+        return Err("gameUpdatedOrModified".into());
+    }
+    let mut undo = tx.clone();
+    undo.status = TransactionStatus::NeedsRepair;
+    undo.failure = Some("uninstall".into());
+    save_transaction(config_dir, game_root, undo)?;
     let before_snapshot = snapshot_dir(&pck_dir, &adapter.baseline.file)?;
 
-    if tx.upstream_uninstall && adapter.touches.iter().any(|t| t == RESTORE_DAT) {
+    if !full_backup.is_file() && uses_delta_restore(adapter) {
         let program_path = tx.backup_dir.join(&adapter.run.program);
         if !program_path.is_file() {
             return Err("uninstallFailed".into());
         }
         if let Some(manifest) = &adapter.verify_files {
-            let manifest_path = tx.backup_dir.join(manifest);
-            if manifest_path.is_file() {
-                verify_checksum_manifest(&tx.backup_dir, manifest, &adapter.run.program)?;
-            }
+            verify_checksum_manifest(&tx.backup_dir, manifest, &adapter.run.program, &[])?;
         }
         let disk_restore = pck_dir.join(RESTORE_DAT);
         if !disk_restore.is_file() {
@@ -1252,13 +1355,16 @@ pub fn uninstall_mod(
             return Err("restoreCorrupt".into());
         }
         copy_atomic(&full_backup, &pck_path)?;
+        if uses_delta_restore(adapter) && disk_restore.is_file() {
+            fs::remove_file(&disk_restore).map_err(|_| "fileWriteError")?;
+        }
     }
 
     let after_snapshot = snapshot_dir(&pck_dir, &adapter.baseline.file)?;
     verify_only_touches(&before_snapshot, &after_snapshot, &adapter.touches)?;
 
     let restored = file_fingerprint(&pck_path)?;
-    if restored != tx.pre_pck {
+    if restored != tx.pre_pck || !sidecars_absent(adapter, &pck_dir)? {
         return Err("restoreVerifyFailed".into());
     }
 
@@ -1297,6 +1403,32 @@ pub fn adopt_manual_install(
 
     let post_pck = file_fingerprint(&pck_path)?;
     let backup_dir = backup_dir_for(config_dir, game_root, &mod_entry.id);
+    fs::create_dir_all(config_dir).map_err(|_| "fileWriteError")?;
+    check_space(config_dir, post_pck.size.saturating_mul(2))?;
+    let trial = tempfile::tempdir_in(config_dir).map_err(|_| "fileWriteError")?;
+    let trial_pck = trial.path().join(&adapter.baseline.file);
+    copy_atomic(&pck_path, &trial_pck)?;
+    copy_atomic(&restore_path, &trial.path().join(RESTORE_DAT))?;
+    let req = build_command(
+        adapter,
+        package_dir,
+        trial.path(),
+        &adapter.actions.uninstall,
+    )?;
+    let result = runner.run(&req)?;
+    let original = file_fingerprint(&trial_pck)?;
+    if result.code != 0
+        || original.size != adapter.baseline.size
+        || original.sha256 != adapter.baseline.sha256
+        || !sidecars_absent(adapter, trial.path())?
+    {
+        return Err("restoreCorrupt".into());
+    }
+    SystemGameLockCheck.ensure_unlocked(&pck_dir, &pck_path)?;
+    if file_fingerprint(&pck_path)? != post_pck {
+        return Err("gameUpdatedOrModified".into());
+    }
+    copy_atomic(&trial_pck, &backup_dir.join(&adapter.baseline.file))?;
     mirror_delta_backup(
         adapter,
         package_dir,
@@ -1321,6 +1453,7 @@ pub fn adopt_manual_install(
         upstream_uninstall: adapter.upstream_uninstall,
         backup_dir,
         touched_files: adapter.touches.clone(),
+        failure: None,
     };
     save_transaction(config_dir, game_root, record.clone())?;
     inventory::record_installed(config_dir, game_root, &mod_entry.repo, &version)?;
@@ -1490,82 +1623,170 @@ pub fn validate_game_mods(
 ) -> Result<CopyValidation, String> {
     let pck_dir = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
     let current_pck = file_fingerprint(&pck_dir.join("Machine Party.pck"))?;
-    let initial_installed = inventory::installed_versions(config_dir, game_root)?;
+    let mut installed = inventory::installed_versions(config_dir, game_root)?;
+    let transactions = read_transactions(config_dir)?;
     let mut mod_states = BTreeMap::new();
+    let mut repair = BTreeMap::new();
 
-    for mod_entry in mods {
-        let Some(adapter) = &mod_entry.adapter else {
+    for item in mods {
+        let Some(adapter) = &item.adapter else {
             continue;
         };
-        if validate_adapter(adapter).is_err() {
-            continue;
-        }
-        let is_vanilla = current_pck.size == adapter.baseline.size
-            && current_pck
-                .sha256
-                .eq_ignore_ascii_case(&adapter.baseline.sha256);
-        let tx = get_transaction(config_dir, game_root, &mod_entry.id)?;
-        let in_inventory = initial_installed.contains_key(&mod_entry.repo);
-
-        let state = if let Some(ref record) = tx
-            && record.status == TransactionStatus::Pending
-        {
-            if current_pck == record.pre_pck {
-                clear_mod_records(config_dir, game_root, mod_entry, Some(&record.backup_dir))?;
-                "vanilla"
-            } else {
+        validate_adapter(adapter)?;
+        let tx = transactions
+            .get(game_root)
+            .and_then(|records| records.get(&item.id));
+        let vanilla = current_pck.size == adapter.baseline.size
+            && current_pck.sha256 == adapter.baseline.sha256;
+        let restore = pck_dir.join(RESTORE_DAT);
+        let state =
+            if pck_dir.join("MachinePartyModLoader.exe").is_file() && adapter.exclusive == "pck" {
+                "loaderConflict"
+            } else if tx.is_some_and(|r| {
+                matches!(
+                    r.status,
+                    TransactionStatus::Pending | TransactionStatus::NeedsRepair
+                )
+            }) {
                 "needsRepair"
-            }
-        } else if in_inventory
-            || tx
-                .as_ref()
-                .is_some_and(|r| r.status == TransactionStatus::Committed)
-        {
-            if is_vanilla {
-                clear_mod_records(
-                    config_dir,
-                    game_root,
-                    mod_entry,
-                    tx.as_ref().map(|r| r.backup_dir.as_path()),
-                )?;
-                "vanilla"
-            } else if tx
-                .as_ref()
-                .and_then(|r| r.post_pck.as_ref())
-                .is_some_and(|post| post != &current_pck)
-            {
-                "gameUpdatedOrModified"
-            } else {
-                "installed"
-            }
-        } else if is_vanilla {
-            "vanilla"
-        } else {
-            let restore_path = pck_dir.join(RESTORE_DAT);
-            let manual_valid = uses_delta_restore(adapter)
-                && restore_path.is_file()
-                && parse_mp8r_restore(&restore_path).is_ok_and(|h| {
+            } else if vanilla {
+                installed.remove(&item.repo);
+                if sidecars_absent(adapter, &pck_dir)? {
+                    "vanilla"
+                } else {
+                    "restoreResidue"
+                }
+            } else if let Some(record) = tx.filter(|r| r.status == TransactionStatus::Committed) {
+                if record.post_pck.as_ref() == Some(&current_pck) {
+                    installed.insert(item.repo.clone(), record.version.clone());
+                    "installed"
+                } else {
+                    "gameUpdatedOrModified"
+                }
+            } else if installed.contains_key(&item.repo) {
+                "needsRepair"
+            } else if uses_delta_restore(adapter)
+                && restore.is_file()
+                && parse_mp8r_restore(&restore).is_ok_and(|h| {
                     h.base_sha.eq_ignore_ascii_case(&adapter.baseline.sha256)
                         && h.patched_len > 0
                         && h.patched_len as u64 == current_pck.size
-                });
-            if manual_valid {
-                "manualInstall"
+                })
+            {
+                let pkg = item.package.as_ref().ok_or("missingPackage")?;
+                let zip = config_dir
+                    .join("packages")
+                    .join(&item.id)
+                    .join(&pkg.filename);
+                if zip.is_file() {
+                    let tmp = tempfile::tempdir().map_err(|_| "fileWriteError")?;
+                    let staging = tmp.path().join("inspect");
+                    stage_package(&zip, &staging, pkg, adapter, &pck_dir, &SystemRunner)?;
+                    if run_status_cmd(adapter, &staging, &pck_dir, &SystemRunner)?
+                        == DiskModState::Installed
+                    {
+                        "manualInstall"
+                    } else {
+                        "gameUpdatedOrModified"
+                    }
+                } else {
+                    "identifyPending"
+                }
             } else {
                 "gameUpdatedOrModified"
-            }
-        };
-
-        mod_states.insert(mod_entry.id.clone(), state.to_string());
+            };
+        if let Some(record) = tx
+            && matches!(
+                state,
+                "needsRepair" | "gameUpdatedOrModified" | "restoreResidue"
+            )
+        {
+            repair.insert(
+                item.id.clone(),
+                (record.backup_dir.clone(), record.failure.clone()),
+            );
+        }
+        mod_states.insert(item.id.clone(), state.to_owned());
     }
-
-    let installed = inventory::installed_versions(config_dir, game_root)?;
     Ok(CopyValidation {
         pck_dir,
         pck_size: current_pck.size,
+        pck_sha256: current_pck.sha256,
+        repair,
         installed,
         mod_states,
     })
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+struct ScanStamp {
+    catalog: Vec<ModEntry>,
+    files: BTreeMap<PathBuf, Option<(String, u64, std::time::SystemTime)>>,
+}
+
+fn scan_stamp(config: &Path, root: &Path, mods: &[ModEntry]) -> Result<ScanStamp, String> {
+    let dir = game::resolve_pck_dir(root).ok_or("invalidGame")?;
+    let mut paths = vec![
+        dir.join("MachinePartyModLoader.exe"),
+        dir.join("Machine Party.exe"),
+        dir.join("Machine Party.pck"),
+        config.join(TRANSACTIONS_FILE),
+        config.join("installations.json"),
+    ];
+    for item in mods {
+        if let Some(adapter) = &item.adapter {
+            paths.extend(adapter.touches.iter().map(|name| dir.join(name)));
+            if let Some(pkg) = &item.package {
+                paths.push(config.join("packages").join(&item.id).join(&pkg.filename));
+            }
+        }
+    }
+    let mut files = BTreeMap::new();
+    for path in paths {
+        let stamp = match fs::metadata(&path) {
+            Ok(m) => Some((
+                format!(
+                    "{:?}",
+                    file_id::get_file_id(&path).map_err(|_| "fileReadError")?
+                ),
+                m.len(),
+                m.modified().map_err(|_| "fileReadError")?,
+            )),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => None,
+            Err(_) => return Err("fileReadError".into()),
+        };
+        files.insert(path, stamp);
+    }
+    Ok(ScanStamp {
+        catalog: mods.to_vec(),
+        files,
+    })
+}
+
+pub fn scan_copy(
+    config: &Path,
+    root: &Path,
+    mods: &[ModEntry],
+    force: bool,
+) -> Result<CopyValidation, String> {
+    let cache = config.join("scan-v1").join(short_hash(root));
+    let before = scan_stamp(config, root, mods)?;
+    if !force
+        && let Some((stamp, prior)) = fs::read(&cache)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<(ScanStamp, CopyValidation)>(&bytes).ok())
+        && stamp == before
+        && !prior.mod_states.values().any(|s| s == "needsRepair")
+    {
+        return Ok(prior);
+    }
+    let result = validate_game_mods(config, root, mods)?;
+    if scan_stamp(config, root, mods)? != before {
+        return Err("statusUnavailable".into());
+    }
+    let bytes = serde_json::to_vec(&(before, &result)).map_err(|_| "fileWriteError")?;
+    write_atomic(&cache, &bytes)?;
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -1751,6 +1972,7 @@ mod tests {
                     size: baseline.size,
                     sha256: baseline.sha256.clone(),
                 },
+                required_files: vec!["overtime_payload.zip".into()],
                 verify_files: Some("SHA256SUMS.txt".into()),
                 upstream_uninstall,
                 run: RunSpec {
@@ -2021,7 +2243,7 @@ mod tests {
                 &UnlockedCheck,
             )
             .unwrap_err(),
-            "packageCorrupt"
+            "internalPackage: SHA256SUMS.txt"
         );
 
         let mut forced = synthetic_overtime_entry(&baseline, &zip_bytes, true);
@@ -2135,7 +2357,7 @@ mod tests {
                 &UnlockedCheck,
             )
             .unwrap_err(),
-            "undeclaredFileModified"
+            "restoreVerifyFailed"
         );
         assert_eq!(
             file_fingerprint(&pck_dir.join("Machine Party.pck")).unwrap(),
@@ -2448,6 +2670,7 @@ print("Patched")
                     size: baseline.size,
                     sha256: baseline.sha256.clone(),
                 },
+                required_files: Vec::new(),
                 verify_files: None,
                 upstream_uninstall: false,
                 run: RunSpec {
@@ -2577,12 +2800,33 @@ print("Patched")
             calls: RefCell::new(Vec::new()),
         };
 
+        PCK_READS.with(|n| n.set(0));
+        scan_copy(&config_dir, &game_root, &mods, false).unwrap();
+        assert_eq!(PCK_READS.with(|n| n.get()), 1);
+        scan_copy(&config_dir, &game_root, &mods, false).unwrap();
+        assert_eq!(
+            PCK_READS.with(|n| n.get()),
+            1,
+            "warm restart only reads metadata"
+        );
+        scan_copy(&config_dir, &game_root, &mods, true).unwrap();
+        assert_eq!(
+            PCK_READS.with(|n| n.get()),
+            2,
+            "forced recheck reads the PCK once"
+        );
+
         // 1. Clean vanilla copy
         let v1 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v1.pck_dir, pck_dir);
         assert_eq!(v1.pck_size, baseline.size);
         assert!(v1.installed.is_empty());
         assert_eq!(v1.mod_states["overtime"], "vanilla");
+
+        fs::write(pck_dir.join(RESTORE_DAT), b"unknown residue").unwrap();
+        let residue = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(residue.mod_states["overtime"], "restoreResidue");
+        fs::remove_file(pck_dir.join(RESTORE_DAT)).unwrap();
 
         // 2. Installed copy
         install_from_zip(
@@ -2625,8 +2869,14 @@ print("Patched")
             "overtime-1.7",
         );
         fs::write(pck_dir.join(RESTORE_DAT), restore).unwrap();
+        assert!(
+            get_transaction(&config_dir, &game_root, &mod_entry.id)
+                .unwrap()
+                .is_some()
+        );
+        clear_mod_records(&config_dir, &game_root, &mod_entry, None).unwrap();
         let v5 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
-        assert_eq!(v5.mod_states["overtime"], "manualInstall");
+        assert_eq!(v5.mod_states["overtime"], "identifyPending");
 
         fs::remove_dir_all(root).unwrap();
     }
