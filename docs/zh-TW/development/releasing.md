@@ -22,6 +22,6 @@ Worker（`services/update-worker`）從私有 R2 bucket `machine-party-mods` 的
 
 首次安裝時，Windows 從 Cloudflare 鏡像下載 setup.exe。Apple Silicon Mac 下載 MachineParty-aarch64.app.tar.gz，解壓後將 .app 放到可寫入的應用程式目錄。Mac 套件使用 ad hoc 程式碼簽章，尚未經 Apple Developer ID 公證。早期 Mac 原型缺少更新器，需手動安裝一次支援更新的版本。客戶端內建更新公鑰。請將對應私鑰另存於受保護的離線備份，後續版本須能通過已安裝客戶端的公鑰驗證。Tauri 更新簽章與 Windows Authenticode 無關。
 
-Windows 專用套件的預設程式目錄為 MachinePartyModManager。設定倉庫變數 WINDOWS_SIGNING_RUNNER 與 WINDOWS_SIGNING_THUMBPRINT，使用已在簽署存放區配置程式碼簽署憑證及私鑰的專用 Windows runner，並將其限制於受信任的發布工作。建置時簽署主程式與 NSIS 安裝程式並加時間戳。所有發布建置都需要配置簽署身分。發布新版本號的測試版時，在桌面發布工作流程啟用 publish_preview。GitHub 發布與 Cloudflare 鏡像分別驗證內嵌 Authenticode 簽章、憑證指紋與時間戳。使用 app Worker 工作流程的 preview_tag 同步同一份安裝檔。
+Windows 專用套件的預設程式目錄為 MachinePartyModManager。設定倉庫變數 WINDOWS_SIGNING_RUNNER 與 WINDOWS_SIGNING_THUMBPRINT，使用已在簽署存放區配置程式碼簽署憑證及私鑰的專用 Windows runner，並將其限制於受信任的發布工作。建置時簽署主程式與 NSIS 安裝程式並加時間戳。正式版需要簽署身分。尚未設定身分時，publish_preview 會建立明確標示未簽章的 GitHub 測試版。發布新版本號的測試版時，在桌面發布工作流程啟用 publish_preview。已簽章套件在 GitHub 發布與 Cloudflare 鏡像時分別驗證內嵌 Authenticode 簽章、憑證指紋與時間戳。使用 app Worker 工作流程的 preview_tag 同步同一份安裝檔。
 
 使用 Azure Artifact Signing 時，WINDOWS_SIGNING_PROVIDER 設為 azure，WINDOWS_SIGNING_SUBJECT 填寫已驗證憑證的完整主體名稱。建立 Public Trust 設定檔，授權應用程式使用該設定檔簽署。倉庫變數設定 AZURE_ARTIFACT_SIGNING_ENDPOINT、AZURE_ARTIFACT_SIGNING_ACCOUNT、AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE、AZURE_CLIENT_ID 和 AZURE_TENANT_ID；AZURE_CLIENT_SECRET 放入倉庫 Secret。測試包作為 GitHub 附件發布。需要時才另行同步 R2，同步安裝檔時略過 Worker 部署。
