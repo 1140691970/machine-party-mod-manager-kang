@@ -20,6 +20,8 @@ pub struct ModEntry {
     pub id: String,
     pub order: u32,
     pub repo: String,
+    #[serde(default, rename = "inventoryById")]
+    pub inventory_by_id: bool,
     pub version: Option<String>,
     pub verified: bool,
     pub package: Option<PackageSpec>,
@@ -39,6 +41,18 @@ pub struct PackageSpec {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AdapterProfile {
+    #[serde(
+        default,
+        rename = "sourceRule",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source_rule: Option<String>,
+    #[serde(
+        default,
+        rename = "conflictGroup",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub conflict_group: Option<String>,
     pub kind: String,
     pub platforms: Vec<String>,
     pub target: String,
@@ -90,6 +104,16 @@ pub struct StatusMatchers {
     pub installed: String,
     pub vanilla: String,
     pub older: Option<String>,
+}
+
+impl ModEntry {
+    pub fn inventory_key(&self) -> &str {
+        if self.inventory_by_id {
+            &self.id
+        } else {
+            &self.repo
+        }
+    }
 }
 
 /// The catalog shipped with this build, passed to the UI unchanged.
@@ -191,33 +215,45 @@ pub fn project_url(repo: &str) -> Option<String> {
         .then(|| format!("https://github.com/{repo}"))
 }
 
+pub fn legacy_entry(item: &ModEntry) -> Option<ModEntry> {
+    let overrides: serde_json::Value =
+        serde_json::from_str(include_str!("../../../../catalog/legacy-adapters.json")).ok()?;
+    let old = overrides.get(&item.id)?;
+    let mut entry = item.clone();
+    entry.version = Some(old["version"].as_str()?.into());
+    entry.adapter = Some(serde_json::from_value(old["adapter"].clone()).ok()?);
+    entry.package = Some(serde_json::from_value(old["package"].clone()).ok()?);
+    Some(entry)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-6").len(), 5);
+        assert_eq!(preview_entries("0.1.2-7").len(), 6);
         for id in [
             "overtime",
             "machineparty-plus",
             "broadcast-8p-freecam",
             "binary1936-8p",
             "roller-carnival",
+            "lobby-bots",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-6"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-7"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-6"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-7"), "{id}");
         }
     }
 
     #[test]
-    fn bundled_catalog_parses_with_unique_repositories() {
+    fn bundled_catalog_parses_with_unique_inventory_keys() {
         let catalog: Catalog = serde_json::from_str(BUNDLED).unwrap();
         assert_eq!(catalog.schema, SCHEMA);
-        let mut repos: Vec<_> = catalog.mods.iter().map(|entry| &entry.repo).collect();
+        let mut repos: Vec<_> = catalog.mods.iter().map(ModEntry::inventory_key).collect();
         repos.sort();
         repos.dedup();
         assert_eq!(repos.len(), catalog.mods.len());
@@ -247,9 +283,9 @@ mod tests {
         assert_eq!(mod_entry.repo, "DarkJadeStone/MachineParty-Overtime");
         assert_eq!(mod_entry.version.as_deref(), Some("v1.7"));
         let pkg = mod_entry.package.as_ref().expect("package present");
-        assert_eq!(pkg.asset_id, "594522622");
-        assert_eq!(pkg.filename, "Machine-Party-Overtime-1.7-MPML.zip");
-        assert_eq!(pkg.size, 830_277);
+        assert_eq!(pkg.asset_id, "594522625");
+        assert_eq!(pkg.filename, "Machine-Party-Overtime-1.7-CLI.zip");
+        assert_eq!(pkg.size, 854_623);
         let adapter = mod_entry.adapter.as_ref().expect("adapter present");
         assert_eq!(adapter.kind, "loader-files");
         assert_eq!(adapter.exclusive, "loader");
@@ -265,31 +301,28 @@ mod tests {
 
         let broadcast = entry("broadcast-8p-freecam").expect("broadcast entry present");
         let broadcast_adapter = broadcast.adapter.as_ref().unwrap();
-        assert_eq!(broadcast_adapter.kind, "upstream-cli");
-        assert_eq!(broadcast_adapter.exclusive, "pck");
-        assert!(!broadcast_adapter.auto_loader);
-        assert_eq!(broadcast_adapter.run.interpreter, "powershell");
-        assert!(
-            broadcast_adapter
-                .forbidden_args
-                .contains(&"--force".to_string())
-        );
-
-        let b8p = entry("binary1936-8p").expect("binary1936-8p entry present");
         assert_eq!(
-            b8p.adapter.as_ref().unwrap().run.interpreter,
-            "bundled-python"
+            broadcast_adapter.source_rule.as_deref(),
+            Some("broadcast-tree-v1")
         );
-
+        assert_eq!(
+            entry("binary1936-8p")
+                .unwrap()
+                .adapter
+                .unwrap()
+                .source_rule
+                .as_deref(),
+            Some("binary-tree-v1")
+        );
         let entries = all_entries();
-        assert_eq!(entries.len(), 5);
+        assert_eq!(entries.len(), 6);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
         assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller
             .package
             .as_ref()
             .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.0.zip");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.1.zip");
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
@@ -298,11 +331,11 @@ mod tests {
         );
         assert_eq!(
             download_url(&mod_entry).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/overtime/v1.7/594522622"
+            "https://machineparty.ailaogong.men/v1/downloads/overtime/v1.7/594522625"
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.0/1001"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.1/1001"
         );
     }
 }

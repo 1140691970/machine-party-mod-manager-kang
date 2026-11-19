@@ -46,7 +46,9 @@ Windows App 經 HTTPS 向自有網域的 Worker 請求 `GET /v1/catalog.json`。
 
 ### 2026-11-19 正式套件遷移
 
-自目錄修訂號 `2026-11-19.8` 起，`Overtime v1.7` 改為分發官方 MPML 載入器套件（`Machine-Party-Overtime-1.7-MPML.zip`，資產 ID `594522622`，`830,277` bytes，SHA-256 `49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e`），配合管理器內建 `autoLoader` 與 `MachineParty+`、`滾筒嘉年華` 共存。Worker 下載路徑為 `/v1/downloads/overtime/v1.7/594522622`，對應 R2 物件鍵 `packages/sha256/49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e.zip`。
+一鍵安裝先以目錄大小與 SHA-256 核對作者發行 ZIP，再由 Rust 在暫存區準備 MPML 目錄。Overtime 讀取 CLI 包中的 payload 清單，保留上游的載入時序、版本與原版腳本指紋檢查。Broadcast 和 Binary1936 讀取資源樹。MachineParty+、滾筒嘉年華與房間機器人已採載入器格式。 `?inventory=id&prepare=1` · `/v1/downloads/overtime/v1.7/594522625`.
+
+舊版客戶端仍可使用相容目錄與下載網址。既有 Overtime MPML 安裝可繼續使用。舊式受管 PCK 補丁可在模組詳情選擇「切換為載入器安裝」，先驗證新包，再還原已記錄的副本並安裝。手動安裝的 mods/broadcast-8p 須先移出遊戲目錄。檔案出現未知變更時，還原會停止。
 
 ## 誰能發布
 

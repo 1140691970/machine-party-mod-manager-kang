@@ -43,25 +43,15 @@ The production catalog is served through a Cloudflare Worker on a custom domain.
 
 ## Install, switch and recovery (design draft)
 
-See [ADR-005](ADR-005-install-transactions.md), [ADR-007](ADR-007-mod-adapters.md) and [ADR-009](ADR-009-bundled-first-party-mods.md) for the full flow and constraints. In short: a Tauri-free Rust transaction engine locks the copy, checks the game process, version, space and conflicts, downloads and verifies packages in staging from the Worker origin, records pre-install fingerprints and a tiered backup (mirrored delta restore data plus offline CLI where supported, or a full PCK backup), and dispatches to a built-in adapter factory (`upstream-cli`, `loader-files`) using declarative `adapter` profiles in `catalog/mods.json`.
+The one-click installer verifies the original release ZIP against its catalog size and SHA-256. Rust prepares the MPML directory in staging. Overtime uses its CLI payload manifest and retains the upstream load-order, version and vanilla-script checks. Broadcast and Binary1936 use their resource trees. MachineParty+, Roller Carnival and Lobby Bots already ship in loader format.
 
-### Why loader mods and direct PCK patch mods cannot coexist
+The installer records the source digest, recipe revision and installed file fingerprints. The three eight-player conversions share an exclusive gameplay group. Other loader mods can stay installed when a group member changes. A separate converted download would add a second release artifact to maintain; executing each upstream installer would keep different backup and recovery procedures.
 
-Community mods fall into two mutually exclusive loading modes on `Machine Party.pck`:
-
-- **Loader mode (`loader-files` + `autoLoader` / MPML)**: `Overtime` (v1.7 MPML package), `MachineParty+`, and `Roller Carnival` install isolated directories under `<pckDir>/mods/<id>/` and load through `autoload/ModLoader` (`pck_loader.rs` + `assets/mpm_bootstrap.gd`, or an existing external `MachinePartyModLoader.exe`). Loader mods coexist with one another when they do not override the same GDScript file, and `mpm_bootstrap.gd` runs `_discover_and_init_mods()` in `_init()` so `priority: -1000` sentinel checks and overlay packs mount before game singletons load.
-- **Direct PCK patch mode (`upstream-cli`, `exclusive: "pck"`)**: `Broadcast 8P Freecam` and `Binary1936 8P` verify the exact vanilla `Machine Party.pck` baseline (`634,798,100` bytes, SHA-256 `326cc398...`) and rebuild or patch the PCK archive directly.
-- **Why both cannot run together**:
-  1. **PCK baseline & GDPC index incompatibility**: Installing the built-in loader or MPML appends `res://project.binary` + `res://modloader/bootstrap.gd` and updates the GDPC directory pointer (`Machine Party.pck.modloader.json`), changing the PCK's SHA-256 away from vanilla so direct PCK patchers refuse to apply (`baselineMismatch`). Conversely, a PCK patcher rebuilds or overwrites `Machine Party.pck`, stripping or invalidating the loader's `autoload/ModLoader` entry and breaking loader-mod `vanilla_md5.json` script checks.
-  2. **Runtime overlay & script override conflict**: MPML overlay mods such as Overtime validate vanilla `.gdc` MD5 digests before calling `ProjectSettings.load_resource_pack(..., true)`; a patched PCK fails those MD5 checks or silently drops scripts.
-  3. **Backup & rollback isolation**: Direct PCK patchers own full-PCK backups tied to the vanilla baseline, whereas managed loader mods restore the vanilla PCK only when the last managed `mods/<id>/` directory is removed.
-- **Conflict handling & one-click switching**: The manager separates `modConflict` (conflicts exclusively with clean, manager-installed mods) from `loaderConflict` (external `MachinePartyModLoader.exe` or unmanaged folders in `mods/`). When `modConflict` is detected, the UI offers a one-click **Switch** action (`switch_from_zip`) that validates the target package first, uninstalls the active conflicting mod(s), verifies vanilla `Machine Party.pck` restoration, and installs the selected mode.
-
-It records success only after read-back verification, reconciles disk state after interruption, and stops rather than overwrites when Steam updated the game or unknown modifications exist. On macOS, development verification runs across three simulation tiers (L1 synthetic PCK and `FakeRunner`, L2 real subprocesses, and L3 local vanilla PCK with Mono) before physical Windows P2 acceptance.
+Older clients receive their compatible catalog and download URLs. Existing Overtime MPML installations keep working. Select the migration action in the details of a managed legacy PCK patch to verify the replacement, restore the recorded copy, and install through the loader. Move a manual mods/broadcast-8p folder out of the game first. Unknown file changes stop recovery.
 
 ## Whether to maintain forks
 
-Use the author's published CLI or underlying install script first. The app itself can take on detection, backup and verification. If an interaction or restoration problem cannot be solved from outside, record a reproducible case and prefer a small upstream change. Maintain an installer fork only when licensing allows and it is truly necessary, keeping original authorship, source and version mapping.
+Use the author's published resources and keep conversion rules versioned with the installer. The app itself can take on detection, backup and verification. If an interaction or restoration problem cannot be solved from outside, record a reproducible case and prefer a small upstream change. Maintain an installer fork only when licensing allows and it is truly necessary, keeping original authorship, source and version mapping.
 
 ## Architecture decision records
 
@@ -74,3 +64,5 @@ Use the author's published CLI or underlying install script first. The app itsel
 - [ADR-007: Mod adapters and macOS simulation (proposed)](ADR-007-mod-adapters.md)
 - [ADR-008 · Cached downloads, startup checks and verified restoration](ADR-008-cached-installations.md)
 - [ADR-009: First-party mods, deterministic R2 packaging and self-managed loader (proposed)](ADR-009-bundled-first-party-mods.md)
+- [ADR-010 · Independent install keys for mods sharing a repository](ADR-010-shared-repository-mods.md)
+- [ADR-011 · Prepare MPML before installation](ADR-011-prepare-mpml.md)

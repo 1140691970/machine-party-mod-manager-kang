@@ -68,11 +68,51 @@ test("an install resolves its game copy before continuing and cancellation does 
   await withGameCopy(install);
   assert.deepEqual(calls.splice(0), ["choose_game","game_copies","save_game","installed_versions","validate_game_mods","install"]);
   await withGameCopy(install);
-  assert.deepEqual(calls.splice(0), ["game_copies","install"]);
+  assert.deepEqual(calls.splice(0), ["game_copies","installed_versions","validate_game_mods","install"]);
   state.game = "missing";
   picked = null;
   await withGameCopy(install);
   assert.deepEqual(calls, ["game_copies","choose_game"]);
+});
+
+test("an open app rechecks a reinstalled Steam copy before using its old action", async () => {
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const {withGameCopy} = await import("../../apps/desktop/ui/game-folder.js");
+  const path = "Steam/Machine Party";
+  const pckDir = path + "/Machine Party_Windows";
+  Object.assign(state, {game:path, pckDir, scan:"ready", modStates:{roller:"installed"}});
+  let disk = "vanilla";
+  window.__TAURI__.core.invoke = async command => {
+    if (command === "game_copies") return [pckDir];
+    if (command === "installed_versions") return {roller:"v1"};
+    assert.equal(command, "validate_game_mods");
+    if (!disk) throw "statusUnavailable";
+    return {pckDir, installed:{}, modStates:{roller:disk}};
+  };
+  let actions = 0;
+  await withGameCopy(() => { actions++; assert.equal(state.modStates.roller, "vanilla"); });
+  assert.deepEqual(state.inventory, {});
+  disk = null;
+  await withGameCopy(() => { actions++; });
+  assert.equal(actions, 1);
+  assert.equal(state.scan, "failed");
+});
+
+test("reload restores inventory for a valid saved copy when Steam detection returns no candidates", async () => {
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const {detectGame} = await import("../../apps/desktop/ui/game-folder.js");
+  state.game = "saved/copy";
+  const installed = {"author/project":"v1"};
+  window.__TAURI__.core.invoke = async command => {
+    if (command === "find_games") return [];
+    if (command === "game_copies") return [state.game];
+    if (command === "installed_versions") return installed;
+    assert.equal(command, "validate_game_mods");
+    return {installed, pckDir:state.game, modStates:{project:"installed"}};
+  };
+  await detectGame();
+  assert.deepEqual(state.inventory, installed);
+  assert.equal(state.scan, "ready");
 });
 
 test("rescan preserves an existing valid game folder when no Steam installs are detected", async () => {

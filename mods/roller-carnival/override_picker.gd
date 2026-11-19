@@ -1,7 +1,7 @@
 extends "res://minigames/intermission_new/components/intermission_game_picker.gd"
 
 ## MPML Override for res://minigames/intermission_new/components/intermission_game_picker.gd
-## Ensures Roller Carnival (ShapeCutter = 6) appears on the 15-icon CRT picker grid,
+## Includes Roller Carnival (ShapeCutter = 6) among the CRT picker candidates,
 ## displays its title, and supplies its briefing icon/controls before super()._ready().
 
 
@@ -14,50 +14,28 @@ static func _roller_display_name() -> String:
 	return "ROLLER CARNIVAL"
 
 
-static func _build_picker_icon() -> Texture2D:
-	var img := Image.create(96, 96, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.10, 0.08, 0.07, 1.0))
-	for y in range(96):
-		for x in range(96):
-			if x < 4 or x >= 92 or y < 4 or y >= 92:
-				img.set_pixel(x, y, Color(0.95, 0.72, 0.24, 1.0))
-			elif x <= 18 and y >= 14:
-				img.set_pixel(x, y, Color(1.0, 0.36, 0.06, 1.0))
-			elif y >= 76:
-				img.set_pixel(x, y, Color(0.28, 0.24, 0.26, 1.0))
-
-			if x >= 24 and x <= 84 and y >= 22 and y <= 40:
-				var shade := 1.0 - absf(float(y - 31)) / 10.5 * 0.35
-				img.set_pixel(x, y, Color(1.0 * shade, 0.78 * shade, 0.18 * shade, 1.0))
-
-			if x >= 28 and x <= 84 and y >= 50 and y <= 68:
-				var shade2 := 1.0 - absf(float(y - 59)) / 10.5 * 0.35
-				img.set_pixel(x, y, Color(0.84 * shade2, 0.90 * shade2, 0.97 * shade2, 1.0))
-	return ImageTexture.create_from_image(img)
-
-
 func _ensure_roller_icon_resource() -> void:
 	if intermission_manager == null:
 		return
 	var mod_slot: Globals.MinigameIdentifier = Globals.MinigameIdentifier.ShapeCutter
+	var icon_res: Intermission_IconResource
 	for res in intermission_manager.minigame_icon_resource_array:
 		if res != null and res.identifier == mod_slot:
-			if res.icon_texture == null:
-				res.icon_texture = _build_picker_icon()
-			return
-
-	var icon_res := Intermission_IconResource.new()
-	icon_res.identifier = mod_slot
-	icon_res.icon_texture = _build_picker_icon()
+			icon_res = res
+			break
+	if icon_res == null:
+		icon_res = Intermission_IconResource.new()
+		icon_res.identifier = mod_slot
+		intermission_manager.minigame_icon_resource_array.append(icon_res)
+	icon_res.icon_texture = load(Globals.MinigameIconPaths[mod_slot])
 	icon_res.brief_instructions_header_pages = ["ROLLER CARNIVAL"]
 	icon_res.brief_instructions_content_pages = [
 		"金色高滾筒：按 [S] 下蹲躲過；\n銀色低滾筒：按 [空白鍵] 跳躍越過；\n被撞擊只會向左推擠，掉入岩漿即淘汰！"
 	]
 
 	var ctrl_jump := IntermissionControlInputLabelData.new()
-	ctrl_jump.control_text = "JUMP / 跳躍 (銀色低滾筒)"
+	ctrl_jump.control_text = "Space / 跳躍 (銀色低滾筒)"
 	ctrl_jump.controller_text = "JUMP"
-	ctrl_jump.keyboard_icons = [InputIconMapping.InputAction.KeyboardW]
 	ctrl_jump.controller_icons = [InputIconMapping.InputAction.ControllerFaceSouth]
 
 	var ctrl_crouch := IntermissionControlInputLabelData.new()
@@ -67,7 +45,6 @@ func _ensure_roller_icon_resource() -> void:
 	ctrl_crouch.controller_icons = [InputIconMapping.InputAction.ControllerFaceEast]
 
 	icon_res.controls_data = [ctrl_jump, ctrl_crouch]
-	intermission_manager.minigame_icon_resource_array.append(icon_res)
 
 
 func _ready() -> void:
@@ -127,11 +104,8 @@ func setup_minigame_pick_host() -> void:
 			next_minigame_index = randi_range(0, intermission_manager.game.session_minigame_list.size() - 1)
 		next_minigame_identifier = intermission_manager.game.session_minigame_list[next_minigame_index]
 
-	# The CRT grid displays 15 icons (indices 0..14); with 16 candidates, ensure
-	# the picked game (and ideally mod_slot if still unplayed) fits within 0..14.
-	_ensure_identifier_in_first_15(dictionary_array_to_send, next_minigame_identifier, next_minigame_identifier)
-	if mod_slot in intermission_manager.game.session_minigame_list and not (mod_slot in intermission_manager.game.session_minigame_played_list):
-		_ensure_identifier_in_first_15(dictionary_array_to_send, mod_slot, next_minigame_identifier)
+	# Keep the drawn game on the CRT when the shuffle puts it beyond the grid.
+	_ensure_identifier_in_first_15(dictionary_array_to_send, next_minigame_identifier)
 
 	var grid_limit: int = min(15, dictionary_array_to_send.size())
 	for i in grid_limit:
@@ -152,8 +126,7 @@ func setup_minigame_pick_host() -> void:
 
 func _ensure_identifier_in_first_15(
 	arr: Array[Dictionary],
-	target_id: Globals.MinigameIdentifier,
-	protected_id: Globals.MinigameIdentifier
+	target_id: Globals.MinigameIdentifier
 ) -> void:
 	if arr.size() <= 15 or target_id == Globals.MinigameIdentifier.EMPTY:
 		return
@@ -170,14 +143,9 @@ func _ensure_identifier_in_first_15(
 	var swap_idx := -1
 	for i in range(15):
 		var d: Dictionary = arr[i]
-		if d._minigame_identifier != protected_id and (not d._is_in_playlist or d._is_played_already):
+		if not d._is_in_playlist or d._is_played_already:
 			swap_idx = i
 			break
-	if swap_idx < 0:
-		for i in range(15):
-			if arr[i]._minigame_identifier != protected_id:
-				swap_idx = i
-				break
 	if swap_idx < 0:
 		swap_idx = 14
 

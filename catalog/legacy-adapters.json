@@ -1,0 +1,217 @@
+{
+  "broadcast-8p-freecam": {
+    "version": "v0.91",
+    "package": {
+      "assetId": "517871491",
+      "filename": "MachineParty_Broadcast8P_Freecam_OneClick_Patcher_v0_91_BuiltIn120Fps.zip",
+      "size": 21037309,
+      "sha256": "988b5068c0d4f054a4654b965628ca666d7ebf4e65b6a1cb60f8615a85c3f7ac",
+      "mirrorApproved": true
+    },
+    "adapter": {
+      "kind": "upstream-cli",
+      "platforms": [
+        "windows"
+      ],
+      "target": "pckDir",
+      "touches": [
+        "Machine Party.pck",
+        "Machine Party.pck.broadcast_backup"
+      ],
+      "exclusive": "pck",
+      "baseline": {
+        "file": "Machine Party.pck",
+        "size": 634798100,
+        "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+      },
+      "upstreamUninstall": false,
+      "run": {
+        "interpreter": "powershell",
+        "program": "patcher.ps1",
+        "common": [
+          "-GameDir",
+          "{gameDir}"
+        ]
+      },
+      "actions": {
+        "preflight": [],
+        "status": [
+          "-Action",
+          "verify"
+        ],
+        "install": [
+          "-Action",
+          "install"
+        ],
+        "uninstall": [
+          "-Action",
+          "uninstall"
+        ]
+      },
+      "status": {
+        "installed": "^State:\\s+patched$",
+        "vanilla": "^State:\\s+clean$"
+      },
+      "forbiddenArgs": [
+        "--force"
+      ]
+    },
+    "detail": {
+      "zh-CN": "支持一名导播和八名参赛者，卸载与备份恢复流程待实测。",
+      "zh-TW": "支援一名導播和八名參賽者，卸載與備份還原流程待實測。",
+      "en": "Supports one director and eight contestants. Uninstall and backup restoration await testing."
+    },
+    "windowsPreview": "0.1.2-6"
+  },
+  "binary1936-8p": {
+    "version": "v1.5",
+    "package": {
+      "assetId": "520133712",
+      "filename": "machine-party-8p-mod.zip",
+      "size": 32387456,
+      "sha256": "6031425e58d434190ae2b62a8557cecaef1d057ce030acb03dd02c327d7baac4",
+      "noticeFile": "NOTICE.md",
+      "mirrorApproved": true
+    },
+    "adapter": {
+      "kind": "upstream-cli",
+      "platforms": [
+        "windows"
+      ],
+      "target": "pckDir",
+      "touches": [
+        "Machine Party.pck"
+      ],
+      "exclusive": "pck",
+      "baseline": {
+        "file": "Machine Party.pck",
+        "size": 634798100,
+        "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+      },
+      "upstreamUninstall": false,
+      "run": {
+        "interpreter": "bundled-python",
+        "program": "install.py",
+        "common": [
+          "--game-dir",
+          "{gameDir}"
+        ]
+      },
+      "actions": {
+        "preflight": [],
+        "status": [
+          "--verify"
+        ],
+        "install": [],
+        "uninstall": []
+      },
+      "status": {
+        "installed": "^\\s*PATCHED\\b",
+        "vanilla": "^\\s*NOT PATCHED\\b"
+      },
+      "forbiddenArgs": [
+        "--force"
+      ]
+    },
+    "detail": {
+      "zh-CN": "游戏数据的备份与还原流程待验证。",
+      "zh-TW": "遊戲資料的備份與還原流程待驗證。",
+      "en": "Game data backup and restoration await verification."
+    },
+    "windowsPreview": "0.1.2-6"
+  },
+  "overtime": {
+    "version": "v1.7",
+    "package": {
+      "assetId": "594522622",
+      "filename": "Machine-Party-Overtime-1.7-MPML.zip",
+      "size": 830277,
+      "sha256": "49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e",
+      "noticeFile": "LICENSE",
+      "mirrorApproved": true
+    },
+    "adapter": {
+      "kind": "loader-files",
+      "platforms": [
+        "windows"
+      ],
+      "target": "pckDir",
+      "touches": [
+        "mods"
+      ],
+      "exclusive": "loader",
+      "autoLoader": true,
+      "baseline": {
+        "file": "Machine Party.pck",
+        "size": 634798100,
+        "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+      },
+      "requiredFiles": [
+        "BUILDINFO.json",
+        "main.gd",
+        "mod.json",
+        "overtime_overlay.zip",
+        "vanilla_md5.json"
+      ],
+      "upstreamUninstall": false
+    },
+    "detail": {
+      "zh-CN": "采用 MPML 加载器套件并由管理器自动配置内置加载器，可与 MachineParty+、滚筒嘉年华等加载器模组共存，与直接修改 PCK 的补丁模组互斥。联机玩家需使用相同游戏与模组版本。",
+      "zh-TW": "採用 MPML 載入器套件並由管理器自動設定內建載入器，可與 MachineParty+、滾筒嘉年華等載入器模組共存，與直接修改 PCK 的補丁模組互斥。連線玩家需使用相同遊戲與模組版本。",
+      "en": "Uses the MPML loader package with the manager's built-in auto-loader; coexists with loader mods such as MachineParty+ and Roller Carnival, and conflicts with direct PCK patch mods. Players need matching game and mod versions."
+    },
+    "windowsPreview": "0.1.2-6"
+  },
+  "machineparty-plus": {
+    "windowsPreview": "0.1.2-6"
+  },
+  "roller-carnival": {
+    "windowsPreview": "0.1.2-6",
+    "version": "v0.1.0",
+    "package": {
+      "assetId": "1001",
+      "filename": "roller-carnival-0.1.0.zip",
+      "size": 138033,
+      "sha256": "ec10da25ecd98ac6e9179d81c2188f82ae752baf4783058c87f93ea020802ca4",
+      "mirrorApproved": true
+    },
+    "adapter": {
+      "kind": "loader-files",
+      "platforms": [
+        "windows"
+      ],
+      "target": "pckDir",
+      "touches": [
+        "mods"
+      ],
+      "exclusive": "loader",
+      "autoLoader": true,
+      "baseline": {
+        "file": "Machine Party.pck",
+        "size": 634798100,
+        "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+      },
+      "requiredFiles": [
+        "mod.json",
+        "main.gd",
+        "config.gd",
+        "carnival_meshes.gd",
+        "roller_carnival_game.gd",
+        "override_game.gd",
+        "override_playlist.gd",
+        "override_picker.gd"
+      ],
+      "upstreamUninstall": false
+    },
+    "summary": {
+      "zh-CN": "机械狂欢躲避小游戏，接入官方轮换与大厅快速开房设置。",
+      "zh-TW": "機械狂歡躲避小遊戲，接入官方輪換與大廳快速開房設定。",
+      "en": "Mechanical carnival dodge minigame joining the official rotation."
+    },
+    "detail": {
+      "zh-CN": "金色高滚筒按 S 下蹲、银色低滚筒按空格跳跃，碰撞推挤至左侧岩浆淘汰并按躲避数排名加分。",
+      "zh-TW": "金色高滾筒按 S 下蹲、銀色低滾筒按空白鍵跳躍，碰撞推擠至左側岩漿淘汰並依躲避數排名加分。",
+      "en": "Crouch under gold high rollers, jump over silver low rollers, avoid being shoved into the lava, and score by dodge rank."
+    }
+  }
+}

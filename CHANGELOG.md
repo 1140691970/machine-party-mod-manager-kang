@@ -4,6 +4,10 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-7 — 2026-11-19
+
+Windows preview with six online mods, verified source-to-MPML conversion, and confirmation of the mods removed during switching.
+
 ## 0.1.2-6 — 2026-11-19
 
 Removed special `firstParty` UI badges and catalog overrides so every mod packaged into R2 (`roller-carnival v0.1.0` included) follows the exact same catalog schema, R2 Worker download flow, and UI presentation.

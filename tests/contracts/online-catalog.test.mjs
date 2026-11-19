@@ -1,3 +1,4 @@
+import previous from "../../catalog/legacy-adapters.json" with {type: "json"};
 import assert from "node:assert/strict";
 import test from "node:test";
 import gateway from "../../services/update-worker/app-updates.mjs";
@@ -5,12 +6,13 @@ import worker from "../../services/catalog-worker/catalog.mjs";
 import snapshot from "../../catalog/mods.json" with {type: "json"};
 import {cachedCatalog, downloadUrl, loadCatalog, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
 
+const compatibleSnapshot = () => ({...snapshot,mods:snapshot.mods.map(m=>({...m,...previous[m.id]}))});
 const catalogStore = {PACKAGES:{get:async key => {
   assert.equal(key, "catalog/revisions/" + snapshot.revision + ".json");
   return {body:JSON.stringify(snapshot)};
 }}};
 const serve = (url, env = catalogStore, init) => worker.fetch(new Request(url, init), env);
-const catalogUrl = "https://machineparty.ailaogong.men/v1/catalog.json";
+const catalogUrl = "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1";
 
 test("the client loads the Worker snapshot and retains it across failed refreshes", async () => {
   const storage = {getItem() {return this.data;}, setItem(_, value) {this.data = value;}};
@@ -61,6 +63,7 @@ test("the public gateway forwards catalog requests to the catalog service", asyn
 });
 
 test("validCatalog rejects unsafe adapter profiles", () => {
+  const snapshot = compatibleSnapshot();
   assert.ok(validCatalog(snapshot));
   const cliIdx = snapshot.mods.findIndex(mod => mod.adapter?.kind === "upstream-cli");
   assert.ok(cliIdx >= 0);
@@ -121,4 +124,37 @@ test("a slow or interrupted catalog request retries the same Worker endpoint", a
   await assert.rejects(loadCatalog({},()=>{throw TypeError("fetch failed");}),/catalogConnection/);
   const absent = await serve(catalogUrl,{PACKAGES:{get:async()=>null}});
   assert.equal(absent.status,503);
+});
+
+test("legacy clients retain their original catalog without shared-repository key collisions", async () => {
+  const legacy = await serve(catalogUrl.split("?")[0]);
+  assert.deepEqual((await legacy.json()).mods, compatibleSnapshot().mods.filter(mod => !mod.inventoryById));
+  const full = await serve(catalogUrl, catalogStore, {headers: {"If-None-Match": legacy.headers.get("etag")}});
+  assert.equal(full.status, 200);
+  assert.ok((await full.json()).mods.some(mod => mod.id === "lobby-bots"));
+});
+
+test("inventory-aware older apps receive the previous packages and can download Overtime offline-cache inputs", async () => {
+  const old = await serve(catalogUrl.replace("&prepare=1", ""));
+  const compat = await old.json();
+  assert.deepEqual(compat, compatibleSnapshot());
+  assert.ok(compat.mods.some(m => m.id === "lobby-bots"));
+  const overtime = compat.mods.find(m => m.id === "overtime");
+  const response = await serve(downloadUrl(overtime), {PACKAGES:{head:async key => {
+    assert.equal(key, "packages/sha256/" + overtime.package.sha256 + ".zip");
+    return {size:overtime.package.size};
+  }}}, {method:"HEAD"});
+  assert.equal(response.status, 200);
+  assert.notEqual(old.headers.get("etag"), (await serve(catalogUrl)).headers.get("etag"));
+});
+
+test("previous Roller Carnival download still serves the published v0.1.0 package", async () => {
+  const response = await serve("https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.0/1001", {
+    PACKAGES: {head: async key => {
+      assert.equal(key, "packages/sha256/ec10da25ecd98ac6e9179d81c2188f82ae752baf4783058c87f93ea020802ca4.zip");
+      return {size:138033};
+    }}
+  }, {method:"HEAD"});
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-length"), "138033");
 });

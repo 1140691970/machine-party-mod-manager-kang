@@ -1,5 +1,7 @@
+import { inventoryKey } from "./catalog.js";
+
 const origin = "https://machineparty.ailaogong.men";
-const cacheKey = "online-catalog-v1";
+const cacheKey = "online-catalog-mpml-v1";
 const languages = ["zh-CN", "zh-TW", "en"];
 const slug = /^[a-z0-9-]+$/;
 const version = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -21,6 +23,8 @@ function validAdapter(adapter) {
   if (adapter.verifyFiles !== undefined && !safeFilename(adapter.verifyFiles)) return false;
   if (adapter.upstreamUninstall !== undefined && typeof adapter.upstreamUninstall !== "boolean") return false;
   if (adapter.autoLoader !== undefined && typeof adapter.autoLoader !== "boolean") return false;
+  if (adapter.sourceRule !== undefined && (adapter.kind !== "loader-files" ||
+      !["overtime-manifest-v1", "binary-tree-v1", "broadcast-tree-v1"].includes(adapter.sourceRule))) return false;
   if (adapter.kind === "loader-files") return true;
   if (adapter.autoLoader) return false;
   const run = adapter.run;
@@ -42,6 +46,7 @@ function validEntry(mod) {
   if (!mod || typeof mod !== "object") return false;
   const pkg = mod.package;
   return typeof mod.id === "string" && slug.test(mod.id)
+    && (mod.inventoryById === undefined || typeof mod.inventoryById === "boolean")
     && typeof mod.repo === "string" && /^[\w-][\w.-]*\/[\w-][\w.-]*$/.test(mod.repo)
     && Number.isSafeInteger(mod.order) && mod.order > 0 && typeof mod.verified === "boolean"
     && (!mod.image || typeof mod.image === "string" && slug.test(mod.image))
@@ -60,7 +65,8 @@ function validEntry(mod) {
 export function validCatalog(data) {
   return data?.schema === 1 && typeof data.revision === "string" && data.revision.length > 0
     && Array.isArray(data.mods) && data.mods.every(validEntry)
-    && ["id", "repo", "order"].every(key => new Set(data.mods.map(mod => mod[key])).size === data.mods.length);
+    && new Set(data.mods.map(inventoryKey)).size === data.mods.length
+    && ["id", "order"].every(key => new Set(data.mods.map(mod => mod[key])).size === data.mods.length);
 }
 
 export function cachedCatalog(storage) {
@@ -74,7 +80,7 @@ export async function loadCatalog(storage, request = fetch) {
   let catalog;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const response = await request(origin + "/v1/catalog.json", {
+      const response = await request(origin + "/v1/catalog.json?inventory=id&prepare=1", {
         cache: "no-cache", credentials: "omit", signal: AbortSignal.timeout(15000)
       });
       if (!response.ok) throw Error("HTTP " + response.status);

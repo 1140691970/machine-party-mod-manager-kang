@@ -86,7 +86,8 @@ To publish a first-party mod into the catalog and R2/Worker pipeline:
 1. Create `mods/<id>/README.md`, `mods/<id>/mod.json`, runtime scripts, and cover image `apps/desktop/ui/images/<id>.png`.
 2. Run `node scripts/pack-mod.mjs <id>` to inspect the exact deterministic `filename`, `size`, `sha256`, and `files` list.
 3. Add an entry to [`catalog/mods.json`](../../../catalog/mods.json):
-   - Set `"id"` (`<id>`), unique `"order"`, unique `"repo"` (for example `"JamesGZM/machine-party-mod-manager"`), `"image": "<id>"`, and `"version": "v<mod.json.version>"`.
+   - Set `"id"` (`<id>`), unique `"order"`, the source `"repo"` (for example `"JamesGZM/machine-party-mod-manager"`), `"image": "<id>"`, and `"version": "v<mod.json.version>"`.
+   - For an additional mod from a listed repository, use `"inventoryById": true` to give it its own install record. See [ADR-010](../architecture/ADR-010-shared-repository-mods.md).
    - Set `"package"`: unique numeric string `"assetId"` (e.g. `"1001"`), exact `"filename"`, `"size"`, `"sha256"` from `scripts/pack-mod.mjs`, and `"mirrorApproved": true`.
    - Set `"supportedGameVersions"`, `"windowsPreview"` matching the current app preview build, and `"verified": false` until Tier 3 passes.
    - Configure `"adapter"`: `"kind": "loader-files"`, `"platforms": ["windows"]`, `"target": "pckDir"`, `"touches": ["mods"]`, `"exclusive": "loader"`, `"autoLoader": true`, `"upstreamUninstall": false`, verified `"baseline"` (`Machine Party.pck` size + SHA-256), and exact `"requiredFiles"` matching `pack-mod.mjs` output.

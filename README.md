@@ -46,12 +46,12 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-6 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-6/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-7 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-7/setup.exe) | NSIS installer, signed in-app updates |
 | macOS | Apple Silicon | [Stable v0.1.1 (`MachineParty-aarch64.app.tar.gz`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | Catalog browsing & signed updates |
 
 On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive and move the `.app` to a writable Applications folder.
 
-**Machine Party on Steam is Windows-only; the `0.1.2-6` workspace adds Windows `v2.1.2` adapters for all five catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
+**Machine Party on Steam is Windows-only; the `0.1.2-7` workspace adds Windows `v2.1.2` adapters for all six catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
 
 ## Getting started
 
@@ -70,17 +70,18 @@ On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive an
 
 | Mod | Version | Summary | Adapter & `v2.1.2` status |
 | --- | --- | --- | --- |
-| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Direct PCK CLI (`upstream-cli`, Windows preview) |
-| [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Loader mod (`loader-files`, Windows preview) |
-| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | Eight players, rotating teams and director free camera | PowerShell patcher (`upstream-cli`, Windows preview) |
-| [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | `v1.5` | Expands online play to eight players | Bundled Python patcher (`upstream-cli`, Windows preview) |
-| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | Mechanical carnival dodge minigame | Loader mod (`loader-files`, Windows preview) |
+| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Author CLI payload → MPML |
+| [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Native MPML |
+| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | Eight players, rotating teams and director free camera | Author resource tree → MPML |
+| [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | `v1.5` | Expands online play to eight players | Author resource tree → MPML |
+| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.1` | Mechanical carnival dodge minigame | Native MPML |
+| [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.1.4` | Add or remove ready bots in online rooms. | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 
 ## Release notes
 
-Development target **0.1.2-6** wires Windows `v2.1.2` adapters for all five catalogued mods via uniform R2 + Worker delivery, redesigns Settings with a segmented language switcher and direct GitHub link, and adds a non-forcing startup update dialog with release notes. [Full changelog](CHANGELOG.md).
+Windows preview **0.1.2-7** installs six catalog mods through MPML. Overtime, Broadcast and Binary1936 are prepared from their original release packages. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

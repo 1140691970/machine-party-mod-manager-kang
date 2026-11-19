@@ -36,6 +36,8 @@ export function syncGameMods(force = false) {
       if (generation === token) applyValidation(result, path);
     } catch (error) {
       if (generation !== token) return;
+      state.lastScan = null;
+      state.modStates = {};
       state.scan = "failed";
       state.scanError = String(error);
       render();
@@ -66,7 +68,7 @@ async function selectPath(path, selected) {
   await saveGame(path);
   closeDialog();
   await loadGame(path);
-  if (selected && state.game === path) return selected();
+  if (selected && state.game === path && state.scan === "ready") return selected();
 }
 
 export async function pickGame(selected) {
@@ -92,14 +94,20 @@ export async function withGameCopy(selected) {
   if (request !== selection || state.game !== path) return;
   if (!copies.length) return pickGame(selected);
   if (copies.length > 1) return chooseCopy(copies, selected);
-  if (state.pckDir !== copies[0] || state.scan !== "ready") await syncGameMods();
-  if (request === selection && state.game === path) return selected();
+  await syncGameMods();
+  if (request === selection && state.game === path && state.scan === "ready") return selected();
 }
 
 export async function detectGame(rescan = false) {
   const request = ++selection;
   const candidates = await findGames(rescan);
   if (request !== selection) return;
+  if (!rescan && state.game && !candidates.length) {
+    const saved = state.game;
+    const copies = await gameCopies(saved);
+    if (request !== selection) return;
+    if (copies.length === 1) return loadGame(saved);
+  }
   if (candidates.length === 1) {
     if (rescan) await saveGame(candidates[0]);
     await loadGame(candidates[0]);

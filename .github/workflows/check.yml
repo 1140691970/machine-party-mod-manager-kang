@@ -18,6 +18,14 @@ jobs:
         with:
           node-version: '22'
       - run: npm run check:architecture
+      - name: Install Godot 4.5.2 for headless mod tests
+        working-directory: ${{ runner.temp }}
+        run: |
+          archive=Godot_v4.5.2-stable_linux.x86_64.zip
+          curl -fsSLO --retry 3 "https://github.com/godotengine/godot-builds/releases/download/4.5.2-stable/$archive"
+          echo "e3ce6194b6d4d2dcef5e5b5136752c084d9d8b9071c10bc2d2011b947ec7439a257c8d23c541cb30699f16d9edea6dff36e6e84d2bec14a8fe9b4e9aacbe5a8d  $archive" | sha512sum -c -
+          unzip -q "$archive"
+          echo "GODOT_BIN=$PWD/${archive%.zip}" >> "$GITHUB_ENV"
       - run: npm test
   rust:
     runs-on: windows-2022
@@ -33,6 +41,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
+      - name: Check local broadcast process isolation
+        working-directory: .
+        shell: powershell
+        run: ./tests/mods/broadcast-localtest.ps1
       - name: Verify optional Windows publisher signing
         working-directory: .
         run: ./scripts/test-windows-signature.ps1

@@ -46,7 +46,9 @@ Licences must be cleared package by package before launch. Overtime's MIT licenc
 
 ### Production package update, 2026-11-19
 
-Starting with catalog revision `2026-11-19.8`, `Overtime v1.7` ships the official MPML Loader package (`Machine-Party-Overtime-1.7-MPML.zip`, asset ID `594522622`, `830,277` bytes, SHA-256 `49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e`) so it coexists with `MachineParty+` and `Roller Carnival` via the manager's built-in `autoLoader`. The Worker serves it from `/v1/downloads/overtime/v1.7/594522622` backed by R2 key `packages/sha256/49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e.zip`.
+The one-click installer verifies the original release ZIP against its catalog size and SHA-256. Rust prepares the MPML directory in staging. Overtime uses its CLI payload manifest and retains the upstream load-order, version and vanilla-script checks. Broadcast and Binary1936 use their resource trees. MachineParty+, Roller Carnival and Lobby Bots already ship in loader format. `?inventory=id&prepare=1` · `/v1/downloads/overtime/v1.7/594522625`.
+
+Older clients receive their compatible catalog and download URLs. Existing Overtime MPML installations keep working. Select the migration action in the details of a managed legacy PCK patch to verify the replacement, restore the recorded copy, and install through the loader. Move a manual mods/broadcast-8p folder out of the game first. Unknown file changes stop recovery.
 
 ## Who can publish
 

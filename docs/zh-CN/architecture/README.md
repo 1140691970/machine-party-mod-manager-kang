@@ -43,25 +43,15 @@ Steam 上的 Machine Party（App ID 4108000）仅支持 Windows，不考虑在 m
 
 ## 安装、切换与恢复（设计草案）
 
-完整流程与约束见 [ADR-005](ADR-005-install-transactions.md)、[ADR-007](ADR-007-mod-adapters.md) 与 [ADR-009](ADR-009-bundled-first-party-mods.md)。摘要：无 Tauri 依赖的 Rust 交易引擎负责锁定副本并检查游戏进程、版本、空间与冲突；在 Rust 端从 Worker 端点下载安装包到暂存区并校验；写入安装前指纹与分级备份（支持差量还原时镜像还原数据与离线 CLI，否则保存整包 PCK 备份）；再依据 `catalog/mods.json` 中的声明式 `adapter` 配置派发至内置适配器工厂（`upstream-cli`、`loader-files`）。
+一键安装先用目录大小和 SHA-256 核对作者发布的 ZIP，再由 Rust 在暂存区准备 MPML 目录。Overtime 读取 CLI 包中的 payload 清单，保留上游的加载时序、版本与原版脚本指纹检查。Broadcast 和 Binary1936 读取资源树。MachineParty+、滚筒嘉年华与房间机器人已采用加载器格式。
 
-### 为什么加载器方式与直接修改 PCK 方式无法共存
+安装事务记录来源指纹、转换规则版本与已安装文件指纹。三款八人玩法属于同一互斥组，切换时可保留其他加载器模组。单独分发转换包需要维护第二份发布产物，执行各上游安装器则需维护多套备份与还原程序。
 
-社区模组在 `Machine Party.pck` 上分为两种底层加载机制，彼此在文件与运行时层面完全互斥：
-
-- **加载器方式（`loader-files` + `autoLoader` / MPML）**：`Overtime`（v1.7 MPML 版）、`MachineParty+` 与 `滚筒嘉年华` 各自安装于 `<pckDir>/mods/<id>/`，通过 `autoload/ModLoader`（管理器内置 `pck_loader.rs` + `assets/mpm_bootstrap.gd`，或玩家既有的外部 `MachinePartyModLoader.exe`）动态挂载。加载器模组之间可共存；`mpm_bootstrap.gd` 在 `_init()` 阶段执行 `_discover_and_init_mods()`，确保 `priority: -1000` 模组能在游戏原版单例（如 `NetworkManager`）加载前完成哨兵校验与覆盖包挂载。
-- **直接修改 PCK 方式（`upstream-cli`，`exclusive: "pck"`）**：`Broadcast 8P Freecam` 与 `Binary1936 八人模组` 均强校验原版 `Machine Party.pck` 基线（`634,798,100` 字节，SHA-256 `326cc398...`），再直接重建或打补丁改写 PCK 数据包。
-- **无法共存的技术原因**：
-  1. **PCK 基线指纹与 GDPC 索引冲突**：内置加载器或 MPML 会改写 `res://project.binary` 的 `autoload/ModLoader` 并追加 GDPC v3 目录索引（生成 `Machine Party.pck.modloader.json`），导致 PCK 的 SHA-256 偏离原版，直接改包安装器会因基线不符而拒绝写入（`baselineMismatch`）；反之，直接改包工具重写 PCK 后会抹除加载器入口或破坏索引。
-  2. **运行时脚本 MD5 门禁与覆盖冲突**：MPML 覆盖类模组（如 Overtime）挂载 `overtime_overlay.zip` 前会逐项校验 PCK 内原版 `.gdc` 的 MD5 指纹（`vanilla_md5.json`），修改过的 PCK 会触发版本不匹配并拒绝挂载。
-  3. **备份与还原边界隔离**：PCK 补丁器依赖面向原版基线的整包或差量备份来回滚，而受管加载器仅在最后一个受管 `mods/<id>/` 移除后才把 PCK 截断还原为原版。
-- **冲突区分与一键切换**：管理器严格区分 `modConflict`（仅与管理器受管安装的互斥模组冲突）与 `loaderConflict`（检测到外部 `MachinePartyModLoader.exe` 或 `mods/` 中存在未受管文件）。处于 `modConflict` 时，界面直接提供一键**切换**（`switch_from_zip`）：先在暂存区下载并预检目标套件，再卸载现有互斥模组、校验 PCK 已完整还原为原版基线，最后再安装目标模组。
-
-读回验证后才记录成功；中断后根据记录与磁盘实况恢复，遇到 Steam 更新或未知修改时停止覆盖。在进入 Windows P2 实机验收前，macOS 开发期通过 L1（合成 PCK 与 `FakeRunner`）、L2（真实子进程）、L3（本机原版 PCK 搭配 Mono）三层模拟验证。
+旧版客户端仍可使用兼容目录与下载地址。已有的 Overtime MPML 安装可以继续使用。旧式受管 PCK 补丁可在模组详情选择「切换到加载器安装」，先验证新包，再还原已记录的副本并安装。手动安装的 mods/broadcast-8p 须先移出游戏目录。遇到未知文件变更时，还原会停止。
 
 ## 是否维护 fork
 
-优先使用作者公开的 CLI 或底层安装脚本。App 可以自行承担检测、备份及校验。若遇到无法从外部解决的交互或还原问题，记录可复现案例，优先向上游提交小改动。只有授权允许且确有必要时才维护安装器 fork，并保留原作者、来源及版本对照。
+优先复用作者发布的资源，将转换规则随管理器版本维护。App 可以自行承担检测、备份及校验。若遇到无法从外部解决的交互或还原问题，记录可复现案例，优先向上游提交小改动。只有授权允许且确有必要时才维护安装器 fork，并保留原作者、来源及版本对照。
 
 ## 架构决策记录
 
@@ -74,3 +64,5 @@ Steam 上的 Machine Party（App ID 4108000）仅支持 Windows，不考虑在 m
 - [ADR-007：模组适配层与 macOS 模拟验证（提议）](ADR-007-mod-adapters.md)
 - [ADR-008 · 下载缓存、启动检测与还原校验](ADR-008-cached-installations.md)
 - [ADR-009：自研模组、R2 确定性打包与自管加载器规范（提议）](ADR-009-bundled-first-party-mods.md)
+- [ADR-010 · 同仓库模组的独立安装记录](ADR-010-shared-repository-mods.md)
+- [ADR-011 · 安装前统一准备 MPML](ADR-011-prepare-mpml.md)

@@ -84,7 +84,8 @@
 1. 在 `mods/<id>/` 備妥 `README.md`、`mod.json`、執行期 GDScript 檔案，以及封面圖片 `apps/desktop/ui/images/<id>.png`。
 2. 執行 `node scripts/pack-mod.mjs <id>` 取得確定性的 `filename`、`size`、`sha256` 與 `files` 清單。
 3. 於 [`catalog/mods.json`](../../../catalog/mods.json) 新增對應條目：
-   - 填寫唯一 `id`、`order`、`repo`（例如 `"JamesGZM/machine-party-mod-manager"`）、`image` 與 `"version": "v<mod.json.version>"`。
+   - 填寫唯一的 `id` 與 `order`、來源 `repo`（例如 `"JamesGZM/machine-party-mod-manager"`）、`image` 與 `"version": "v<mod.json.version>"`。
+   - 同一倉庫的新增模組使用 `"inventoryById": true` 建立獨立安裝紀錄，見 [ADR-010](../architecture/ADR-010-shared-repository-mods.md)。
    - 填寫 `"package"`：唯一數字字串 `assetId`（例如 `"1001"`）、`scripts/pack-mod.mjs` 輸出的 `filename`、`size`、`sha256`，以及 `"mirrorApproved": true`。
    - 填寫 `supportedGameVersions` 與對應桌面版號的 `windowsPreview`，在通過 Tier 3 前一律保持 `"verified": false`。
    - 設定 `adapter`：`kind: "loader-files"`、`platforms: ["windows"]`、`target: "pckDir"`、`touches: ["mods"]`、`exclusive: "loader"`、`autoLoader: true`、`upstreamUninstall: false`、原版 `baseline` 指紋與逐一對應打包檔案的 `requiredFiles`。

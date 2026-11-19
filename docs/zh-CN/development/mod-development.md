@@ -84,7 +84,8 @@
 1. 在 `mods/<id>/` 备齐 `README.md`、`mod.json`、运行时脚本，并在 `apps/desktop/ui/images/<id>.png` 放置封面图。
 2. 运行 `node scripts/pack-mod.mjs <id>` 获取确定的 `filename`、`size`、`sha256` 与 `files` 列表。
 3. 在 [`catalog/mods.json`](../../../catalog/mods.json) 新增条目：
-   - 填写唯一 `id`、`order`、`repo`（例如 `"JamesGZM/machine-party-mod-manager"`）、`image` 与 `"version": "v<mod.json.version>"`。
+   - 填写唯一的 `id` 和 `order`、来源 `repo`（例如 `"JamesGZM/machine-party-mod-manager"`）、`image` 与 `"version": "v<mod.json.version>"`。
+   - 同一仓库的新增模组使用 `"inventoryById": true` 建立独立安装记录，见 [ADR-010](../architecture/ADR-010-shared-repository-mods.md)。
    - 填写 `"package"`：唯一数字字符串 `assetId`（如 `"1001"`）、`scripts/pack-mod.mjs` 输出的 `filename`、`size`、`sha256`，以及 `"mirrorApproved": true`。
    - 设置 `supportedGameVersions` 与对应桌面预览版号的 `windowsPreview`，通过 Tier 3 前保持 `"verified": false`。
    - 配置 `adapter`：`kind: "loader-files"`、`platforms: ["windows"]`、`target: "pckDir"`、`touches: ["mods"]`、`exclusive: "loader"`、`autoLoader: true`、`upstreamUninstall: false`、原版 `baseline` 指纹以及精确对应的 `requiredFiles` 列表。

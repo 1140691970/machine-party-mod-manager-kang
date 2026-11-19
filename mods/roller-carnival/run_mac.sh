@@ -10,6 +10,13 @@ if [ ! -x "$GODOT" ]; then
   exit 1
 fi
 
+if [ -z "${MP_PCK_PATH:-}" ] && [ -r "$HOME/Downloads/Machine Party.pck" ]; then
+  export MP_PCK_PATH="$HOME/Downloads/Machine Party.pck"
+fi
+if [ ! -r "${MP_PCK_PATH:-}" ]; then
+  echo "Preview uses fallback assets. Set MP_PCK_PATH to a readable Machine Party.pck for the original visuals." >&2
+fi
+
 MODE="${1:-play}"
 case "$MODE" in
   --self-test)

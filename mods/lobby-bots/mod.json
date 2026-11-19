@@ -1,0 +1,9 @@
+{
+  "id": "lobby-bots",
+  "name": "Lobby Bots",
+  "version": "0.1.4",
+  "authors": ["MachineParty Mod Team"],
+  "entry": "main.gd",
+  "priority": 0,
+  "requires": []
+}

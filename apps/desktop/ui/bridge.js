@@ -45,8 +45,8 @@ export async function downloadMod(mod, onProgress, signal) {
   }
 }
 
-export const installMod = (path, mod, adopt, expectedDir) =>
-  invoke("install_mod", {...release(mod), path, adopt, expectedDir, progress: new core.Channel()});
+export const installMod = (path, mod, adopt, expectedDir, removals) =>
+  invoke("install_mod", {...release(mod), path, adopt, expectedDir, removals, progress: new core.Channel()});
 export const uninstallMod = (path, mod, expectedDir) => invoke("uninstall_mod", {...release(mod), path, expectedDir});
 
 export function setAppTitle(title) {

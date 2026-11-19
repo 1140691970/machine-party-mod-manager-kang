@@ -3,8 +3,6 @@ extends "res://scenes/lobby/components/playlist_handler.gd"
 ## MPML Override for res://scenes/lobby/components/playlist_handler.gd
 ## Adds Roller Carnival (ShapeCutter slot = 6) to the Custom Playlist selector.
 
-var _roller_icon_cache: Texture2D = null
-
 
 static func roller_display_name() -> String:
 	var loc: String = TranslationServer.get_locale().to_upper()
@@ -15,46 +13,11 @@ static func roller_display_name() -> String:
 	return "ROLLER CARNIVAL"
 
 
-static func build_roller_icon_texture() -> Texture2D:
-	var img := Image.create(64, 64, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.11, 0.08, 0.07, 1.0))
-
-	for y in range(64):
-		for x in range(64):
-			var border: bool = (x < 3 or x >= 61 or y < 3 or y >= 61)
-			if border:
-				img.set_pixel(x, y, Color(0.95, 0.72, 0.24, 1.0))
-			elif y >= 50:
-				# Glowing lava strip on left / bottom
-				var wave := sin(float(x) * 0.28) * 0.12
-				img.set_pixel(x, y, Color(1.0, clampf(0.38 + wave, 0.1, 0.7), 0.06, 1.0))
-			elif x <= 12 and y >= 14:
-				img.set_pixel(x, y, Color(0.98, 0.34, 0.05, 1.0))
-
-			# Upper gold roller cylinder (rows 15..27)
-			if x >= 16 and x <= 55 and y >= 15 and y <= 27:
-				var shade := 1.0 - absf(float(y - 21)) / 7.5 * 0.35
-				img.set_pixel(x, y, Color(1.0 * shade, 0.78 * shade, 0.18 * shade, 1.0))
-
-			# Lower silver roller cylinder (rows 35..46)
-			if x >= 18 and x <= 55 and y >= 35 and y <= 46:
-				var shade2 := 1.0 - absf(float(y - 40.5)) / 7.0 * 0.35
-				img.set_pixel(x, y, Color(0.84 * shade2, 0.89 * shade2, 0.96 * shade2, 1.0))
-
-	return ImageTexture.create_from_image(img)
-
-
-func _get_roller_icon() -> Texture2D:
-	if _roller_icon_cache == null:
-		_roller_icon_cache = build_roller_icon_texture()
-	return _roller_icon_cache
-
-
 func _apply_roller_item_visuals(item: MinigameListItem) -> void:
 	if item == null:
 		return
 	item.name_label.text = roller_display_name()
-	item.minigame_icon.texture = _get_roller_icon()
+	item.minigame_icon.texture = load(Globals.MinigameIconPaths[Globals.MinigameIdentifier.ShapeCutter])
 
 
 func _ready() -> void:

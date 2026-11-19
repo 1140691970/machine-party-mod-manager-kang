@@ -12,6 +12,7 @@ async function api(path, options = {}) {
   return data.result;
 }
 
+const previous = await read("../catalog/legacy-adapters.json");
 const snapshot = await read("../catalog/mods.json");
 const form = new FormData();
 form.set("metadata", JSON.stringify({
@@ -20,8 +21,9 @@ form.set("metadata", JSON.stringify({
 }));
 // JSON modules are bundled by Wrangler locally. Upload the same snapshot as a JS module via the API.
 const source = (await read("../services/catalog-worker/" + config.main))
+  .replace('from "../../catalog/legacy-adapters.json" with {type: "json"}', 'from "./previous.mjs"')
   .replace('from "../../catalog/mods.json" with {type: "json"}', 'from "./snapshot.mjs"');
-for (const [name, contents] of [[config.main, source], ["snapshot.mjs", "export default " + snapshot]]) {
+for (const [name, contents] of [[config.main, source], ["previous.mjs", "export default " + previous], ["snapshot.mjs", "export default " + snapshot]]) {
   form.set(name, new Blob([contents], {type: "application/javascript+module"}), name);
 }
 await api(account + "/workers/scripts/" + config.name, {method: "PUT", body: form});

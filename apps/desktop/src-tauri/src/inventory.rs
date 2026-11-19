@@ -7,7 +7,7 @@ use std::{
 
 const INVENTORY_FILE: &str = "installations.json";
 
-/// Installed versions keyed by `owner/repo` for one game copy.
+/// Installed versions keyed by the catalog installation key for one game copy.
 pub type Installed = BTreeMap<String, String>;
 
 // The installer records completed transactions per game copy. Missing records

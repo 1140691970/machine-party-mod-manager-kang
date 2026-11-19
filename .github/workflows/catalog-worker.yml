@@ -67,9 +67,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          revision=$(jq -er '.revision' catalog/mods.json)
-          curl --fail --silent --show-error --retry 3 https://machineparty.ailaogong.men/v1/catalog.json -o "$RUNNER_TEMP/live-catalog.json"
-          test "$(jq -er '.revision' "$RUNNER_TEMP/live-catalog.json")" = "$revision"
+          curl --fail --silent --show-error --retry 3 "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1" -o "$RUNNER_TEMP/live-catalog.json"
+          cmp catalog/mods.json "$RUNNER_TEMP/live-catalog.json"
           while read -r id version asset size; do
             url="https://machineparty.ailaogong.men/v1/downloads/$id/$version/$asset"
             headers=$(curl --fail --silent --show-error --retry 3 -I "$url" | tr -d '\r')

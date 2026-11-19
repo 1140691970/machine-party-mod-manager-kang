@@ -55,7 +55,7 @@ try {
   assert.deepEqual(await app.evaluate('window.__TAURI__.core.invoke("cached_packages")'), {});
   await app.command("Network.enable");
   await app.command("Network.setBlockedURLs",{urls:["*/v1/catalog.json*"]});
-  await app.evaluate('localStorage.removeItem("online-catalog-v1")');
+  await app.evaluate('localStorage.removeItem("online-catalog-mpml-v1")');
   await app.command("Page.reload");
   await until(() => app.evaluate('document.querySelector(".list-status button") && !document.querySelector("article")'), "Remote catalog failure");
   await shot("catalog-unavailable");
@@ -73,8 +73,8 @@ try {
   await until(() => app.evaluate('window.checkingPainted'), "Startup verification status");
   console.log("Saved record visible after navigation (ms):", await app.evaluate("window.checkingPainted"));
   await app.command("Page.removeScriptToEvaluateOnNewDocument", {identifier:checking.identifier});
-  await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("需要修復")'), "Stale inventory is not adoptable");
-  await shot("needs-repair");
+  await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("遊戲檔案已變更")'), "Unknown PCK is protected despite stale inventory");
+  await shot("game-files-changed");
   // A user-requested full check updates the status before starting disk I/O.
   await app.evaluate('void import("./game-folder.js").then(m=>m.syncGameMods(true))');
   await shot("checking");

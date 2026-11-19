@@ -11,7 +11,7 @@
 | 步驟 | 誰操作 | 做什麼、完成後得到什麼 |
 | --- | --- | --- |
 | 1. 投稿 | 任何人，含維護者 | 在 Issues → New issue 選「模組收錄或版本更新」，填作者倉庫、指定版本和用途。沒有 Release 仍可作為候選。投稿者無需編輯 Markdown 或 JSON。 |
-| 2. 初審與選檔 | 維護者＋自動流程 | 維護者接受推薦後，流程列出指定 Release 的資產名稱、大小與來源，標出重複投稿。維護者選定要整合的檔案及載入器。以 Overtime v1.7 為例，目錄採用 MPML 載入器套件（`Machine-Party-Overtime-1.7-MPML.zip`）搭配內建 `autoLoader` 以與其他載入器模組共存；直接改包的 CLI 方式無法與載入器模式同時運作。 |
+| 2. 初審與選檔 | 維護者＋自動流程 | 一鍵安裝先以目錄大小與 SHA-256 核對作者發行 ZIP，再由 Rust 在暫存區準備 MPML 目錄。Overtime 讀取 CLI 包中的 payload 清單，保留上游的載入時序、版本與原版腳本指紋檢查。Broadcast 和 Binary1936 讀取資源樹。MachineParty+、滾筒嘉年華與房間機器人已採載入器格式。 |
 | 3. 產生收錄草案 | 自動流程 | 下載選定資產至暫存區計算 SHA-256，記錄上游標籤、資產 ID、長度，建立或更新同一份草案 PR。目前唯一結構化來源是 `catalog/mods.json`；流程接通後擬拆為每個模組一個 `catalog/mods/*.json`，再生成同格式的目錄快照。無發行檔者留在候選。程式僅讀取投稿資料與套件，不執行投稿內容。 |
 | 4. 核實能否發布 | 維護者 | 按下方驗收單記錄授權及 Windows 實測，確認遊戲相容、安裝、卸載與離線還原。依賴逐個核對。將結果補入草案，CI 驗證欄位、雜湊、依賴及重複 ID。缺證據時保留候選狀態。 |
 | 5. 批准上線 | 倉庫擁有者 | 合併草案後選擇 main 的指定提交，在 production 環境核對本次新增／更新／撤回項目並批准。合併與正式部署分開。 |
@@ -29,7 +29,7 @@ Machine Party（Steam App ID 4108000）官方標示支援 2–4 人、線上合�
 
 | 候選 | 功能與下載觀察 | 整合與授權待辦 |
 | --- | --- | --- |
-| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | 八人線上及本機擴充。v1.7 一般包 2,855 次，CLI 包 1,215 次，MPML 包 335 次。 | 目錄現採用 `Machine-Party-Overtime-1.7-MPML.zip`（資產 `594522622`，`830,277` 位元組，SHA-256 `49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e`）配合內建 `autoLoader: true`，可與 `MachineParty+`、`滾筒嘉年華` 共存；與直接改包模組（`Broadcast 8P Freecam`、`Binary1936 八人模組`）互斥並支援一鍵切換。MIT 僅涵蓋作者原創部分。[安裝文件](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/docs/INSTALL.md) · [授權](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE) |
+| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | 八人線上及本機擴充。v1.7 一般包 2,855 次，CLI 包 1,215 次，MPML 包 335 次。 | 一鍵安裝先以目錄大小與 SHA-256 核對作者發行 ZIP，再由 Rust 在暫存區準備 MPML 目錄。 [MIT](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/v1.7/LICENSE) |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | 公開房間、語音及文字聊天。v2.1.0 模組 ZIP 1,917 次。 | 模組採 MIT；另核對 [MPML](https://github.com/Krunk-theduck/MachinePartyModLoader) 的版本、首次安裝流程及中轉授權。測房間代碼與原版玩家加入；語音聊天需雙方安裝。 |
 | [Binary1936 八人模組](https://github.com/Binary1936/machine-party-8p) | 線上八人。v1.5 模組 ZIP 5,297 次。 | 上游仰賴 Steam 驗證還原，須測 App 自行備份、還原與辨識未知副本。MIT 適用檔案以作者 [NOTICE](https://github.com/Binary1936/machine-party-8p/blob/main/NOTICE.md) 為準。 |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | 一位導播加八名參賽者，四隊輪換及自由鏡頭。下載量未核實。 | 安裝腳本有 install、verify、uninstall 入口。重點測既有備份；確認具體檔案授權後再決定中轉。公開倉庫首頁未見明確開源授權。[補丁原始碼](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher/blob/main/patcher.ps1) |
@@ -43,3 +43,11 @@ Machine Party（Steam App ID 4108000）官方標示支援 2–4 人、線上合�
 - 維護者確認後才發布可安裝版本；下架時保留既有用戶的本機卸載能力。新增模組才分配收錄序號。
 - 上架時附大陸三網下載記錄、測試資產雜湊與最終交付路徑。若只能瀏覽，單獨記錄下載限制。測試方法見[目錄交付方案](delivery.md)。
 - 逐一登記主套件與必需載入器的上游 Release、資產 ID、檔名、大小、SHA-256，以及各自允許的直連、中轉或留存方式。同標籤同檔名但內容變更時視為新候選，原雜湊核對失敗即停止安裝，重驗並由擁有者批准後再發布。
+
+## 安裝前統一準備 MPML
+
+舊版客戶端仍可使用相容目錄與下載網址。既有 Overtime MPML 安裝可繼續使用。舊式受管 PCK 補丁可在模組詳情選擇「切換為載入器安裝」，先驗證新包，再還原已記錄的副本並安裝。手動安裝的 mods/broadcast-8p 須先移出遊戲目錄。檔案出現未知變更時，還原會停止。
+
+安裝 Broadcast 後，從 `mods/broadcast-8p-freecam/launchers/` 執行 `DirectorMaxQualityHost.cmd` 建立 Steam 導播房。用 `LocalTest4.cmd` 或 `LocalTest8.cmd` 啟動本機測試，`StopLocalTest.cmd` 可關閉已記錄的測試視窗。F12 切換導播鏡頭。
+
+[ADR-011](../architecture/ADR-011-prepare-mpml.md)

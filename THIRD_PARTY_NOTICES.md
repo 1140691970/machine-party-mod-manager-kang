@@ -23,3 +23,5 @@ Mods listed in `catalog/mods.json` are the work of their authors. The manager sh
 ## Software dependencies
 
 The desktop app is built with [Tauri](https://tauri.app/) and Rust crates listed in `apps/desktop/src-tauri/Cargo.lock`, including `serde`, `serde_json`, `rfd`, `steamlocate` and `tauri-plugin-updater`. Each crate is distributed under its own licence, mostly MIT or Apache-2.0. The Windows build uses Microsoft WebView2.
+
+The Overtime v1.7 conversion includes the author's MPML entry script, manifest and vanilla script fingerprint list under the [upstream MIT license](apps/desktop/src-tauri/assets/recipes/overtime/LICENSE). The gameplay payload comes from the verified CLI release. Binary1936 conversions include the [upstream v1.5 notice](apps/desktop/src-tauri/assets/recipes/binary1936/NOTICE.md).

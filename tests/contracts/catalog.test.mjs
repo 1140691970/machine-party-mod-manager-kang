@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { searchText, sortMods, visibleMods } from "../../apps/desktop/ui/catalog.js";
+import { installedRows, searchText, sortMods, visibleMods } from "../../apps/desktop/ui/catalog.js";
 import { locales } from "../../apps/desktop/ui/languages.js";
 import { listFirstPartyMods, packMod } from "../../scripts/pack-mod.mjs";
 
@@ -10,7 +10,7 @@ const catalog = JSON.parse(await readFile(new URL("../../catalog/mods.json", imp
 test("every catalog entry has a stable identity and complete translations", () => {
   assert.equal(catalog.schema, 1);
   const unique = key => new Set(catalog.mods.map(mod => mod[key])).size === catalog.mods.length;
-  assert.ok(unique("id") && unique("order") && unique("repo"));
+  assert.ok(unique("id") && unique("order") && new Set(catalog.mods.map(m => m.inventoryById ? m.id : m.repo)).size === catalog.mods.length);
   for (const mod of catalog.mods) {
     assert.match(mod.id, /^[a-z0-9-]+$/);
     assert.match(mod.repo, /^[\w.-]+\/[\w.-]+$/);
@@ -42,14 +42,18 @@ test("search keeps catalog order and matches names, aliases and every language",
 test("the installed page lists only mods recorded for the selected copy", () => {
   const mods = sortMods(catalog);
   const inventory = {"Ghostx10742/MachineParty-Plus": "v2.0.0"};
-  const shown = visibleMods(mods, {page: "installed", query: "ignored", inventory});
-  assert.deepEqual(shown.map(mod => mod.id), ["machineparty-plus"]);
+  for (const online of [mods, [], mods.filter(mod => mod.id !== "machineparty-plus")]) {
+    const rows = installedRows(inventory, online, mods);
+    assert.deepEqual(rows.map(row => [row.mod.id, row.version]), [["machineparty-plus", "v2.0.0"]]);
+  }
+  assert.deepEqual(installedRows({"retired/project":"v1"}, [], mods),
+    [{repo:"retired/project", version:"v1", mod:undefined}]);
 });
 
 test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(catalog.repo, "JamesGZM/machine-party-mod-manager");
   for (const mod of catalog.mods) {
-    assert.equal(mod.windowsPreview, "0.1.2-6", mod.id);
+    assert.equal(mod.windowsPreview, "0.1.2-7", mod.id);
     assert.deepEqual(mod.adapter.platforms, ["windows"], mod.id);
     assert.equal(mod.adapter.target, "pckDir", mod.id);
     assert.ok(mod.adapter.exclusive, mod.id);
@@ -63,8 +67,8 @@ test("every catalog mod declares a valid Windows adapter profile", () => {
     }
   }
   const overtime = catalog.mods.find(mod => mod.id === "overtime");
-  assert.equal(overtime.package.assetId, "594522622");
-  assert.equal(overtime.package.filename, "Machine-Party-Overtime-1.7-MPML.zip");
+  assert.equal(overtime.package.assetId, "594522625");
+  assert.equal(overtime.package.filename, "Machine-Party-Overtime-1.7-CLI.zip");
   assert.equal(overtime.adapter.kind, "loader-files");
   assert.equal(overtime.adapter.exclusive, "loader");
   assert.equal(overtime.adapter.autoLoader, true);
@@ -75,7 +79,7 @@ test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(plus.adapter.autoLoader, true);
 
   const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
-  assert.equal(roller.package.filename, "roller-carnival-0.1.0.zip");
+  assert.equal(roller.package.filename, "roller-carnival-0.1.1.zip");
   assert.equal(roller.package.mirrorApproved, true);
   assert.equal(roller.adapter.kind, "loader-files");
   assert.equal(roller.adapter.autoLoader, true);
@@ -105,8 +109,19 @@ test("every mod under mods/ has matching manifest, README and deterministic ZIP 
 });
 
 test("the preview displays exactly the remotely supplied catalog rows and metadata", () => {
-  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-6");
+  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-7");
   const live = {...preview, name:{...preview.name,en:"Updated online"}};
   assert.equal(sortMods({mods:[live]})[0], live);
   assert.deepEqual(sortMods({mods:[]}), []);
+});
+
+test("first-party mods sharing a repository have independent installed versions", () => {
+  const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
+  const bot = catalog.mods.find(mod => mod.id === "lobby-bots");
+  assert.equal(roller.repo, bot.repo);
+  const both = {[roller.repo]: roller.version, [bot.id]: bot.version};
+  assert.deepEqual(installedRows(both, catalog.mods, []).map(row => [row.mod.id, row.version]),
+    [[roller.id, roller.version], [bot.id, bot.version]]);
+  delete both[bot.id];
+  assert.deepEqual(installedRows(both, [], catalog.mods).map(row => row.mod.id), [roller.id]);
 });

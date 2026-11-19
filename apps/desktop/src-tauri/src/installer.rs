@@ -1,3 +1,5 @@
+mod prepare;
+
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
@@ -194,6 +196,10 @@ pub struct TransactionRecord {
     pub owned_files: BTreeMap<String, FileFingerprint>,
     #[serde(default)]
     pub failure: Option<String>,
+    #[serde(default)]
+    pub source_sha256: Option<String>,
+    #[serde(default)]
+    pub preparation_rule: Option<String>,
 }
 
 type Transactions = BTreeMap<PathBuf, BTreeMap<String, TransactionRecord>>;
@@ -681,6 +687,16 @@ pub fn validate_adapter(adapter: &AdapterProfile) -> Result<(), String> {
     {
         return Err("unsafeAdapter".into());
     }
+    if let Some(rule) = &adapter.source_rule
+        && (adapter.kind != "loader-files"
+            || !matches!(
+                rule.as_str(),
+                "overtime-manifest-v1" | "binary-tree-v1" | "broadcast-tree-v1"
+            )
+            || adapter.verify_files.is_some())
+    {
+        return Err("unsafeAdapter".into());
+    }
     if adapter.platforms.is_empty() || adapter.platforms.iter().any(|p| p != "windows") {
         return Err("unsafeAdapter".into());
     }
@@ -956,13 +972,17 @@ pub fn stage_package(
     if staging_dir.exists() {
         fs::remove_dir_all(staging_dir).map_err(|_| "fileWriteError".to_string())?;
     }
-    extract_zip(zip_path, staging_dir).map_err(|e| {
-        if e == "packageCorrupt" {
-            format!("internalPackage: {}", pkg.filename)
-        } else {
-            e
-        }
-    })?;
+    if let Some(rule) = &adapter.source_rule {
+        prepare::from_source(rule, zip_path, staging_dir, &adapter.baseline)?;
+    } else {
+        extract_zip(zip_path, staging_dir).map_err(|e| {
+            if e == "packageCorrupt" {
+                format!("internalPackage: {}", pkg.filename)
+            } else {
+                e
+            }
+        })?;
+    }
     if let Some(manifest) = &adapter.verify_files {
         verify_checksum_manifest(
             staging_dir,
@@ -973,6 +993,16 @@ pub fn stage_package(
         .map_err(|_| format!("internalPackage: {manifest}"))?;
     } else if adapter.kind == "loader-files" {
         normalize_loader_staging(staging_dir)?;
+        let manifest: serde_json::Value = serde_json::from_slice(
+            &fs::read(staging_dir.join("mod.json")).map_err(|_| "packageCorrupt")?,
+        )
+        .map_err(|_| "packageCorrupt")?;
+        let entry = manifest["entry"].as_str().ok_or("packageCorrupt")?;
+        if manifest["id"].as_str().is_none_or(str::is_empty)
+            || !staging_dir.join(validate_rel_components(entry)?).is_file()
+        {
+            return Err("packageCorrupt".into());
+        }
         if !adapter
             .required_files
             .iter()
@@ -1199,6 +1229,16 @@ fn has_unmanaged_loader_dirs(
     Ok(false)
 }
 
+fn incompatible(target: &AdapterProfile, other: &AdapterProfile) -> bool {
+    target.exclusive == "pck"
+        || target.exclusive != other.exclusive
+        || (target.conflict_group.is_some() && target.conflict_group == other.conflict_group)
+}
+
+fn manual_eight_player_conflict(dir: &Path, adapter: &AdapterProfile) -> bool {
+    adapter.source_rule.is_some() && dir.join("mods/broadcast-8p").exists()
+}
+
 pub fn check_exclusive_conflicts(
     config_dir: &Path,
     game_root: &Path,
@@ -1207,24 +1247,31 @@ pub fn check_exclusive_conflicts(
     all_mods: &[ModEntry],
 ) -> Result<(), String> {
     let target = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
+    if adapter.kind == "loader-files" && target.join("Machine Party.pck.broadcast_backup").exists()
+    {
+        return Err("restoreResidue".into());
+    }
+    if manual_eight_player_conflict(&target, adapter) {
+        return Err("manualBroadcastConflict".into());
+    }
     if adapter.exclusive == "pck" && pck_loader::external_loader_present(&target)? {
         return Err("loaderConflict".into());
     }
     let installed = inventory::installed_versions(config_dir, game_root)?;
     for repo in installed.keys() {
-        if repo == &mod_entry.repo {
+        if repo == mod_entry.inventory_key() {
             continue;
         }
         if adapter.exclusive == "pck" {
             return Err("modConflict".into());
         }
-        let Some(other) = all_mods.iter().find(|entry| &entry.repo == repo) else {
+        let Some(other) = all_mods.iter().find(|entry| entry.inventory_key() == repo) else {
             return Err("modConflict".into());
         };
         if other
             .adapter
             .as_ref()
-            .is_none_or(|other_adapter| other_adapter.exclusive != adapter.exclusive)
+            .is_none_or(|other_adapter| incompatible(adapter, other_adapter))
         {
             return Err("modConflict".into());
         }
@@ -1316,20 +1363,17 @@ fn has_other_loader_tx(
     let Some(per_copy) = txs.get(game_root) else {
         return Ok(false);
     };
-    Ok(per_copy
-        .iter()
-        .any(|(id, tx)| id != excluded_id && tx.exclusive == exclusive))
+    Ok(per_copy.iter().any(|(id, tx)| {
+        id != excluded_id && tx.exclusive == exclusive && tx.status != TransactionStatus::RolledBack
+    }))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn install_loader_files(
     config_dir: &Path,
     game_root: &Path,
-    zip_path: &Path,
     staging_dir: &Path,
     mod_entry: &ModEntry,
     all_mods: &[ModEntry],
-    runner: &dyn ProcessRunner,
     lock_check: &dyn GameLockCheck,
 ) -> Result<TransactionRecord, String> {
     let adapter = mod_entry.adapter.as_ref().ok_or("unsupportedAdapter")?;
@@ -1358,7 +1402,6 @@ fn install_loader_files(
     }
 
     let pkg = mod_entry.package.as_ref().ok_or("missingPackage")?;
-    stage_package(zip_path, staging_dir, pkg, adapter, &pck_dir, runner)?;
 
     let mod_dir = loader_mod_dir(&pck_dir, mod_entry);
     if mod_dir.exists() {
@@ -1377,12 +1420,7 @@ fn install_loader_files(
     let mut installed_fresh_loader = false;
     if adapter.auto_loader {
         check_space(config_dir, pre_pck.size)?;
-        pck_loader::ensure_loader_installed(&pck_dir, &loader_backup_pck, &adapter.baseline)?;
-        installed_fresh_loader =
-            !had_managed_loader && pck_loader::read_managed_marker(&pck_dir)?.is_some();
     }
-    let post_loader_pck = file_fingerprint(&pck_path)?;
-
     let backup_dir = backup_dir_for(config_dir, game_root, &mod_entry.id);
     let version = mod_entry.version.clone().unwrap_or_default();
     let mut record = TransactionRecord {
@@ -1393,16 +1431,41 @@ fn install_loader_files(
         pck_dir: pck_dir.clone(),
         status: TransactionStatus::Pending,
         pre_pck,
-        post_pck: Some(post_loader_pck.clone()),
+        post_pck: None,
         upstream_uninstall: false,
         backup_dir,
         touched_files: adapter.touches.clone(),
         owned_files: owned_files.clone(),
         failure: None,
+        source_sha256: Some(pkg.sha256.clone()),
+        preparation_rule: Some(
+            adapter
+                .source_rule
+                .clone()
+                .unwrap_or_else(|| "native-v1".into()),
+        ),
     };
+    lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+    if file_fingerprint(&pck_path)? != record.pre_pck {
+        return Err("gameUpdatedOrModified".into());
+    }
+    let mods_root = pck_dir.join("mods");
+    if mods_root.is_symlink() {
+        return Err("restoreResidue".into());
+    }
     save_transaction(config_dir, game_root, record.clone())?;
-
+    let mut created_mod_dir = false;
     let outcome = (|| -> Result<(), String> {
+        if adapter.auto_loader {
+            pck_loader::ensure_loader_installed(&pck_dir, &loader_backup_pck, &adapter.baseline)?;
+            installed_fresh_loader =
+                !had_managed_loader && pck_loader::read_managed_marker(&pck_dir)?.is_some();
+        }
+        record.post_pck = Some(file_fingerprint(&pck_path)?);
+
+        fs::create_dir_all(&mods_root).map_err(|_| "fileWriteError")?;
+        fs::create_dir(&mod_dir).map_err(|_| "restoreResidue")?;
+        created_mod_dir = true;
         for rel in owned_files.keys() {
             copy_atomic(&staging_dir.join(rel), &mod_dir.join(rel))?;
         }
@@ -1415,14 +1478,24 @@ fn install_loader_files(
     match outcome {
         Ok(()) => {
             record.status = TransactionStatus::Committed;
-            record.post_pck = Some(post_loader_pck);
             save_transaction(config_dir, game_root, record.clone())?;
-            inventory::record_installed(config_dir, game_root, &mod_entry.repo, &version)?;
+            inventory::record_installed(
+                config_dir,
+                game_root,
+                mod_entry.inventory_key(),
+                &version,
+            )?;
             Ok(record)
         }
         Err(err) => {
-            let mut cleaned =
-                (!mod_dir.exists() || fs::remove_dir_all(&mod_dir).is_ok()) && !mod_dir.exists();
+            let mut cleaned = !created_mod_dir
+                || (!mod_dir.is_symlink()
+                    && collect_dir_fingerprints(&mod_dir).is_ok_and(|files| {
+                        files
+                            .iter()
+                            .all(|(name, fp)| owned_files.get(name) == Some(fp))
+                    })
+                    && fs::remove_dir_all(&mod_dir).is_ok());
             let _ = fs::remove_dir(pck_dir.join("mods"));
             if installed_fresh_loader
                 && !has_other_loader_tx(config_dir, game_root, &mod_entry.id, &adapter.exclusive)
@@ -1463,26 +1536,23 @@ pub fn install_from_zip(
     runner: &dyn ProcessRunner,
     lock_check: &dyn GameLockCheck,
 ) -> Result<TransactionRecord, String> {
-    let _pkg = mod_entry.package.as_ref().ok_or("missingPackage")?;
+    let pkg = mod_entry.package.as_ref().ok_or("missingPackage")?;
     let adapter = mod_entry.adapter.as_ref().ok_or("unsupportedAdapter")?;
     validate_adapter(adapter)?;
-    if adapter.kind == "loader-files" {
-        return install_loader_files(
-            config_dir,
-            game_root,
-            zip_path,
-            staging_dir,
-            mod_entry,
-            all_mods,
-            runner,
-            lock_check,
-        );
-    }
-    let pkg = _pkg;
-
     let pck_dir = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
     let pck_path = pck_dir.join(&adapter.baseline.file);
     lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+    if adapter.kind == "loader-files" {
+        stage_package(zip_path, staging_dir, pkg, adapter, &pck_dir, runner)?;
+        return install_loader_files(
+            config_dir,
+            game_root,
+            staging_dir,
+            mod_entry,
+            all_mods,
+            lock_check,
+        );
+    }
     check_exclusive_conflicts(config_dir, game_root, mod_entry, adapter, all_mods)?;
 
     stage_package(zip_path, staging_dir, pkg, adapter, &pck_dir, runner)?;
@@ -1516,6 +1586,8 @@ pub fn install_from_zip(
         touched_files: adapter.touches.clone(),
         owned_files: BTreeMap::new(),
         failure: None,
+        source_sha256: None,
+        preparation_rule: None,
     };
     if !sidecars_absent(adapter, &pck_dir)? {
         return Err("restoreResidue".into());
@@ -1560,7 +1632,12 @@ pub fn install_from_zip(
             record.status = TransactionStatus::Committed;
             record.post_pck = Some(post_pck);
             save_transaction(config_dir, game_root, record.clone())?;
-            inventory::record_installed(config_dir, game_root, &mod_entry.repo, &version)?;
+            inventory::record_installed(
+                config_dir,
+                game_root,
+                mod_entry.inventory_key(),
+                &version,
+            )?;
             Ok(record)
         }
         Err(err) => {
@@ -1610,7 +1687,7 @@ fn clear_mod_records(
     mod_entry: &ModEntry,
     backup_dir: Option<&Path>,
 ) -> Result<(), String> {
-    inventory::remove_installed(config_dir, game_root, &mod_entry.repo)?;
+    inventory::remove_installed(config_dir, game_root, mod_entry.inventory_key())?;
     remove_transaction(config_dir, game_root, &mod_entry.id)?;
     if let Some(dir) = backup_dir {
         let _ = fs::remove_dir_all(dir);
@@ -1642,11 +1719,36 @@ pub fn uninstall_mod(
     {
         return Err("gameUpdatedOrModified".into());
     }
-    if !matches!(
+    if !(matches!(
         tx.status,
         TransactionStatus::Committed | TransactionStatus::NeedsRepair
-    ) {
+    ) || tx.status == TransactionStatus::Pending && tx.exclusive == "loader")
+    {
         return Err("missingTransaction".into());
+    }
+
+    if tx.exclusive == "pck" && adapter.source_rule.is_some() {
+        let legacy = crate::catalog::legacy_entry(mod_entry)
+            .filter(|m| m.adapter.as_ref().is_some_and(|a| a.exclusive == "pck"))
+            .ok_or("gameUpdatedOrModified")?;
+        let old = legacy.adapter.as_ref().ok_or("unsupportedAdapter")?;
+        if tx.touched_files != old.touches
+            || tx.pre_pck.size != adapter.baseline.size
+            || tx.pre_pck.sha256 != adapter.baseline.sha256
+        {
+            return Err("gameUpdatedOrModified".into());
+        }
+        for sidecar in old
+            .touches
+            .iter()
+            .filter(|name| *name != &old.baseline.file)
+        {
+            let path = pck_dir.join(sidecar);
+            if path.exists() && file_fingerprint(&path)? != tx.pre_pck {
+                return Err("gameUpdatedOrModified".into());
+            }
+        }
+        return uninstall_mod(config_dir, game_root, &legacy, runner, lock_check);
     }
 
     if adapter.kind == "loader-files" {
@@ -1663,8 +1765,20 @@ pub fn uninstall_mod(
         }
 
         let mod_dir = loader_mod_dir(&pck_dir, mod_entry);
+        if pck_dir.join("mods").is_symlink() || mod_dir.is_symlink() {
+            return Err("gameUpdatedOrModified".into());
+        }
         if mod_dir.exists() {
-            if tx.owned_files.is_empty() || collect_dir_fingerprints(&mod_dir)? != tx.owned_files {
+            let disk = collect_dir_fingerprints(&mod_dir)?;
+            let interrupted = tx.status == TransactionStatus::Pending
+                || tx.failure.as_deref() == Some("uninstall");
+            let matches = if interrupted {
+                disk.iter()
+                    .all(|(name, fp)| tx.owned_files.get(name) == Some(fp))
+            } else {
+                disk == tx.owned_files
+            };
+            if tx.owned_files.is_empty() || !matches {
                 return Err("gameUpdatedOrModified".into());
             }
             let mut undo = tx.clone();
@@ -1677,7 +1791,6 @@ pub fn uninstall_mod(
             }
         }
 
-        clear_mod_records(config_dir, game_root, mod_entry, None)?;
         let mods_root = pck_dir.join("mods");
         let _ = fs::remove_dir(&mods_root);
 
@@ -1690,8 +1803,10 @@ pub fn uninstall_mod(
             let loader_backup_pck = loader_backup_dir.join(&adapter.baseline.file);
             let restored = pck_loader::restore_managed_loader(&pck_dir, &loader_backup_pck)?;
             let _ = fs::remove_dir_all(&loader_backup_dir);
+            clear_mod_records(config_dir, game_root, mod_entry, None)?;
             return Ok(restored);
         }
+        clear_mod_records(config_dir, game_root, mod_entry, None)?;
         return file_fingerprint(&pck_path);
     }
 
@@ -1789,6 +1904,7 @@ pub fn uninstall_mod(
 /// Safely switches from conflicting manager-installed mod(s) to `mod_entry`.
 #[allow(clippy::too_many_arguments)]
 pub fn switch_from_zip(
+    confirmed: &[String],
     config_dir: &Path,
     game_root: &Path,
     zip_path: &Path,
@@ -1808,19 +1924,8 @@ pub fn switch_from_zip(
 
     let validation = validate_game_mods(config_dir, game_root, all_mods)?;
     match validation.mod_states.get(&mod_entry.id).map(String::as_str) {
-        Some("vanilla") => {
-            return install_from_zip(
-                config_dir,
-                game_root,
-                zip_path,
-                staging_dir,
-                mod_entry,
-                all_mods,
-                runner,
-                lock_check,
-            );
-        }
-        Some("modConflict") => {}
+        Some("vanilla") => return Err("statusUnavailable".into()),
+        Some("modConflict" | "legacyInstalled") => {}
         Some(other) => return Err(other.to_string()),
         None => return Err("unsupportedAdapter".into()),
     }
@@ -1828,20 +1933,32 @@ pub fn switch_from_zip(
     let mut to_uninstall = Vec::new();
     for other in all_mods {
         if other.id == mod_entry.id {
+            if validation.mod_states.get(&other.id).map(String::as_str) == Some("legacyInstalled") {
+                to_uninstall.push(other);
+            }
             continue;
         }
         let Some(other_adapter) = &other.adapter else {
             continue;
         };
-        let conflicts = adapter.exclusive == "pck" || other_adapter.exclusive != adapter.exclusive;
+        let conflicts = incompatible(adapter, other_adapter)
+            || get_transaction(config_dir, game_root, &other.id)?
+                .is_some_and(|tx| tx.exclusive == "pck");
         if !conflicts {
             continue;
         }
         match validation.mod_states.get(&other.id).map(String::as_str) {
-            Some("installed") => to_uninstall.push(other),
+            Some("installed" | "legacyInstalled") => to_uninstall.push(other),
             Some("vanilla") | Some("modConflict") | Some("loaderConflict") => {}
             _ => return Err("modConflict".into()),
         }
+    }
+    if confirmed.len() != to_uninstall.len()
+        || to_uninstall
+            .iter()
+            .any(|item| !confirmed.contains(&item.id))
+    {
+        return Err("statusUnavailable".into());
     }
     if to_uninstall.is_empty() {
         return Err("modConflict".into());
@@ -1849,11 +1966,11 @@ pub fn switch_from_zip(
 
     let installed = inventory::installed_versions(config_dir, game_root)?;
     for repo in installed.keys() {
-        if repo == &mod_entry.repo {
+        if repo == mod_entry.inventory_key() {
             continue;
         }
         let handled = all_mods.iter().any(|other| {
-            &other.repo == repo
+            other.inventory_key() == repo
                 && (to_uninstall.iter().any(|u| u.id == other.id)
                     || other.adapter.as_ref().is_some_and(|a| {
                         adapter.exclusive != "pck" && a.exclusive == adapter.exclusive
@@ -1864,6 +1981,9 @@ pub fn switch_from_zip(
         }
     }
 
+    if manual_eight_player_conflict(&pck_dir, adapter) {
+        return Err("manualBroadcastConflict".into());
+    }
     // Stage and preflight-verify the target archive before uninstalling the active mod.
     stage_package(zip_path, staging_dir, pkg, adapter, &pck_dir, runner)?;
     check_space(&pck_dir, adapter.baseline.size)?;
@@ -1873,14 +1993,25 @@ pub fn switch_from_zip(
     }
 
     let restored_pck = file_fingerprint(&pck_path)?;
-    if restored_pck.size != adapter.baseline.size
-        || !restored_pck
-            .sha256
-            .eq_ignore_ascii_case(&adapter.baseline.sha256)
+    if !(adapter.exclusive == "loader" && loader_marker_present(&pck_dir)?)
+        && (restored_pck.size != adapter.baseline.size
+            || !restored_pck
+                .sha256
+                .eq_ignore_ascii_case(&adapter.baseline.sha256))
     {
         return Err("baselineMismatch".into());
     }
 
+    if adapter.kind == "loader-files" {
+        return install_loader_files(
+            config_dir,
+            game_root,
+            staging_dir,
+            mod_entry,
+            all_mods,
+            lock_check,
+        );
+    }
     install_from_zip(
         config_dir,
         game_root,
@@ -1980,9 +2111,11 @@ pub fn adopt_manual_install(
         touched_files: adapter.touches.clone(),
         owned_files: BTreeMap::new(),
         failure: None,
+        source_sha256: None,
+        preparation_rule: None,
     };
     save_transaction(config_dir, game_root, record.clone())?;
-    inventory::record_installed(config_dir, game_root, &mod_entry.repo, &version)?;
+    inventory::record_installed(config_dir, game_root, mod_entry.inventory_key(), &version)?;
     Ok(record)
 }
 
@@ -2007,7 +2140,7 @@ pub fn reconcile_copy(
 
     let tx = get_transaction(config_dir, game_root, &mod_entry.id)?;
     let installed = inventory::installed_versions(config_dir, game_root)?;
-    let in_inventory = installed.contains_key(&mod_entry.repo);
+    let in_inventory = installed.contains_key(mod_entry.inventory_key());
 
     if let Some(ref record) = tx
         && record.status == TransactionStatus::Pending
@@ -2099,7 +2232,7 @@ pub fn inspect_mod(
     let pck_path = pck_dir.join(&adapter.baseline.file);
     let pck_fingerprint = file_fingerprint(&pck_path)?;
     let installed = inventory::installed_versions(config_dir, game_root)?;
-    let recorded_version = installed.get(&mod_entry.repo).cloned();
+    let recorded_version = installed.get(mod_entry.inventory_key()).cloned();
     let tx = get_transaction(config_dir, game_root, &mod_entry.id)?;
     let has_backup = tx.as_ref().is_some_and(|r| r.backup_dir.is_dir());
 
@@ -2151,6 +2284,28 @@ pub fn validate_game_mods(
     let current_pck = file_fingerprint(&pck_dir.join("Machine Party.pck"))?;
     let mut installed = inventory::installed_versions(config_dir, game_root)?;
     let transactions = read_transactions(config_dir)?;
+    let effective: Vec<_> = mods
+        .iter()
+        .map(|item| {
+            if item
+                .adapter
+                .as_ref()
+                .is_some_and(|a| a.source_rule.is_some())
+                && transactions
+                    .get(game_root)
+                    .and_then(|records| records.get(&item.id))
+                    .is_some_and(|r| {
+                        r.exclusive == "pck" && r.status != TransactionStatus::RolledBack
+                    })
+            {
+                crate::catalog::legacy_entry(item).unwrap_or_else(|| item.clone())
+            } else {
+                item.clone()
+            }
+        })
+        .collect();
+    let catalog_mods = mods;
+    let mods = effective.as_slice();
     let mut mod_states = BTreeMap::new();
     let mut repair = BTreeMap::new();
     let loader_present = loader_marker_present(&pck_dir)?;
@@ -2172,11 +2327,12 @@ pub fn validate_game_mods(
             .then_some(item.id.as_str())
     });
     let has_pck_sidecar_residue = active_pck_mod.is_none()
-        && mods.iter().any(|other| {
-            other.adapter.as_ref().is_some_and(|a| {
-                a.exclusive == "pck" && !sidecars_absent(a, &pck_dir).unwrap_or(false)
-            })
-        });
+        && (pck_dir.join("Machine Party.pck.broadcast_backup").exists()
+            || mods.iter().any(|other| {
+                other.adapter.as_ref().is_some_and(|a| {
+                    a.exclusive == "pck" && !sidecars_absent(a, &pck_dir).unwrap_or(false)
+                })
+            }));
     let mut has_active_loader_mod = false;
     for item in mods {
         if item
@@ -2217,16 +2373,27 @@ pub fn validate_game_mods(
                     && !record.owned_files.is_empty()
                     && collect_dir_fingerprints(&mod_dir).ok().as_ref() == Some(&record.owned_files)
                 {
-                    installed.insert(item.repo.clone(), record.version.clone());
+                    installed.insert(item.inventory_key().to_owned(), record.version.clone());
                     "installed"
-                } else if installed.contains_key(&item.repo) {
+                } else if installed.contains_key(item.inventory_key()) {
                     "needsRepair"
                 } else {
                     "restoreResidue"
                 }
             } else {
-                installed.remove(&item.repo);
-                if active_pck_mod.is_some() {
+                installed.remove(item.inventory_key());
+                if manual_eight_player_conflict(&pck_dir, adapter) {
+                    "manualBroadcastConflict"
+                } else if active_pck_mod.is_some()
+                    || mods.iter().any(|other| {
+                        other.id != item.id
+                            && other.adapter.as_ref().is_some_and(|a| {
+                                a.conflict_group.is_some()
+                                    && a.conflict_group == adapter.conflict_group
+                            })
+                            && loader_mod_dir(&pck_dir, other).exists()
+                    })
+                {
                     "modConflict"
                 } else if has_pck_sidecar_residue {
                     "restoreResidue"
@@ -2259,7 +2426,7 @@ pub fn validate_game_mods(
         } else if managed_marker.is_some() && adapter.exclusive == "pck" {
             "loaderConflict"
         } else if vanilla {
-            installed.remove(&item.repo);
+            installed.remove(item.inventory_key());
             if sidecars_absent(adapter, &pck_dir)? {
                 "vanilla"
             } else {
@@ -2267,12 +2434,12 @@ pub fn validate_game_mods(
             }
         } else if let Some(record) = tx.filter(|r| r.status == TransactionStatus::Committed) {
             if record.post_pck.as_ref() == Some(&current_pck) {
-                installed.insert(item.repo.clone(), record.version.clone());
+                installed.insert(item.inventory_key().to_owned(), record.version.clone());
                 "installed"
             } else {
                 "gameUpdatedOrModified"
             }
-        } else if installed.contains_key(&item.repo) {
+        } else if installed.contains_key(item.inventory_key()) {
             "needsRepair"
         } else if active_pck_mod.is_some_and(|id| id != item.id) {
             "modConflict"
@@ -2314,6 +2481,15 @@ pub fn validate_game_mods(
                 (record.backup_dir.clone(), record.failure.clone()),
             );
         }
+        let state = if state == "installed"
+            && tx.is_some_and(|r| r.exclusive == "pck")
+            && catalog_mods.iter().any(|m| {
+                m.id == item.id && m.adapter.as_ref().is_some_and(|a| a.source_rule.is_some())
+            }) {
+            "legacyInstalled"
+        } else {
+            state
+        };
         mod_states.insert(item.id.clone(), state.to_owned());
     }
     Ok(CopyValidation {
@@ -2341,6 +2517,7 @@ fn scan_stamp(config: &Path, root: &Path, mods: &[ModEntry]) -> Result<ScanStamp
         dir.join("Machine Party.exe"),
         dir.join("Machine Party.pck"),
         dir.join("mods"),
+        dir.join("Machine Party.pck.broadcast_backup"),
         config.join(TRANSACTIONS_FILE),
         config.join("installations.json"),
     ];
@@ -2574,6 +2751,7 @@ mod tests {
     ) -> ModEntry {
         let zip_sha = hex::encode(Sha256::digest(zip_bytes));
         ModEntry {
+            inventory_by_id: false,
             id: "overtime".into(),
             order: 1,
             repo: "DarkJadeStone/MachineParty-Overtime".into(),
@@ -2587,6 +2765,8 @@ mod tests {
                 mirror_approved: true,
             }),
             adapter: Some(AdapterProfile {
+                source_rule: None,
+                conflict_group: None,
                 kind: "upstream-cli".into(),
                 platforms: vec!["windows".into()],
                 target: "pckDir".into(),
@@ -3282,6 +3462,7 @@ print("Patched")
         fs::write(&zip_path, &zip_bytes).unwrap();
 
         let mod_entry = ModEntry {
+            inventory_by_id: false,
             id: "binary1936-8p".into(),
             order: 4,
             repo: "Binary1936/machine-party-8p".into(),
@@ -3295,6 +3476,8 @@ print("Patched")
                 mirror_approved: true,
             }),
             adapter: Some(AdapterProfile {
+                source_rule: None,
+                conflict_group: None,
                 kind: "upstream-cli".into(),
                 platforms: vec!["windows".into()],
                 target: "pckDir".into(),
@@ -3668,12 +3851,17 @@ print("Patched")
         write_atomic(&sibling_file, b"extends Node\n").unwrap();
 
         let plus_zip_bytes = build_test_zip(&[
-            ("mod.json", b"{\"id\":\"machineparty_plus\"}", true),
+            (
+                "mod.json",
+                b"{\"id\":\"machineparty_plus\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("main.gd", b"extends Node\n# plus", true),
         ]);
         let plus_zip = root.join("plus.zip");
         fs::write(&plus_zip, &plus_zip_bytes).unwrap();
         let plus_entry = ModEntry {
+            inventory_by_id: false,
             id: "machineparty-plus".into(),
             order: 2,
             repo: "Ghostx10742/MachineParty-Plus".into(),
@@ -3687,6 +3875,8 @@ print("Patched")
                 mirror_approved: true,
             }),
             adapter: Some(AdapterProfile {
+                source_rule: None,
+                conflict_group: None,
                 kind: "loader-files".into(),
                 platforms: vec!["windows".into()],
                 target: "pckDir".into(),
@@ -3802,13 +3992,14 @@ print("Patched")
     #[test]
     fn l1_powershell_patcher_installs_and_removes_backup_sidecar_on_uninstall() {
         let root = test_root("l1-ps-patcher");
-        let pck_bytes = build_synthetic_pck();
+        let pck_bytes = pck_loader::build_synthetic_pck_v3(false, true);
         let (game_root, pck_dir, baseline) = setup_synthetic_game(&root, &pck_bytes);
         let zip_bytes = build_test_zip(&[("patcher.ps1", b"# ps", true)]);
         let zip_path = root.join("broadcast.zip");
         fs::write(&zip_path, &zip_bytes).unwrap();
 
         let broadcast = ModEntry {
+            inventory_by_id: false,
             id: "broadcast-8p-freecam".into(),
             order: 3,
             repo: "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher".into(),
@@ -3824,6 +4015,8 @@ print("Patched")
                 mirror_approved: true,
             }),
             adapter: Some(AdapterProfile {
+                source_rule: None,
+                conflict_group: None,
                 kind: "upstream-cli".into(),
                 platforms: vec!["windows".into()],
                 target: "pckDir".into(),
@@ -3932,8 +4125,84 @@ print("Patched")
         let v1 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v1.mod_states["broadcast-8p-freecam"], "installed");
 
+        let mut converted = crate::catalog::entry(&broadcast.id).unwrap();
+        converted.adapter.as_mut().unwrap().baseline =
+            broadcast.adapter.as_ref().unwrap().baseline.clone();
+        let current = vec![converted.clone()];
+        assert_eq!(
+            validate_game_mods(&config_dir, &game_root, &current)
+                .unwrap()
+                .mod_states[&broadcast.id],
+            "legacyInstalled"
+        );
+        // A damaged replacement archive must leave the old installation and its backup intact.
+        assert_eq!(
+            switch_from_zip(
+                &["broadcast-8p-freecam".into()],
+                &config_dir,
+                &game_root,
+                &zip_path,
+                &staging_dir,
+                &converted,
+                &current,
+                &runner,
+                &UnlockedCheck
+            )
+            .unwrap_err(),
+            "packageCorrupt"
+        );
+        assert_eq!(
+            file_fingerprint(&pck_dir.join("Machine Party.pck")).unwrap(),
+            tx.post_pck.unwrap()
+        );
+        let mut names: Vec<String> = (0..65)
+            .map(|i| format!("mod/scripts/player{i}.gd"))
+            .collect();
+        names.extend(
+            [
+                "director_hd.ps1",
+                "Director2K.cmd",
+                "DirectorHD.cmd",
+                "DirectorInternal1080Host.cmd",
+                "DirectorInternal2KHost.cmd",
+                "DirectorMaxQualityHost.cmd",
+            ]
+            .map(str::to_string),
+        );
+        let files: Vec<_> = names
+            .iter()
+            .map(|name| (name.as_str(), b"# fixture".as_slice(), false))
+            .collect();
+        let zip = build_test_zip(&files);
+        let pkg = converted.package.as_mut().unwrap();
+        pkg.size = zip.len() as u64;
+        pkg.sha256 = hex::encode(Sha256::digest(&zip));
+        fs::write(&zip_path, zip).unwrap();
+        let current = vec![converted.clone()];
+        let migrated = switch_from_zip(
+            &["broadcast-8p-freecam".into()],
+            &config_dir,
+            &game_root,
+            &zip_path,
+            &staging_dir,
+            &converted,
+            &current,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        assert_eq!(migrated.exclusive, "loader");
+        assert_eq!(
+            migrated.preparation_rule.as_deref(),
+            Some("broadcast-tree-v1")
+        );
+        assert!(
+            pck_dir
+                .join("mods/broadcast-8p-freecam/overlay.zip")
+                .is_file()
+        );
         let restored =
-            uninstall_mod(&config_dir, &game_root, &broadcast, &runner, &UnlockedCheck).unwrap();
+            uninstall_mod(&config_dir, &game_root, &converted, &runner, &UnlockedCheck).unwrap();
         assert_eq!(restored, baseline);
         assert!(!pck_dir.join("Machine Party.pck.broadcast_backup").exists());
 
@@ -3950,11 +4219,16 @@ print("Patched")
         let (game_root, pck_dir, baseline) = setup_synthetic_game(&root, &pck_bytes);
 
         let roller_zip_bytes = build_test_zip(&[
-            ("mod.json", b"{\"id\":\"roller-carnival\"}", true),
+            (
+                "mod.json",
+                b"{\"id\":\"roller-carnival\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("main.gd", b"extends Node\n# main", true),
             ("config.gd", b"extends RefCounted\n", true),
             ("carnival_meshes.gd", b"extends RefCounted\n", true),
             ("roller_carnival_game.gd", b"extends Node3D\n", true),
+            ("official_minigame.gd", b"extends Minigame\n", true),
             ("override_game.gd", b"extends Node\n", true),
             ("override_playlist.gd", b"extends Node\n", true),
             ("override_picker.gd", b"extends Node\n", true),
@@ -3976,12 +4250,17 @@ print("Patched")
         };
 
         let plus_zip_bytes = build_test_zip(&[
-            ("mod.json", b"{\"id\":\"machineparty-plus\"}", true),
+            (
+                "mod.json",
+                b"{\"id\":\"machineparty-plus\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("main.gd", b"extends Node\n# plus", true),
         ]);
         let plus_zip = root.join("plus.zip");
         fs::write(&plus_zip, &plus_zip_bytes).unwrap();
         let plus_entry = ModEntry {
+            inventory_by_id: false,
             id: "machineparty-plus".into(),
             order: 2,
             repo: "Ghostx10742/MachineParty-Plus".into(),
@@ -3995,6 +4274,8 @@ print("Patched")
                 mirror_approved: true,
             }),
             adapter: Some(AdapterProfile {
+                source_rule: None,
+                conflict_group: None,
                 kind: "loader-files".into(),
                 platforms: vec!["windows".into()],
                 target: "pckDir".into(),
@@ -4018,7 +4299,24 @@ print("Patched")
 
         let ot_zip_bytes = make_fake_package_zip(b"FAKE_EXE", b"FAKE_PAYLOAD");
         let overtime = synthetic_overtime_entry(&baseline, &ot_zip_bytes, true);
-        let mods = vec![overtime.clone(), plus_entry.clone(), roller.clone()];
+        let bot_bytes = build_test_zip(&[
+            (
+                "mod.json",
+                b"{\"id\":\"lobby-bots\",\"entry\":\"main.gd\"}",
+                true,
+            ),
+            ("main.gd", b"extends Node", true),
+            ("junk_platform.gd", b"extends Node", true),
+        ]);
+        let bot = make_loader_entry_from_catalog("lobby-bots", &bot_bytes, &baseline);
+        let bot_zip = root.join("bot.zip");
+        fs::write(&bot_zip, &bot_bytes).unwrap();
+        let mods = vec![
+            overtime.clone(),
+            plus_entry.clone(),
+            roller.clone(),
+            bot.clone(),
+        ];
         let config_dir = root.join("config");
         let staging_dir = root.join("staging");
         let runner = FakeCliRunner {
@@ -4066,6 +4364,33 @@ print("Patched")
             &UnlockedCheck,
         )
         .unwrap();
+
+        // A second first-party mod uses the same author page and its own install record.
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &bot_zip,
+            &staging_dir.join("bot"),
+            &bot,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let both = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(bot.repo, roller.repo);
+        assert_eq!(
+            both.installed[bot.inventory_key()],
+            bot.version.as_deref().unwrap()
+        );
+        assert_eq!(
+            both.installed[roller.inventory_key()],
+            roller.version.as_deref().unwrap()
+        );
+        uninstall_mod(&config_dir, &game_root, &bot, &runner, &UnlockedCheck).unwrap();
+        let after_bot = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert!(!after_bot.installed.contains_key(bot.inventory_key()));
+        assert_eq!(after_bot.mod_states[&roller.id], "installed");
 
         // Removing roller-carnival first keeps managed loader intact for machineparty-plus.
         uninstall_mod(&config_dir, &game_root, &roller, &runner, &UnlockedCheck).unwrap();
@@ -4143,7 +4468,8 @@ print("Patched")
         zip_bytes: &[u8],
         baseline: &FileFingerprint,
     ) -> ModEntry {
-        let mut entry = crate::catalog::entry(id).unwrap();
+        let entry = crate::catalog::entry(id).unwrap();
+        let mut entry = crate::catalog::legacy_entry(&entry).unwrap_or(entry);
         entry.verified = true;
         let pkg = entry.package.as_mut().unwrap();
         pkg.size = zip_bytes.len() as u64;
@@ -4167,7 +4493,7 @@ print("Patched")
             ("overtime/main.gd", b"extends Node\n# overtime", true),
             (
                 "overtime/mod.json",
-                b"{\"id\":\"overtime\",\"priority\":-1000}",
+                b"{\"id\":\"overtime\",\"entry\":\"main.gd\",\"priority\":-1000}",
                 true,
             ),
             ("overtime/overtime_overlay.zip", b"PK\x05\x06", false),
@@ -4178,7 +4504,11 @@ print("Patched")
         let overtime = make_loader_entry_from_catalog("overtime", &ot_zip_bytes, &baseline);
 
         let plus_zip_bytes = build_test_zip(&[
-            ("mod.json", b"{\"id\":\"machineparty_plus\"}", true),
+            (
+                "mod.json",
+                b"{\"id\":\"machineparty_plus\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("main.gd", b"extends Node\n# plus", true),
         ]);
         let plus_zip = root.join("plus.zip");
@@ -4186,11 +4516,16 @@ print("Patched")
         let plus = make_loader_entry_from_catalog("machineparty-plus", &plus_zip_bytes, &baseline);
 
         let roller_zip_bytes = build_test_zip(&[
-            ("mod.json", b"{\"id\":\"roller-carnival\"}", true),
+            (
+                "mod.json",
+                b"{\"id\":\"roller-carnival\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("main.gd", b"extends Node\n# roller", true),
             ("config.gd", b"extends RefCounted\n", true),
             ("carnival_meshes.gd", b"extends RefCounted\n", true),
             ("roller_carnival_game.gd", b"extends Node3D\n", true),
+            ("official_minigame.gd", b"extends Minigame\n", true),
             ("override_game.gd", b"extends Node\n", true),
             ("override_playlist.gd", b"extends Node\n", true),
             ("override_picker.gd", b"extends Node\n", true),
@@ -4264,6 +4599,109 @@ print("Patched")
     }
 
     #[test]
+    fn gameplay_switch_preserves_sibling_and_recovers_partial_loader_transaction() {
+        let root = tempfile::tempdir().unwrap();
+        let (game, pck, base) = setup_synthetic_game(
+            root.path(),
+            &pck_loader::build_synthetic_pck_v3(false, true),
+        );
+        let config = root.path().join("config");
+        let stage = root.path().join("stage");
+        let mut mods = Vec::new();
+        let mut zips = Vec::new();
+        for (id, group) in [
+            ("first", Some("eight-player")),
+            ("second", Some("eight-player")),
+            ("sibling", None),
+        ] {
+            let manifest = format!(r#"{{"id":"{id}","entry":"main.gd"}}"#);
+            let data = build_test_zip(&[
+                ("mod.json", manifest.as_bytes(), true),
+                ("main.gd", b"extends Node", true),
+            ]);
+            let mut item = make_loader_entry_from_catalog("machineparty-plus", &data, &base);
+            item.id = id.into();
+            item.inventory_by_id = true;
+            item.adapter.as_mut().unwrap().conflict_group = group.map(str::to_string);
+            let zip = root.path().join(format!("{id}.zip"));
+            fs::write(&zip, data).unwrap();
+            mods.push(item);
+            zips.push(zip);
+        }
+        for i in [0, 2] {
+            install_from_zip(
+                &config,
+                &game,
+                &zips[i],
+                &stage,
+                &mods[i],
+                &mods,
+                &SystemRunner,
+                &UnlockedCheck,
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            validate_game_mods(&config, &game, &mods)
+                .unwrap()
+                .mod_states["second"],
+            "modConflict"
+        );
+        for stale in [vec![], vec!["sibling".into()]] {
+            assert_eq!(
+                switch_from_zip(
+                    &stale,
+                    &config,
+                    &game,
+                    &zips[1],
+                    &stage,
+                    &mods[1],
+                    &mods,
+                    &SystemRunner,
+                    &UnlockedCheck
+                )
+                .unwrap_err(),
+                "statusUnavailable"
+            );
+            assert!(pck.join("mods/first/main.gd").is_file());
+        }
+        let tx = switch_from_zip(
+            &["first".into()],
+            &config,
+            &game,
+            &zips[1],
+            &stage,
+            &mods[1],
+            &mods,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        assert_eq!(tx.preparation_rule.as_deref(), Some("native-v1"));
+        assert_eq!(
+            tx.source_sha256.as_ref(),
+            Some(&mods[1].package.as_ref().unwrap().sha256)
+        );
+        assert!(!pck.join("mods/first").exists());
+        assert!(pck.join("mods/sibling/main.gd").is_file());
+        let mut interrupted = tx;
+        interrupted.status = TransactionStatus::Pending;
+        save_transaction(&config, &game, interrupted).unwrap();
+        fs::remove_file(pck.join("mods/second/main.gd")).unwrap();
+        fs::write(pck.join("mods/second/unowned"), b"user").unwrap();
+        assert_eq!(
+            uninstall_mod(&config, &game, &mods[1], &SystemRunner, &UnlockedCheck).unwrap_err(),
+            "gameUpdatedOrModified"
+        );
+        fs::remove_file(pck.join("mods/second/unowned")).unwrap();
+        uninstall_mod(&config, &game, &mods[1], &SystemRunner, &UnlockedCheck).unwrap();
+        assert_eq!(
+            uninstall_mod(&config, &game, &mods[2], &SystemRunner, &UnlockedCheck).unwrap(),
+            base
+        );
+    }
+
+    #[test]
     fn l1_switch_between_loader_mods_and_pck_mods() {
         let root = test_root("l1-switch-mods");
         let pck_bytes = pck_loader::build_synthetic_pck_v3(false, true);
@@ -4272,7 +4710,11 @@ print("Patched")
         let ot_zip_bytes = build_test_zip(&[
             ("overtime/BUILDINFO.json", b"{}", true),
             ("overtime/main.gd", b"extends Node\n# ot", true),
-            ("overtime/mod.json", b"{\"id\":\"overtime\"}", true),
+            (
+                "overtime/mod.json",
+                b"{\"id\":\"overtime\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("overtime/overtime_overlay.zip", b"PK\x05\x06", false),
             ("overtime/vanilla_md5.json", b"{}", true),
         ]);
@@ -4281,11 +4723,16 @@ print("Patched")
         let overtime = make_loader_entry_from_catalog("overtime", &ot_zip_bytes, &baseline);
 
         let roller_zip_bytes = build_test_zip(&[
-            ("mod.json", b"{\"id\":\"roller-carnival\"}", true),
+            (
+                "mod.json",
+                b"{\"id\":\"roller-carnival\",\"entry\":\"main.gd\"}",
+                true,
+            ),
             ("main.gd", b"extends Node\n# roller", true),
             ("config.gd", b"extends RefCounted\n", true),
             ("carnival_meshes.gd", b"extends RefCounted\n", true),
             ("roller_carnival_game.gd", b"extends Node3D\n", true),
+            ("official_minigame.gd", b"extends Minigame\n", true),
             ("override_game.gd", b"extends Node\n", true),
             ("override_playlist.gd", b"extends Node\n", true),
             ("override_picker.gd", b"extends Node\n", true),
@@ -4298,7 +4745,9 @@ print("Patched")
         let b_zip_bytes = build_test_zip(&[("patcher.ps1", b"# ps", true)]);
         let b_zip = root.join("broadcast.zip");
         fs::write(&b_zip, &b_zip_bytes).unwrap();
-        let mut broadcast = crate::catalog::entry("broadcast-8p-freecam").unwrap();
+        let mut broadcast =
+            crate::catalog::legacy_entry(&crate::catalog::entry("broadcast-8p-freecam").unwrap())
+                .unwrap();
         broadcast.verified = true;
         broadcast.package.as_mut().unwrap().size = b_zip_bytes.len() as u64;
         broadcast.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(&b_zip_bytes));
@@ -4311,7 +4760,8 @@ print("Patched")
         let p_zip_bytes = build_test_zip(&[("install.py", b"# py", true)]);
         let p_zip = root.join("b8p.zip");
         fs::write(&p_zip, &p_zip_bytes).unwrap();
-        let mut b8p = crate::catalog::entry("binary1936-8p").unwrap();
+        let mut b8p =
+            crate::catalog::legacy_entry(&crate::catalog::entry("binary1936-8p").unwrap()).unwrap();
         b8p.verified = true;
         b8p.package.as_mut().unwrap().size = p_zip_bytes.len() as u64;
         b8p.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(&p_zip_bytes));
@@ -4443,6 +4893,7 @@ print("Patched")
         fs::write(&bad_zip, b"CORRUPT").unwrap();
         assert_eq!(
             switch_from_zip(
+                &["overtime".into(), "roller-carnival".into()],
                 &config_dir,
                 &game_root,
                 &bad_zip,
@@ -4461,6 +4912,7 @@ print("Patched")
 
         // Switch from both loader mods -> Broadcast 8P Freecam (PCK patcher).
         switch_from_zip(
+            &["overtime".into(), "roller-carnival".into()],
             &config_dir,
             &game_root,
             &b_zip,
@@ -4481,6 +4933,7 @@ print("Patched")
 
         // Switch from Broadcast 8P Freecam -> Binary1936 8P (PCK -> PCK).
         switch_from_zip(
+            &["broadcast-8p-freecam".into()],
             &config_dir,
             &game_root,
             &p_zip,
@@ -4498,6 +4951,7 @@ print("Patched")
 
         // Switch from Binary1936 8P -> Overtime MPML (PCK -> loader).
         switch_from_zip(
+            &["binary1936-8p".into()],
             &config_dir,
             &game_root,
             &ot_zip,
@@ -4522,6 +4976,7 @@ print("Patched")
         );
         assert_eq!(
             switch_from_zip(
+                &["overtime".into()],
                 &config_dir,
                 &game_root,
                 &b_zip,

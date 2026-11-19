@@ -1,7 +1,7 @@
 import { downloadUrl } from "./online-catalog.js";
 import { installationProblem, modAction } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod } from "./bridge.js";
-import { visibleMods } from "./catalog.js";
+import { inventoryKey, installedRows, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
 import { applyValidation, syncGameMods, withGameCopy } from "./game-folder.js";
 import { render, state, t } from "./state.js";
@@ -33,11 +33,12 @@ function conflictingMods(mod) {
   const adapter = mod.adapter || pinnedOf(mod)?.adapter;
   if (!adapter) return [];
   return state.mods.filter(other => {
+    if (state.modStates[other.id] === "legacyInstalled") return true;
     if (other.id === mod.id) return false;
-    const isInstalled = state.modStates[other.id] === "installed" || state.inventory[other.repo] !== undefined;
+    const isInstalled = state.modStates[other.id] === "installed" || state.inventory[inventoryKey(other)] !== undefined;
     if (!isInstalled) return false;
     const otherAdapter = other.adapter || pinnedOf(other)?.adapter;
-    return adapter.exclusive === "pck" || !otherAdapter || otherAdapter.exclusive !== adapter.exclusive;
+    return adapter.exclusive === "pck" || !otherAdapter || otherAdapter.exclusive !== adapter.exclusive || Boolean(adapter.conflictGroup && adapter.conflictGroup === otherAdapter.conflictGroup);
   });
 }
 
@@ -47,7 +48,7 @@ function conflictNames(mod) {
 }
 
 function details(mod) {
-  const local = state.inventory[mod.repo];
+  const local = state.inventory[inventoryKey(mod)];
   const status = versionState(local, mod.version, mod.verified);
   const modState = state.modStates[mod.id];
   const parts = [
@@ -60,6 +61,8 @@ function details(mod) {
     if (status === "waiting" || status === "newer")
       parts.push(element("p", t(status === "waiting" ? "hold" : "noDowngrade")));
   }
+  if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id]) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
+  if (modState === "legacyInstalled") parts.push(button(t("migrateLoader"), () => startInstall(mod, "switch"), "primary"));
   if (modState === "manualInstall") parts.push(element("p", t("manualDetected")));
   else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
     parts.push(element("p", t(modState), "error"));
@@ -77,7 +80,7 @@ function details(mod) {
   if (modState === "modConflict") {
     const names = conflictNames(mod);
     parts.push(element("p", names ? t("modConflictWith").replace("{mods}", names) : t("modConflict")));
-  } else if (["restoreResidue", "identifyPending", "loaderConflict"].includes(modState)) {
+  } else if (["manualBroadcastConflict", "restoreResidue", "identifyPending", "loaderConflict"].includes(modState)) {
     parts.push(element("p", t(modState)));
   }
   if (cached(mod)) parts.push(button(t("clearCache"), async () => {
@@ -123,12 +126,25 @@ function cover(mod, name, status) {
 
 function startInstall(mod, action) {
   return withGameCopy(() => {
-    if (!state.pckDir || currentAction(mod) !== action) return details(mod);
+    const migrate = action === "switch" && state.modStates[mod.id] === "legacyInstalled";
+    if (!state.pckDir || (!migrate && currentAction(mod) !== action)) return details(mod);
+    if (action === "switch") {
+      const removals = conflictingMods(mod);
+      if (!removals.length) return details(mod);
+      const path = state.game;
+      const dir = state.pckDir;
+      const names = removals.map(nameOf).join(state.locale === "en" ? ", " : "、");
+      return show(nameOf(mod), element("p", t("switchNotice").replace("{mods}", names)),
+        button(t("switch"), () => {
+          if (state.game !== path || state.pckDir !== dir) return details(mod);
+          return installDialog(mod, action, removals.map(item => item.id));
+        }, "primary"));
+    }
     return installDialog(mod, action);
   });
 }
 
-async function installDialog(mod, action) {
+async function installDialog(mod, action, removals = []) {
   if (state.busyMod) return;
   const path = state.game;
   const target = state.pckDir;
@@ -200,7 +216,7 @@ async function installDialog(mod, action) {
         return;
       }
     } else {
-      const result = await installMod(path, mod, action === "adoptManual", target);
+      const result = await installMod(path, mod, action === "adoptManual", target, removals);
       applyValidation(result, path);
       const problem = installationProblem(result, mod);
       if (problem) throw problem;
@@ -302,7 +318,7 @@ function primaryAction(mod, name) {
     if (action === "review") return details(mod);
     if (action === "retryCheck") return syncGameMods(true);
     if (action !== "uninstall") return startInstall(mod, action);
-    uninstallDialog(mod);
+    return withGameCopy(() => currentAction(mod) === "uninstall" ? uninstallDialog(mod) : details(mod));
   }, ["review", "uninstall", "checking"].includes(action) ? "secondary" : "primary");
   el.disabled = Boolean(state.busyMod) || action === "checking";
   el.classList.add("btn-block");
@@ -311,7 +327,7 @@ function primaryAction(mod, name) {
 
 function card(mod, index) {
   const name = nameOf(mod);
-  const local = state.inventory[mod.repo];
+  const local = state.inventory[inventoryKey(mod)];
   const status = state.scan === "failed" ? "review" : versionState(local, mod.version, mod.verified);
   const item = element("article", "", "card");
   item.style.setProperty("--i", String(index));
@@ -319,7 +335,7 @@ function card(mod, index) {
   const body = element("div", "", "card-body");
   const heading = element("h2", "", "card-title");
   const link = element("a", name);
-  link.href = "#" + encodeURIComponent(mod.repo);
+  link.href = "#" + encodeURIComponent(inventoryKey(mod));
   link.onclick = event => { event.preventDefault(); details(mod); };
   heading.append(link);
   body.append(heading, element("p", mod.summary[state.locale], "card-summary"));
@@ -345,11 +361,19 @@ function card(mod, index) {
 
 export function renderModList(content) {
   if (state.scan === "failed") content.append(button(t("retryCheck"), () => syncGameMods(true), "secondary", "refresh"));
-  const query = $("input").value.trim().toLowerCase();
-  const matches = visibleMods(state.mods, {page: state.page, query, inventory: state.inventory});
-  if (matches.length) {
+  const cards = state.page === "installed"
+    ? installedRows(state.inventory, state.mods, state.pinned).map(({repo, version, mod}, index) => {
+      if (mod) return card(mod, index);
+      const row = element("article", "", "card");
+      const body = element("div", "", "card-body");
+      body.append(element("h2", repo, "card-title"), element("p", t("local") + " · " + version));
+      row.append(body);
+      return row;
+    })
+    : visibleMods(state.mods, {query:$("input").value.trim().toLowerCase()}).map(card);
+  if (cards.length) {
     const grid = element("div", "", "grid");
-    grid.append(...matches.map(card));
+    grid.append(...cards);
     content.append(grid);
   } else if (state.page === "installed" && state.scan === "checking") {
     content.append(element("p", t("checking"), "empty"));

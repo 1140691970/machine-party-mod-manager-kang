@@ -1037,6 +1037,17 @@ mod tests {
         assert_eq!(state.vanilla_sha256, vanilla_fp.sha256);
 
         let parsed = PckArchive::open(&pck_path).unwrap();
+        let guard: serde_json::Value =
+            serde_json::from_str(include_str!("../assets/recipes/overtime/vanilla_md5.json"))
+                .unwrap();
+        for (path, expected) in guard["files"].as_object().unwrap() {
+            let original = parsed.read_file(path).unwrap().unwrap();
+            assert_eq!(
+                hex::encode(md5_digest(&original)),
+                expected.as_str().unwrap(),
+                "{path}"
+            );
+        }
         let pb = ecfg_parse(&parsed.read_file(PROJECT_BINARY_RES).unwrap().unwrap()).unwrap();
         assert_eq!(pb[0].0, AUTOLOAD_KEY);
         assert_eq!(

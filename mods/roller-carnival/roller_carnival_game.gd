@@ -4,7 +4,7 @@ extends Node3D
 ##
 ## Rules:
 ## - 1-8 players spawn dispersed in the central stage area.
-## - Gold High Rollers appear at mid-height on the far right -> hold S (or Down) to crouch under.
+## - Gold High Rollers appear at mid-height on the far right -> tap S (or Down) to crouch under.
 ## - Silver Low Rollers appear at ground-level on the far right -> press Space to jump over.
 ## - Rollers keep fixed height and roll left; touching a player applies pure knockback (~1 body width),
 ##   zero HP loss, cumulative across hits. Being pushed into the left lava pit eliminates immediately.
@@ -15,30 +15,13 @@ extends Node3D
 var config = null
 var _meshes = null
 
-# Official Machine Party Minigame interface signals (used by res://scripts/scenes/game/game.gd)
-@warning_ignore("unused_signal")
-signal host_loaded(skip_intro)
-@warning_ignore("unused_signal")
-signal minigame_loaded(network_id)
-@warning_ignore("unused_signal")
-signal minigame_ready(network_id)
-@warning_ignore("unused_signal")
-signal minigame_finished(network_id)
-@warning_ignore("unused_signal")
-signal player_scored(network_id, score)
-@warning_ignore("unused_signal")
-signal player_scores_finalized(player_scores)
-@warning_ignore("unused_signal")
-signal debug_player_specifics_initialized(transform)
-@warning_ignore("unused_signal")
-signal before_player_marker_show()
-
-var players_loaded: Array[int] = []
-var round_number: int = 1
-var total_rounds: int = 1
-var _hosted_in_official_game: bool = false
-var _awaiting_room_setup: bool = false
-var _round_roster_network_ids: Array[int] = []
+signal round_finished(scores: Dictionary)
+var _hosted_in_official_game := false
+var _roster: Array = []
+const RELEASE_CROUCH := 4
+var _held_controls := {}
+var _snapshot_timer := 0.0
+var _countdown := 0.0
 
 var _rng := RandomNumberGenerator.new()
 var _scene_props: Dictionary = {}
@@ -55,41 +38,23 @@ var _fx_layer: Node3D
 var _elapsed: float = 0.0
 var _time_left: float = 50.0
 var _spawn_timer: float = 1.0
+var _wave_remaining := 0
 var _last_roller_type: String = ""
 var _same_type_streak: int = 0
 var _next_roller_id: int = 1
 var _match_ended: bool = false
-var _end_reason: String = ""
 var _beacon_gold_flash: float = 0.0
 var _beacon_silver_flash: float = 0.0
 
-# Session cumulative scores per player index (persists across Play Again rounds)
-var _session_scores: Dictionary = {}
-
 # UI References
 var _ui_layer: CanvasLayer
-var _timer_label: Label
-var _speed_label: Label
-var _hint_panel: PanelContainer
+var _countdown_label: Label
 var _results_panel: PanelContainer
 var _results_title: Label
 var _results_subtitle: Label
 var _results_rows: VBoxContainer
-var _room_setup_panel: PanelContainer
-var _room_setup_inputs: Dictionary = {}
-var _curve_option: OptionButton = null
-var _tie_option: OptionButton = null
-var _preset_players_opt: OptionButton = null
-var _preset_pace_opt: OptionButton = null
-var _preset_duration_opt: OptionButton = null
-var _preset_spawn_opt: OptionButton = null
-var _preset_knockback_opt: OptionButton = null
-var _adv_toggle_btn: Button = null
-var _adv_container: Control = null
-
 var _is_self_test: bool = false
 var _screenshot_path: String = ""
-var _screenshot_ticks: int = 0
 var _sfx_shove: AudioStreamPlayer = null
 var _sfx_fall: AudioStreamPlayer = null
 var _ambience_player: AudioStreamPlayer = null
@@ -97,6 +62,7 @@ var _shader_layer: CanvasLayer = null
 
 
 func _ready() -> void:
+	Input.joy_connection_changed.connect(_on_joy_connection_changed)
 	_load_dependencies()
 	_rng.randomize()
 
@@ -121,126 +87,41 @@ func _ready() -> void:
 
 	_scene_props = _meshes.build_stage_and_environment(self, config)
 	_build_post_fx_and_audio()
+	_hosted_in_official_game = get_parent().has_method("all_players_loaded")
 	_build_ui()
-
-	_hosted_in_official_game = _detect_official_game_host()
 
 	if _is_self_test:
 		_run_self_tests()
 		return
 
-	if not _screenshot_path.is_empty():
-		config.max_players = 8
-		_start_new_round()
-		_setup_screenshot_showcase()
-		return
-
-	if _hosted_in_official_game:
-		_complete_official_handshake()
-	else:
-		_open_room_creation_setup()
-
-
-func _detect_official_game_host() -> bool:
-	var root := get_tree().root
-	if root == null:
-		return false
-	return root.has_node("GameManager") and root.has_node("PlayerManager") and get_parent() != root
-
-
-func _complete_official_handshake() -> void:
-	var gm := get_tree().root.get_node_or_null("GameManager")
-	if gm != null:
-		gm.set("can_set_cursor", false)
-	if multiplayer != null and multiplayer.has_multiplayer_peer():
-		if multiplayer.is_server():
-			host_loaded.emit(true)
-			player_loaded(1)
-		else:
-			player_loaded.rpc_id(1, multiplayer.get_unique_id())
-	else:
-		initialize(1, 1, {})
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func player_loaded(network_id: int) -> void:
-	if not players_loaded.has(network_id):
-		players_loaded.append(network_id)
-	if multiplayer != null and multiplayer.is_server():
-		var pm := get_tree().root.get_node_or_null("PlayerManager")
-		var expected: int = 1
-		if pm != null and pm.get("player_presences") is Dictionary:
-			expected = maxi(1, (pm.get("player_presences") as Dictionary).size())
-		if players_loaded.size() >= expected:
-			all_players_loaded()
-
-
-func all_players_loaded() -> void:
-	minigame_ready.emit(1)
-
-
-func initialize(_round_number: int, _total_rounds: int, _scores: Dictionary = {}) -> void:
-	round_number = _round_number
-	total_rounds = _total_rounds
-
-	for nid in _scores.keys():
-		_session_scores[int(nid)] = int(_scores[nid])
-
-	_load_room_config_from_globals()
-	if _hosted_in_official_game and multiplayer != null and multiplayer.has_multiplayer_peer() and multiplayer.is_server():
-		var seed_val := int(Time.get_ticks_usec() & 0x7fffffff)
-		sync_room_config_rpc.rpc(config.to_dict(), seed_val)
-	else:
-		_start_new_round()
+	if not _hosted_in_official_game:
+		if DisplayServer.get_name() != "headless":
+			DisplayServer.set_icon(_meshes.build_roller_icon().get_image())
+		start_round([])
+		if not _screenshot_path.is_empty():
+			await get_tree().create_timer(4.7).timeout
+			await RenderingServer.frame_post_draw
+			var image := get_viewport().get_texture().get_image()
+			DirAccess.make_dir_recursive_absolute(_screenshot_path.get_base_dir())
+			var error := image.save_png(_screenshot_path)
+			if error == OK:
+				print("SCREENSHOT_SAVED=" + _screenshot_path)
+			get_tree().quit(error)
 
 
 @rpc("authority", "call_local", "reliable")
-func sync_room_config_rpc(cfg_dict: Dictionary, seed_val: int) -> void:
-	config.apply_dict(cfg_dict)
-	_rng.seed = seed_val
+func start_round(roster: Array) -> void:
+	_roster = roster
 	_start_new_round()
+	_countdown = 3.0
+	_countdown_label.text = "3"
+	_countdown_label.show()
 
 
 func player_disconnected(_network_id: int) -> void:
 	for p in _players:
 		if int(p.get("network_id", -1)) == _network_id and bool(p["alive"]):
 			_eliminate_player(p)
-
-
-func cleanup() -> void:
-	pass
-
-
-@rpc("any_peer", "call_local", "reliable")
-func cleanup_rpc() -> void:
-	cleanup()
-	queue_free()
-
-
-func _load_room_config_from_globals() -> void:
-	var root := get_tree().root if get_tree() != null else null
-	if root == null:
-		return
-	var glb := root.get_node_or_null("Globals")
-	if glb == null:
-		return
-	var gs = glb.get("game_settings")
-	if gs is Dictionary and gs.has("roller_carnival") and gs["roller_carnival"] is Dictionary:
-		config.apply_dict(gs["roller_carnival"])
-
-
-func _save_room_config_to_globals() -> void:
-	var root := get_tree().root if get_tree() != null else null
-	if root == null:
-		return
-	var glb := root.get_node_or_null("Globals")
-	if glb == null:
-		return
-	var gs = glb.get("game_settings")
-	if gs is Dictionary:
-		gs["roller_carnival"] = config.to_dict()
-		if glb.has_method("save_game_settings"):
-			glb.call("save_game_settings")
 
 
 func _load_dependencies() -> void:
@@ -328,43 +209,27 @@ func _start_new_round() -> void:
 
 	_elapsed = 0.0
 	_time_left = config.round_duration
+	_wave_remaining = 0
 	_spawn_timer = 0.75
 	_last_roller_type = ""
 	_same_type_streak = 0
 	_next_roller_id = 1
 	_match_ended = false
-	_awaiting_room_setup = false
-	_end_reason = ""
+	_snapshot_timer = 0.0
 
 	if _results_panel != null:
 		_results_panel.visible = false
-	if _room_setup_panel != null:
-		_room_setup_panel.visible = false
-	if _hint_panel != null:
-		_hint_panel.visible = true
-		_hint_panel.modulate.a = 1.0
 
 	if _meshes != null:
 		_meshes.update_starting_line(_scene_props, config)
 	_spawn_players()
-	_update_hud_labels()
 
 
 func _resolve_roster_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	var pm := get_tree().root.get_node_or_null("PlayerManager") if get_tree() != null else null
-	if _hosted_in_official_game and pm != null and pm.get("player_presences") is Dictionary:
-		var presences: Dictionary = pm.get("player_presences")
-		var keys: Array = presences.keys()
-		keys.sort()
-		for idx in range(mini(keys.size(), 16)):
-			var nid: int = int(keys[idx])
-			var pres = presences[keys[idx]]
-			var nname: String = str(pres.get("network_name")) if pres != null else _meshes.PLAYER_NAMES[idx % _meshes.PLAYER_NAMES.size()]
-			if nname.is_empty():
-				nname = _meshes.PLAYER_NAMES[idx % _meshes.PLAYER_NAMES.size()]
-			entries.append({"id": idx, "network_id": nid, "nickname": nname})
-	if entries.is_empty():
+	if _hosted_in_official_game:
+		entries.assign(_roster)
+	else:
 		var count: int = clampi(config.max_players, 1, 16)
 		for i in range(count):
 			entries.append({
@@ -394,9 +259,6 @@ func _spawn_players() -> void:
 		pnode.scale = Vector3.ONE * char_scale
 		_players_layer.add_child(pnode)
 
-		if not _session_scores.has(nid):
-			_session_scores[nid] = 0
-
 		_players.append({
 			"id": i,
 			"network_id": nid,
@@ -414,6 +276,9 @@ func _spawn_players() -> void:
 			"dodges": 0,
 			"survival_time": 0.0,
 			"crouching": false,
+			"crouch_remaining": 0.0,
+			"crouch_ready_in": 0.0,
+			"ai_held": 0,
 			"jumping": false,
 			"jump_timer": 0.0,
 			"recovery_timer": 0.0,
@@ -433,52 +298,37 @@ func _process(delta: float) -> void:
 	if _is_self_test:
 		return
 
-	if not _screenshot_path.is_empty():
-		_animate_environment(delta)
-		_screenshot_ticks += 1
-		if _screenshot_ticks >= 4:
-			var img: Image = get_viewport().get_texture().get_image()
-			var dir_path := _screenshot_path.get_base_dir()
-			DirAccess.make_dir_recursive_absolute(dir_path)
-			img.save_png(_screenshot_path)
-			print("SCREENSHOT_SAVED=" + _screenshot_path)
-			get_tree().quit(0)
-		return
 
 	_animate_environment(delta)
 	_update_particles(delta)
 	_update_popups(delta)
 
-	if _awaiting_room_setup or _match_ended or _players.is_empty():
+	if _match_ended or _players.is_empty():
+		return
+
+	if _countdown > 0:
+		_countdown = maxf(0, _countdown - delta)
+		_countdown_label.text = str(ceili(_countdown))
+		_countdown_label.visible = _countdown > 0
+		return
+
+	if _hosted_in_official_game and not multiplayer.is_server():
+		_step_rollers(delta)
 		return
 
 	_elapsed += delta
 	_time_left = maxf(0.0, _time_left - delta)
 
-	# Fade out opening control hint after 4.5s
-	if _elapsed < 3.5:
-		_hint_panel.modulate.a = 1.0
-	elif _elapsed < 4.8:
-		_hint_panel.modulate.a = clampf(1.0 - (_elapsed - 3.5) / 1.3, 0.0, 1.0)
-	else:
-		_hint_panel.visible = false
-
 	_step_spawner(delta)
 	_step_players(delta)
 	_step_rollers(delta)
 	_resolve_player_spacing(delta)
-	_update_hud_labels()
-	_check_round_end()
-
-
-func _unhandled_input(event: InputEvent) -> void:
 	if _hosted_in_official_game:
-		return
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_R and not _awaiting_room_setup:
-			_start_new_round()
-		elif event.keycode == KEY_C and (_match_ended or _awaiting_room_setup):
-			_open_room_creation_setup()
+		_snapshot_timer -= delta
+		if _snapshot_timer <= 0:
+			_snapshot_timer = 0.05
+			_send_snapshot()
+	_check_round_end()
 
 
 func _animate_environment(delta: float) -> void:
@@ -529,11 +379,11 @@ func _step_spawner(delta: float) -> void:
 	if _spawn_timer > 0.0:
 		return
 
-	var r_type: String = _pick_next_roller_type()
-	_spawn_roller(r_type, config.roller_spawn_x)
-
-	var rng_range: Vector2 = config.interval_range_at_progress(_current_progress())
-	_spawn_timer = _rng.randf_range(rng_range.x, rng_range.y)
+	if _wave_remaining == 0:
+		_wave_remaining = config.wave_size(_elapsed)
+	_spawn_roller(_pick_next_roller_type(), config.roller_spawn_x)
+	_wave_remaining -= 1
+	_spawn_timer = config.spawn_interval(_elapsed, _wave_remaining > 0, _rng)
 
 
 func _pick_next_roller_type() -> String:
@@ -579,11 +429,100 @@ func _spawn_roller(roller_type: String, spawn_x: float) -> Dictionary:
 	return roller
 
 
-func _is_key_group_pressed(key_codes: Array[int]) -> bool:
-	for code in key_codes:
-		if Input.is_key_pressed(code):
-			return true
-	return false
+func _input(event: InputEvent) -> void:
+	var action: int
+	var control: Vector2i
+	if event is InputEventKey:
+		if event.echo:
+			return
+		match event.keycode:
+			KEY_S, KEY_DOWN: action = 1
+			KEY_SPACE: action = 2
+			_: return
+		control = Vector2i(-1, event.keycode)
+	elif event is InputEventJoypadButton:
+		match event.button_index:
+			JOY_BUTTON_B: action = 1
+			JOY_BUTTON_A: action = 2
+			_: return
+		control = Vector2i(event.device, event.button_index)
+	else:
+		return
+
+	if not event.is_pressed():
+		_release_control(control)
+		return
+	var already_held := action in _held_controls.values()
+	_held_controls[control] = action
+	if not already_held:
+		_dispatch_action(action)
+
+
+func _release_control(control: Vector2i) -> void:
+	var was_crouch := int(_held_controls.get(control, 0)) == 1
+	_held_controls.erase(control)
+	if was_crouch and not 1 in _held_controls.values():
+		_dispatch_action(RELEASE_CROUCH)
+
+
+func _dispatch_action(action: int) -> void:
+	if _countdown > 0 or _match_ended or _players.is_empty():
+		return
+	if _hosted_in_official_game and not multiplayer.is_server():
+		submit_action.rpc_id(1, action)
+	else:
+		var peer := multiplayer.get_unique_id() if _hosted_in_official_game else 1
+		_apply_input(peer, action)
+
+
+func _on_joy_connection_changed(device: int, connected: bool) -> void:
+	if not connected:
+		for control in _held_controls.keys():
+			if control.x == device:
+				_release_control(control)
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		for control in _held_controls.keys():
+			_release_control(control)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func submit_action(pressed: int) -> void:
+	if multiplayer.is_server() and _countdown <= 0 and not _match_ended:
+		_apply_input(multiplayer.get_remote_sender_id(), pressed)
+
+
+func _apply_input(peer: int, pressed: int) -> void:
+	for p in _players:
+		if p.network_id == peer:
+			_begin_action(p, pressed)
+			return
+
+
+func _begin_action(p: Dictionary, pressed: int) -> void:
+	if pressed == RELEASE_CROUCH:
+		if p.crouching:
+			p.crouching = false
+			p.crouch_remaining = 0.0
+			p.crouch_ready_in = config.crouch_recovery
+		return
+	if not p.alive or p.jumping or p.crouch_ready_in > 0 or p.recovery_timer > 0:
+		return
+	if pressed & 2:
+		p.jumping = true
+		p.jump_timer = 0.0
+	elif pressed & 1:
+		p.crouching = true
+		p.crouch_remaining = config.crouch_duration
+		p.crouch_ready_in = config.crouch_duration + config.crouch_recovery
+
+
+func _tick_crouch(p: Dictionary, delta: float) -> void:
+	p.crouch_remaining = maxf(0.0, p.crouch_remaining - delta)
+	p.crouch_ready_in = maxf(0.0, p.crouch_ready_in - delta)
+	p.crouching = p.crouch_remaining > 0
 
 
 func _step_players(delta: float) -> void:
@@ -609,18 +548,12 @@ func _step_players(delta: float) -> void:
 			p["knockback_remaining"] = float(p["knockback_remaining"]) - dx
 			p["knockback_timer"] = float(p["knockback_timer"]) - step_t
 
-		# Determine player input (P1 = keyboard, P2..8 = autonomous party AI)
-		var want_crouch: bool = false
-		var want_jump: bool = false
-		if int(p["id"]) == 0:
-			want_crouch = _is_key_group_pressed(config.crouch_key_codes)
-			want_jump = _is_key_group_pressed(config.jump_key_codes)
-		else:
-			var ai_act: Dictionary = _compute_ai_action(p)
-			want_crouch = ai_act["crouch"]
-			want_jump = ai_act["jump"]
-
-		# Jump / crouch state machine
+		if not _hosted_in_official_game and int(p["id"]) > 0:
+			var ai := _compute_ai_action(p)
+			var held := int(ai.crouch) | (int(ai.jump) << 1)
+			_begin_action(p, held & ~int(p.ai_held))
+			p.ai_held = held
+		_tick_crouch(p, delta)
 		if bool(p["jumping"]):
 			p["jump_timer"] = float(p["jump_timer"]) + delta
 			var t: float = float(p["jump_timer"]) / maxf(0.1, config.jump_air_time)
@@ -634,13 +567,6 @@ func _step_players(delta: float) -> void:
 			p["crouching"] = false
 		else:
 			p["y"] = 0.0
-			if want_jump and float(p["recovery_timer"]) <= 0.0:
-				p["jumping"] = true
-				p["jump_timer"] = 0.0
-				p["crouching"] = false
-			else:
-				p["crouching"] = want_crouch
-
 		# Check lava elimination boundary
 		if float(p["x"]) <= config.stage_left_lava_x:
 			_eliminate_player(p)
@@ -715,7 +641,6 @@ func _update_player_visuals(p: Dictionary) -> void:
 	shadow.scale = Vector3(shadow_scale, 1.0, shadow_scale)
 
 	lbl.position.y = (1.35 if bool(p["crouching"]) else 1.88) + float(p["y"])
-	lbl.text = "%s (%d)" % [str(p["nickname"]), int(p["dodges"])]
 
 
 func _resolve_player_spacing(_delta: float) -> void:
@@ -735,6 +660,59 @@ func _resolve_player_spacing(_delta: float) -> void:
 				_players[j]["z"] = clampf(float(_players[j]["z"]) - sign_z * push_z, -3.85, 3.85)
 
 
+# Only the host evaluates collisions. Each packet contains all visible rollers
+# so a lost spawn or removal is repaired by the next packet.
+func _send_snapshot() -> void:
+	var poses := PackedFloat32Array()
+	for p in _players:
+		poses.append_array(PackedFloat32Array([p.x, p.y, int(p.crouching), int(p.jumping),
+			int(p.alive), p.dodges, p.hit_flash, p.sink_progress]))
+	var rollers := PackedFloat32Array()
+	for r in _rollers:
+		rollers.append_array(PackedFloat32Array([r.id, int(r.type == "gold"), r.x]))
+	_show_snapshot.rpc(_elapsed, poses, rollers)
+
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func _show_snapshot(elapsed: float, poses: PackedFloat32Array, rollers: PackedFloat32Array) -> void:
+	if _match_ended or poses.size() != _players.size() * 8:
+		return
+	_elapsed = elapsed
+	_time_left = maxf(0, config.round_duration - elapsed)
+	for i in range(_players.size()):
+		var p := _players[i]
+		var offset := i * 8
+		p.x = poses[offset]
+		p.y = poses[offset + 1]
+		p.crouching = bool(poses[offset + 2])
+		p.jumping = bool(poses[offset + 3])
+		if p.alive and not bool(poses[offset + 4]):
+			_eliminate_player(p)
+		p.dodges = int(poses[offset + 5])
+		p.hit_flash = poses[offset + 6]
+		_update_player_visuals(p)
+		if not p.alive:
+			p.node.position.y = -poses[offset + 7] * 1.6
+			p.node.rotation_degrees.z = poses[offset + 7] * 48.0
+	var existing := {}
+	for r in _rollers:
+		existing[r.id] = r
+	for offset in range(0, rollers.size(), 3):
+		var id := int(rollers[offset])
+		var r: Dictionary
+		if existing.has(id):
+			r = existing[id]
+			existing.erase(id)
+		else:
+			r = _spawn_roller("gold" if rollers[offset + 1] else "silver", rollers[offset + 2])
+			r.id = id
+		r.x = rollers[offset + 2]
+		r.node.position.x = r.x
+	for r in existing.values():
+		_rollers.erase(r)
+		r.node.queue_free()
+
+
 func _step_rollers(delta: float) -> void:
 	var speed: float = _current_roller_speed()
 	var to_remove: Array[int] = []
@@ -747,7 +725,8 @@ func _step_rollers(delta: float) -> void:
 		var spin: Node3D = r["spin"]
 		spin.rotation.z += (speed * delta) / maxf(0.1, float(r["radius"]))
 
-		_evaluate_roller_interactions(r)
+		if not _hosted_in_official_game or multiplayer.is_server():
+			_evaluate_roller_interactions(r)
 
 		if float(r["x"]) < config.roller_despawn_x:
 			to_remove.append(idx)
@@ -966,7 +945,7 @@ func _compute_rankings() -> Array[Dictionary]:
 			rank = prev_rank
 		prev_dodges = d
 		prev_rank = rank
-		var bonus: int = config.bonus_for_rank(rank, d)
+		var bonus: int = config.bonus_for_rank(rank, sorted.size())
 		entries.append({
 			"rank": rank,
 			"id": int(p["id"]),
@@ -985,25 +964,28 @@ func _finish_round(reason: String) -> void:
 	if _match_ended:
 		return
 	_match_ended = true
-	_end_reason = reason
 
 	var rankings: Array[Dictionary] = _compute_rankings()
 	var finalized_scores: Dictionary = {}
 	for r in rankings:
 		var nid: int = int(r["network_id"])
 		var bonus: int = int(r["bonus"])
-		_session_scores[nid] = int(_session_scores.get(nid, 0)) + bonus
-		r["total_score"] = int(_session_scores[nid])
 		finalized_scores[nid] = bonus
 
-	player_scores_finalized.emit(finalized_scores)
-
+	if _hosted_in_official_game and not _is_self_test:
+		show_round_result.rpc(rankings, reason)
+	else:
+		show_round_result(rankings, reason)
 	if _hosted_in_official_game:
-		if multiplayer == null or not multiplayer.has_multiplayer_peer() or multiplayer.is_server():
-			minigame_finished.emit(1)
-		return
+		round_finished.emit(finalized_scores)
 
-	_populate_results_ui(rankings)
+
+@rpc("authority", "call_local", "reliable")
+func show_round_result(rankings: Array, reason: String) -> void:
+	_match_ended = true
+	_countdown_label.hide()
+	if not _hosted_in_official_game:
+		_populate_results_ui(rankings, reason)
 
 
 func _build_ui() -> void:
@@ -1022,71 +1004,16 @@ func _build_ui() -> void:
 	root_ctrl.theme = hud_theme
 	_ui_layer.add_child(root_ctrl)
 
-	# --- Top Bar: Countdown Timer + Speed + Controls ---
-	var top_bar := HBoxContainer.new()
-	top_bar.anchor_left = 0.0
-	top_bar.anchor_right = 1.0
-	top_bar.offset_left = 20.0
-	top_bar.offset_right = -20.0
-	top_bar.offset_top = 14.0
-	top_bar.offset_bottom = 66.0
-	root_ctrl.add_child(top_bar)
+	_countdown_label = Label.new()
+	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_countdown_label.add_theme_font_size_override("font_size", 48)
+	root_ctrl.add_child(_countdown_label)
+	_countdown_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_countdown_label.hide()
 
-	var left_badge := _make_panel_box(Color(0.11, 0.08, 0.14, 0.85))
-	top_bar.add_child(left_badge)
-	_speed_label = Label.new()
-	_speed_label.text = "機械嘉年華 · 速度 x1.00"
-	_speed_label.add_theme_font_size_override("font_size", 18)
-	_speed_label.add_theme_color_override("font_color", Color(0.98, 0.82, 0.45))
-	left_badge.add_child(_speed_label)
-
-	var sp1 := Control.new()
-	sp1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_bar.add_child(sp1)
-
-	var timer_box := _make_panel_box(Color(0.18, 0.08, 0.10, 0.92))
-	top_bar.add_child(timer_box)
-	_timer_label = Label.new()
-	_timer_label.text = "50.0s"
-	_timer_label.add_theme_font_size_override("font_size", 32)
-	_timer_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.65))
-	timer_box.add_child(_timer_label)
-
-	var sp2 := Control.new()
-	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top_bar.add_child(sp2)
-
-	var btn_box := HBoxContainer.new()
-	btn_box.add_theme_constant_override("separation", 8)
-	btn_box.visible = not _hosted_in_official_game
-	top_bar.add_child(btn_box)
-
-	var room_btn := Button.new()
-	room_btn.text = "開房參數 [C]"
-	room_btn.pressed.connect(_open_room_creation_setup)
-	btn_box.add_child(room_btn)
-
-	var restart_btn := Button.new()
-	restart_btn.text = "重開 [R]"
-	restart_btn.pressed.connect(_start_new_round)
-	btn_box.add_child(restart_btn)
-
-	# --- Opening Controls Hint Banner ---
-	_hint_panel = _make_panel_box(Color(0.12, 0.09, 0.15, 0.88))
-	_hint_panel.anchor_left = 0.5
-	_hint_panel.anchor_right = 0.5
-	_hint_panel.offset_left = -310.0
-	_hint_panel.offset_right = 310.0
-	_hint_panel.offset_top = 82.0
-	_hint_panel.offset_bottom = 128.0
-	root_ctrl.add_child(_hint_panel)
-
-	var hint_lbl := Label.new()
-	hint_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint_lbl.text = "按 [S] 下蹲躲避金色高滾筒   ·   按 [空白鍵] 跳躍躲避銀色低滾筒"
-	hint_lbl.add_theme_font_size_override("font_size", 19)
-	hint_lbl.add_theme_color_override("font_color", Color(1.0, 0.95, 0.82))
-	_hint_panel.add_child(hint_lbl)
+	if _hosted_in_official_game:
+		return
 
 	# --- End-of-Round Settlement Overlay ---
 	_results_panel = _make_panel_box(Color(0.10, 0.07, 0.13, 0.95))
@@ -1128,24 +1055,6 @@ func _build_ui() -> void:
 	_results_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	r_scroll.add_child(_results_rows)
 
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
-	r_vbox.add_child(btn_row)
-
-	var again_btn := Button.new()
-	again_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	again_btn.text = "進入下一局 [R]"
-	again_btn.pressed.connect(_start_new_round)
-	btn_row.add_child(again_btn)
-
-	var rehost_btn := Button.new()
-	rehost_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rehost_btn.text = "返回創建房間調參 [C]"
-	rehost_btn.pressed.connect(_open_room_creation_setup)
-	btn_row.add_child(rehost_btn)
-
-	# --- Room-Creation Unified Parameter Setup Overlay ---
-	_build_room_setup_panel(root_ctrl)
 
 
 func _make_panel_box(bg: Color) -> PanelContainer:
@@ -1166,22 +1075,12 @@ func _make_panel_box(bg: Color) -> PanelContainer:
 	return panel
 
 
-func _update_hud_labels() -> void:
-	_timer_label.text = "%.1fs" % _time_left
-	var ratio: float = _current_roller_speed() / maxf(0.1, config.roller_initial_speed)
-	var alive_cnt: int = 0
-	for p in _players:
-		if bool(p["alive"]):
-			alive_cnt += 1
-	_speed_label.text = "機械嘉年華 · 存活 %d/%d · 速度 x%.2f" % [alive_cnt, _players.size(), ratio]
-
-
-func _populate_results_ui(rankings: Array[Dictionary]) -> void:
+func _populate_results_ui(rankings: Array, reason: String) -> void:
 	for child in _results_rows.get_children():
 		child.queue_free()
 
-	_results_title.text = "本局結算 & 玩家總分總覽"
-	_results_subtitle.text = _end_reason
+	_results_title.text = "本局排名"
+	_results_subtitle.text = reason
 	for r in rankings:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
@@ -1208,7 +1107,7 @@ func _populate_results_ui(rankings: Array[Dictionary]) -> void:
 		var bn := Label.new()
 		bn.custom_minimum_size.x = 155
 		bn.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		bn.text = "+%d  (總分 %d)" % [int(r["bonus"]), int(r["total_score"])]
+		bn.text = "原始分 +%d" % int(r["bonus"])
 		bn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
 		bn.add_theme_font_size_override("font_size", 17)
 		row.add_child(bn)
@@ -1216,303 +1115,6 @@ func _populate_results_ui(rankings: Array[Dictionary]) -> void:
 		_results_rows.add_child(row)
 
 	_results_panel.visible = true
-
-
-const PLAYER_PRESET_COUNTS := [4, 8, 12, 16]
-const PACE_PRESET_KEYS := ["casual", "standard", "frantic"]
-const DURATION_PRESET_KEYS := ["short", "standard", "long"]
-const SPAWN_PRESET_KEYS := ["safe", "standard", "extreme"]
-const KNOCKBACK_PRESET_KEYS := ["light", "standard", "heavy"]
-
-
-func _add_preset_option_row(grid: GridContainer, label_text: String, items: Array[String]) -> OptionButton:
-	var lbl := Label.new()
-	lbl.text = label_text
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.add_theme_font_size_override("font_size", 15)
-	grid.add_child(lbl)
-
-	var opt := OptionButton.new()
-	opt.custom_minimum_size = Vector2(300, 34)
-	for item_text in items:
-		opt.add_item(item_text)
-	opt.item_selected.connect(_on_pummel_preset_selected)
-	grid.add_child(opt)
-	return opt
-
-
-func _build_room_setup_panel(parent_ctrl: Control) -> void:
-	_room_setup_panel = _make_panel_box(Color(0.08, 0.06, 0.12, 0.96))
-	_room_setup_panel.anchor_left = 0.5
-	_room_setup_panel.anchor_right = 0.5
-	_room_setup_panel.anchor_top = 0.5
-	_room_setup_panel.anchor_bottom = 0.5
-	_room_setup_panel.offset_left = -390.0
-	_room_setup_panel.offset_right = 390.0
-	_room_setup_panel.offset_top = -270.0
-	_room_setup_panel.offset_bottom = 265.0
-	_room_setup_panel.visible = false
-	parent_ctrl.add_child(_room_setup_panel)
-
-	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 10)
-	_room_setup_panel.add_child(vb)
-
-	var title := Label.new()
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.text = "創建房間 · 滾筒嘉年華派對設定"
-	title.add_theme_font_size_override("font_size", 23)
-	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.36))
-	vb.add_child(title)
-
-	var sub := Label.new()
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.text = "《揍擊派對》風格快速開房（支援 1–16 人同屏）· 開局後自動鎖定並同步全員"
-	sub.add_theme_font_size_override("font_size", 13)
-	sub.add_theme_color_override("font_color", Color(0.84, 0.80, 0.88))
-	vb.add_child(sub)
-
-	var preset_grid := GridContainer.new()
-	preset_grid.columns = 2
-	preset_grid.add_theme_constant_override("h_separation", 18)
-	preset_grid.add_theme_constant_override("v_separation", 8)
-	vb.add_child(preset_grid)
-
-	_preset_players_opt = _add_preset_option_row(preset_grid, "1. 同屏玩家人數", ["4 人 (經典四排)", "8 人 (派對標準)", "12 人 (大型同屏)", "16 人 (極限滿場)"])
-	_preset_pace_opt = _add_preset_option_row(preset_grid, "2. 滾筒節奏 (難度)", ["休閒 (慢速熱身)", "標準 (推薦)", "狂暴 (高速刺激)"])
-	_preset_duration_opt = _add_preset_option_row(preset_grid, "3. 單局時長", ["30 秒 (快節奏)", "50 秒 (標準)", "80 秒 (持久戰)"])
-	_preset_spawn_opt = _add_preset_option_row(preset_grid, "4. 起跑線位置 (容錯度)", ["靠前安全 (遠離岩漿・高容錯)", "標準中央 (平衡)", "極限貼邊 (靠近岩漿・高刺激)"])
-	_preset_knockback_opt = _add_preset_option_row(preset_grid, "5. 撞擊推擠力道", ["輕推 (0.85 身位)", "標準 (1 身位)", "重擊飛退 (1.5+ 身位)"])
-
-	_adv_toggle_btn = Button.new()
-	_adv_toggle_btn.text = "▶ 展開進階微調參數 (速度/高度/加分表)"
-	_adv_toggle_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_adv_toggle_btn.pressed.connect(func() -> void:
-		if _adv_container == null:
-			return
-		_adv_container.visible = not _adv_container.visible
-		_adv_toggle_btn.text = "▼ 收起進階微調參數" if _adv_container.visible else "▶ 展開進階微調參數 (速度/高度/加分表)"
-	)
-	vb.add_child(_adv_toggle_btn)
-
-	_adv_container = VBoxContainer.new()
-	_adv_container.visible = false
-	_adv_container.add_theme_constant_override("separation", 6)
-	vb.add_child(_adv_container)
-
-	var adv_scroll := ScrollContainer.new()
-	adv_scroll.custom_minimum_size = Vector2(720, 175)
-	adv_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_adv_container.add_child(adv_scroll)
-
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 22)
-	grid.add_theme_constant_override("v_separation", 6)
-	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	adv_scroll.add_child(grid)
-
-	var fields := [
-		["round_duration", "單局時長 (秒)"],
-		["max_players", "玩家人數 (1-16)"],
-		["player_spawn_x", "初始起跑線 X 座標 (-3.5~6.5)"],
-		["roller_initial_speed", "滾筒初始速度"],
-		["roller_max_speed", "局末最大速度"],
-		["spawn_interval_min", "最小生成間隔 (秒)"],
-		["spawn_interval_max", "最大生成間隔 (秒)"],
-		["knockback_distance", "推擠距離 (身位)"],
-		["knockback_cooldown", "推擠冷卻 (秒)"],
-		["jump_height", "跳躍高度"],
-		["jump_air_time", "跳躍滯空 (秒)"],
-		["crouch_height", "下蹲判定高度"],
-		["gold_roller_probability", "金色高滾筒機率 (0-1)"],
-		["linear_points_per_dodge", "每躲避線性加分"],
-		["rank_bonus_points", "1-8名加分檔位"],
-	]
-	for pair in fields:
-		var row := HBoxContainer.new()
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var lbl := Label.new()
-		lbl.text = pair[1]
-		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lbl.add_theme_font_size_override("font_size", 13)
-		row.add_child(lbl)
-		var edit := LineEdit.new()
-		edit.custom_minimum_size.x = 135
-		row.add_child(edit)
-		grid.add_child(row)
-		_room_setup_inputs[pair[0]] = edit
-
-	var mode_row := HBoxContainer.new()
-	mode_row.add_theme_constant_override("separation", 18)
-	_adv_container.add_child(mode_row)
-
-	var curve_lbl := Label.new()
-	curve_lbl.text = "加速曲線:"
-	mode_row.add_child(curve_lbl)
-	_curve_option = OptionButton.new()
-	_curve_option.add_item("linear (線性遞增)")
-	_curve_option.add_item("exponential (指數加速)")
-	_curve_option.add_item("stepped (分段提速)")
-	mode_row.add_child(_curve_option)
-
-	var tie_lbl := Label.new()
-	tie_lbl.text = "並列規則:"
-	mode_row.add_child(tie_lbl)
-	_tie_option = OptionButton.new()
-	_tie_option.add_item("shared_rank (同躲避並列)")
-	_tie_option.add_item("survival_time (按存活時長)")
-	mode_row.add_child(_tie_option)
-
-	var action_row := HBoxContainer.new()
-	action_row.add_theme_constant_override("separation", 12)
-	vb.add_child(action_row)
-
-	var reset_btn := Button.new()
-	reset_btn.text = "恢復預設值"
-	reset_btn.custom_minimum_size = Vector2(150, 40)
-	reset_btn.pressed.connect(_reset_room_setup_defaults)
-	action_row.add_child(reset_btn)
-
-	var start_btn := Button.new()
-	start_btn.text = "鎖定房間參數並開始對局"
-	start_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	start_btn.custom_minimum_size.y = 40
-	start_btn.pressed.connect(_confirm_room_setup)
-	action_row.add_child(start_btn)
-
-
-func _on_pummel_preset_selected(_idx: int) -> void:
-	if _preset_players_opt == null or _preset_pace_opt == null:
-		return
-	var p_cnt: int = PLAYER_PRESET_COUNTS[clampi(_preset_players_opt.selected, 0, PLAYER_PRESET_COUNTS.size() - 1)]
-	var pace_k: String = PACE_PRESET_KEYS[clampi(_preset_pace_opt.selected, 0, PACE_PRESET_KEYS.size() - 1)]
-	var dur_k: String = DURATION_PRESET_KEYS[clampi(_preset_duration_opt.selected, 0, DURATION_PRESET_KEYS.size() - 1)]
-	var spawn_k: String = SPAWN_PRESET_KEYS[clampi(_preset_spawn_opt.selected, 0, SPAWN_PRESET_KEYS.size() - 1)]
-	var kb_k: String = KNOCKBACK_PRESET_KEYS[clampi(_preset_knockback_opt.selected, 0, KNOCKBACK_PRESET_KEYS.size() - 1)]
-
-	config.max_players = p_cnt
-	config.apply_pummel_presets(pace_k, dur_k, spawn_k, kb_k)
-	_apply_dict_to_room_setup_ui(config.to_dict(), false)
-
-
-func _select_player_count_option(mp: int) -> int:
-	if mp <= 4:
-		return 0
-	if mp <= 8:
-		return 1
-	if mp <= 12:
-		return 2
-	return 3
-
-
-func _apply_dict_to_room_setup_ui(d: Dictionary, sync_presets: bool = true) -> void:
-	if sync_presets and _preset_players_opt != null:
-		_preset_players_opt.selected = _select_player_count_option(int(d.get("max_players", 8)))
-		_preset_pace_opt.selected = maxi(0, PACE_PRESET_KEYS.find(str(d.get("preset_pace", "standard"))))
-		_preset_duration_opt.selected = maxi(0, DURATION_PRESET_KEYS.find(str(d.get("preset_duration", "standard"))))
-		_preset_spawn_opt.selected = maxi(0, SPAWN_PRESET_KEYS.find(str(d.get("preset_spawn", "standard"))))
-		_preset_knockback_opt.selected = maxi(0, KNOCKBACK_PRESET_KEYS.find(str(d.get("preset_knockback", "standard"))))
-
-	for k in _room_setup_inputs:
-		if k == "rank_bonus_points":
-			var pts: Array = d.get("rank_bonus_points", [])
-			var strs: PackedStringArray = PackedStringArray()
-			for v in pts:
-				strs.append(str(v))
-			(_room_setup_inputs[k] as LineEdit).text = ",".join(strs)
-		else:
-			(_room_setup_inputs[k] as LineEdit).text = str(d.get(k, ""))
-
-	if _curve_option != null:
-		var cm := str(d.get("speed_curve_mode", "linear"))
-		_curve_option.selected = 1 if cm == "exponential" else (2 if cm == "stepped" else 0)
-	if _tie_option != null:
-		var tr := str(d.get("tie_break_rule", "shared_rank"))
-		_tie_option.selected = 1 if tr == "survival_time" else 0
-
-
-func _reset_room_setup_defaults() -> void:
-	var base_dir: String = get_script().get_path().get_base_dir()
-	var cfg_script = load(base_dir.path_join("config.gd"))
-	if cfg_script == null:
-		return
-	var fresh_cfg = cfg_script.new()
-	_apply_dict_to_room_setup_ui(fresh_cfg.to_dict())
-
-
-func _open_room_creation_setup() -> void:
-	_awaiting_room_setup = true
-	if _results_panel != null:
-		_results_panel.visible = false
-	if _hint_panel != null:
-		_hint_panel.visible = false
-	_load_room_config_from_globals()
-	_apply_dict_to_room_setup_ui(config.to_dict())
-	_room_setup_panel.visible = true
-
-
-func _confirm_room_setup() -> void:
-	var updated := {}
-	for k in _room_setup_inputs:
-		updated[k] = (_room_setup_inputs[k] as LineEdit).text
-	if _curve_option != null:
-		var modes := ["linear", "exponential", "stepped"]
-		updated["speed_curve_mode"] = modes[clampi(_curve_option.selected, 0, modes.size() - 1)]
-	if _tie_option != null:
-		var rules := ["shared_rank", "survival_time"]
-		updated["tie_break_rule"] = rules[clampi(_tie_option.selected, 0, rules.size() - 1)]
-	if _preset_pace_opt != null:
-		updated["preset_pace"] = PACE_PRESET_KEYS[clampi(_preset_pace_opt.selected, 0, PACE_PRESET_KEYS.size() - 1)]
-		updated["preset_duration"] = DURATION_PRESET_KEYS[clampi(_preset_duration_opt.selected, 0, DURATION_PRESET_KEYS.size() - 1)]
-		updated["preset_spawn"] = SPAWN_PRESET_KEYS[clampi(_preset_spawn_opt.selected, 0, SPAWN_PRESET_KEYS.size() - 1)]
-		updated["preset_knockback"] = KNOCKBACK_PRESET_KEYS[clampi(_preset_knockback_opt.selected, 0, KNOCKBACK_PRESET_KEYS.size() - 1)]
-
-	config.apply_dict(updated)
-	_save_room_config_to_globals()
-	_session_scores.clear()
-	_room_setup_panel.visible = false
-	_start_new_round()
-
-
-func _setup_screenshot_showcase() -> void:
-	_elapsed = 8.5
-	_time_left = 41.5
-	_hint_panel.visible = true
-	_hint_panel.modulate.a = 1.0
-
-	# Option A: unhit players stand aligned on the exact starting line (player_spawn_x),
-	# while players who took hits visibly step left toward the lava pit (supports up to 16 players).
-	for idx in range(_players.size()):
-		var p: Dictionary = _players[idx]
-		p["x"] = config.player_spawn_x
-		p["dodges"] = 3 + ((idx * 3) % 5)
-		if idx == _players.size() - 1 and _players.size() >= 4:
-			p["x"] = config.stage_left_lava_x - 0.55
-			_eliminate_player(p)
-			p["dodges"] = 1
-			p["sink_progress"] = 0.28
-			var pnode := p["node"] as Node3D
-			pnode.position = Vector3(float(p["x"]), -0.42, float(p["z"]))
-			pnode.rotation_degrees.z = 18.0
-		elif idx == 2 or idx == 10:
-			p["x"] = config.player_spawn_x - config.knockback_distance
-		elif idx == 5 or idx == 13:
-			p["x"] = config.player_spawn_x - config.knockback_distance * 2.8
-		elif idx % 4 == 0:
-			p["crouching"] = true
-		elif idx % 4 == 1:
-			p["jumping"] = true
-			p["y"] = 1.35
-
-	for p in _players:
-		if p["alive"]:
-			_update_player_visuals(p)
-
-	_spawn_roller("gold", 2.9)
-	_spawn_roller("silver", 7.4)
-	_spawn_impact_decal(Vector3(-3.3, 0.02, -0.4))
-	_update_hud_labels()
 
 
 var _tests_failed: bool = false
@@ -1525,6 +1127,46 @@ func _assert_true(cond: bool, msg: String) -> bool:
 		get_tree().quit(1)
 		return false
 	return true
+
+
+func _test_wave_pacing() -> bool:
+	_start_new_round()
+	_players.clear() # Follow an unobstructed lane for a full round.
+	_rng.seed = 451
+	const STEP := 1.0 / 60.0
+	var early_double_frames := 0
+	var late_double_frames := 0
+	var late_triple_frames := 0
+	var previous_arrival := -10.0
+	var minimum_gap := INF
+	var camera := get_viewport().get_camera_3d()
+	for frame in range(3000):
+		_elapsed = (frame + 1) * STEP
+		_step_spawner(STEP)
+		_step_rollers(STEP)
+		var visible_rollers := 0
+		var approaching := 0
+		for roller in _rollers:
+			if camera.is_position_in_frustum(Vector3(roller.x, 1, 0)):
+				visible_rollers += 1
+				if roller.x >= config.player_spawn_x:
+					approaching += 1
+			if roller.x < config.player_spawn_x and not roller.has("arrival_measured"):
+				minimum_gap = minf(minimum_gap, _elapsed - previous_arrival)
+				previous_arrival = _elapsed
+				roller.arrival_measured = true
+		if _elapsed <= 10 and approaching >= 2:
+			early_double_frames += 1
+		if _elapsed > 40 and visible_rollers >= 2:
+			late_double_frames += 1
+			if visible_rollers >= 3:
+				late_triple_frames += 1
+	for x in [config.stage_left_lava_x, config.player_spawn_x]:
+		for z in [-3.75, 3.75]:
+			if not _assert_true(camera.is_position_in_frustum(Vector3(x, 1.32, z)), "Players must stay visible up to the lava edge"):
+				return false
+	print("WAVE_PACING early double frames=%d/600, late doubles=%d/600, late triples=%d/600, min arrival gap=%.3f" % [early_double_frames, late_double_frames, late_triple_frames, minimum_gap])
+	return _assert_true(early_double_frames == 0 and late_double_frames > 300 and late_triple_frames >= 15 and minimum_gap >= config.safe_interval_floor(), "Late waves must be readable and allow consecutive jumps")
 
 
 func _run_self_tests() -> void:
@@ -1540,7 +1182,7 @@ func _run_self_tests() -> void:
 		if i > 0 and not _assert_true(float(_players[i]["z"]) > float(_players[i - 1]["z"]), "Players must be strictly separated along Z lanes"):
 			return
 
-	config.apply_dict({"player_spawn_x": 2.6, "max_players": 8})
+	config.player_spawn_x = 2.6
 	_start_new_round()
 	for p in _players:
 		if not _assert_true(is_equal_approx(float(p["x"]), 2.6), "Configured player_spawn_x must move all player spawns"):
@@ -1549,10 +1191,7 @@ func _run_self_tests() -> void:
 	if not _assert_true(sl_node != null and is_equal_approx(sl_node.position.x, 2.6), "Stage StartingLine mesh must sync with configured player_spawn_x"):
 		return
 
-	# 0b. Test Pummel Party presets and 16-player scaling
-	config.apply_pummel_presets("frantic", "short", "safe", "heavy")
-	if not _assert_true(is_equal_approx(config.round_duration, 30.0) and is_equal_approx(config.player_spawn_x, 3.0) and is_equal_approx(config.knockback_distance, 2.10) and is_equal_approx(config.roller_initial_speed, 7.6), "Pummel Party presets must set linked rule fields"):
-		return
+	# Check large preview rosters.
 	config.max_players = 16
 	_start_new_round()
 	if not _assert_true(_players.size() == 16, "Must spawn 16 players when max_players=16"):
@@ -1561,7 +1200,7 @@ func _run_self_tests() -> void:
 		if not _assert_true(is_equal_approx(float(p16["x"]), config.player_spawn_x), "All 16 players must spawn on exact same starting line X"):
 			return
 	config.max_players = 8
-	config.apply_pummel_presets("standard", "standard", "standard", "standard")
+	config.player_spawn_x = 1.6
 
 	# 1. Test Gold High Roller: standing player hit (knockback, +0) vs crouching player dodges (+1)
 	config.max_players = 2
@@ -1620,51 +1259,83 @@ func _run_self_tests() -> void:
 		return
 
 	_eliminate_player(p_crouch)
-	_update_hud_labels()
-	if not _assert_true("存活 0/2" in _speed_label.text, "HUD must show alive count 0/2 when both players eliminated"):
+	if not _assert_true(not _results_panel.visible and not _countdown_label.visible, "Play must leave the stage unobstructed"):
 		return
 
 	_check_round_end()
 	if not _assert_true(_match_ended, "Match must end immediately when all players are eliminated"):
 		return
 
-	# 4. Test ranking & bonus table [100, 80, 60, 40, 40, 40, 20, 20]
+	# 4. Raw points are based on the actual roster and shared rank.
 	var ranks := _compute_rankings()
 	if not _assert_true(ranks.size() == 2, "Rankings must include both players"):
 		return
-	if not _assert_true(int(ranks[0]["id"]) == 1 and int(ranks[0]["bonus"]) == 100, "Top dodger gets rank 1 (+100)"):
+	if not _assert_true(int(ranks[0]["id"]) == 1 and int(ranks[0]["bonus"]) == 2, "First of two earns 2 raw points"):
 		return
-	if not _assert_true(int(ranks[1]["id"]) == 0 and int(ranks[1]["bonus"]) == 80, "Second place gets rank 2 (+80)"):
+	if not _assert_true(int(ranks[1]["id"]) == 0 and int(ranks[1]["bonus"]) == 1, "Second of two earns 1 raw point"):
 		return
-	if not _assert_true(config.bonus_for_rank(3, 5) == 60, "Rank 3 bonus is 60"):
-		return
-	if not _assert_true(config.bonus_for_rank(6, 5) == 40, "Rank 6 bonus is 40"):
-		return
-	if not _assert_true(config.bonus_for_rank(8, 5) == 20, "Rank 8 bonus is 20"):
+	_players[0].dodges = _players[1].dodges
+	var tied := _compute_rankings()
+	if not _assert_true(tied[0].bonus == 2 and tied[1].bonus == 2, "Tied players share raw points"):
 		return
 
-	# 5. Test spawn safety floor invariant
-	var iv: Vector2 = config.interval_range_at_progress(1.0)
-	if not _assert_true(iv.x >= config.safe_interval_floor(), "Spawn interval min must respect safe reaction floor"):
+	if not _test_wave_pacing():
 		return
 
-	# 6. Test official Machine Party Minigame contract signals & initialize()
-	var captured := {"scores": {}, "finished": false}
-	player_scores_finalized.connect(func(s: Dictionary) -> void:
-		captured["scores"] = s
-	)
-	minigame_finished.connect(func(_nid: int) -> void:
-		captured["finished"] = true
-	)
 	_hosted_in_official_game = true
-	initialize(1, 2, {})
-	_players[0]["dodges"] = 7
-	_players[1]["dodges"] = 3
-	_finish_round("test")
-	var got_scores: Dictionary = captured["scores"]
-	if not _assert_true(int(got_scores.get(1, -1)) == 100 and int(got_scores.get(2, -1)) == 80, "player_scores_finalized must emit bonus points by network_id"):
+	start_round([{"id":0, "network_id":1, "nickname":"Host"}, {"id":1, "network_id":42, "nickname":"Guest"}])
+	var tap := InputEventKey.new()
+	tap.keycode = KEY_S
+	tap.pressed = true
+	_input(tap)
+	_countdown = 0
+	_input(tap)
+	if not _assert_true(not _players[0].crouching, "Holding through countdown must not trigger"):
 		return
-	if not _assert_true(bool(captured["finished"]), "minigame_finished must emit when hosted in official Game"):
+	tap.pressed = false
+	_input(tap)
+	tap.pressed = true
+	_input(tap)
+	if not _assert_true(_players[0].crouching, "Press starts crouching immediately"):
+		return
+	var down := InputEventKey.new()
+	down.keycode = KEY_DOWN
+	down.pressed = true
+	_input(down)
+	tap.pressed = false
+	_input(tap)
+	if not _assert_true(_players[0].crouching, "Second held crouch key keeps player crouched"):
+		return
+	down.pressed = false
+	_input(down)
+	if not _assert_true(not _players[0].crouching, "Final key release ends crouch immediately"):
+		return
+	_tick_crouch(_players[0], config.crouch_recovery)
+	tap.pressed = true
+	_input(tap)
+	if not _assert_true(_players[0].crouching, "New press works after short recovery"):
+		return
+	_tick_crouch(_players[0], config.crouch_duration + config.crouch_recovery)
+	tap.pressed = true
+	tap.echo = true
+	_input(tap)
+	if not _assert_true(not _players[0].crouching, "Keyboard repeat must not retrigger"):
+		return
+	_apply_input(42, 1)
+	if not _assert_true(_players[1].crouching and not _players[0].crouching, "Only sender crouches"):
+		return
+	_tick_crouch(_players[1], 0.74)
+	if not _assert_true(_players[1].crouching, "Crouch lasts 0.75 seconds"):
+		return
+	_tick_crouch(_players[1], 0.02)
+	if not _assert_true(not _players[1].crouching, "Held crouch expires"):
+		return
+	var captured := {}
+	round_finished.connect(func(scores: Dictionary): captured.merge(scores))
+	_players[0].dodges = 7
+	_players[1].dodges = 3
+	_finish_round("test")
+	if not _assert_true(captured == {1:2, 42:1}, "Scores keyed by real peers"):
 		return
 
 	if not _tests_failed:

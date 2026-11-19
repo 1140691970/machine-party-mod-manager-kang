@@ -267,12 +267,14 @@ fn authorized_mod(item: &catalog::ModEntry) -> bool {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn install_mod(
     app: AppHandle,
     path: PathBuf,
     id: String,
     version: String,
     adopt: Option<bool>,
+    removals: Option<Vec<String>>,
     expected_dir: PathBuf,
     progress: Channel<u64>,
 ) -> Result<installer::CopyValidation, String> {
@@ -306,10 +308,14 @@ pub async fn install_mod(
         let validation = installer::validate_game_mods(&dir, &path, &list)?;
         let is_manual = adopt.unwrap_or(false);
         let state = validation.mod_states.get(&id).map(String::as_str);
+        let removals = removals.unwrap_or_default();
+        if matches!(state, Some("modConflict" | "legacyInstalled")) == removals.is_empty() {
+            return Err("statusUnavailable".into());
+        }
         match (state, is_manual) {
             (Some("manualInstall"), true)
             | (Some("vanilla"), false)
-            | (Some("modConflict"), false) => {}
+            | (Some("modConflict" | "legacyInstalled"), false) => {}
             (Some("manualInstall"), false) => return Err("manualDetected".into()),
             (Some("vanilla"), true) | (Some("modConflict"), true) => {
                 return Err("statusUnavailable".into());
@@ -339,8 +345,9 @@ pub async fn install_mod(
                 &mod_entry,
                 &installer::SystemRunner,
             )?;
-        } else if state == Some("modConflict") {
+        } else if matches!(state, Some("modConflict" | "legacyInstalled")) {
             installer::switch_from_zip(
+                &removals,
                 &dir,
                 &path,
                 &zip_path,
@@ -398,13 +405,6 @@ pub async fn uninstall_mod(
         if game::resolve_pck_dir(&path).as_ref() != Some(&expected_dir) {
             return Err("statusUnavailable".into());
         }
-        installer::check_exclusive_conflicts(
-            &dir,
-            &path,
-            &mod_entry,
-            mod_entry.adapter.as_ref().ok_or("unsupportedAdapter")?,
-            &list,
-        )?;
         installer::uninstall_mod(
             &dir,
             &path,

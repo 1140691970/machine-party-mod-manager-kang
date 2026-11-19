@@ -3,7 +3,7 @@ import { appVersion, bundledCatalog, cachedPackages, isDesktop, setAppTitle } fr
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
-import { detectGame, pickGame } from "./game-folder.js";
+import { detectGame, pickGame, syncGameMods } from "./game-folder.js";
 import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
@@ -66,6 +66,9 @@ function render() {
   }
 }
 
+if (isDesktop) document.addEventListener("contextmenu", event => event.preventDefault());
+const previousPage = sessionStorage.getItem("page");
+if (["installed", "settings"].includes(previousPage)) state.page = previousPage;
 onRender(render);
 state.appVersion = await appVersion();
 const cached = cachedCatalog(localStorage);
@@ -94,6 +97,7 @@ async function refreshCatalog() {
 hydrateIcons();
 document.querySelectorAll("[data-page]").forEach(el => el.onclick = () => {
   state.page = el.dataset.page;
+  sessionStorage.setItem("page", state.page);
   render();
 });
 $("input").oninput = render;
@@ -101,6 +105,9 @@ $("#close").onclick = closeDialog;
 applyLocale();
 void refreshCatalog();
 if (isDesktop) {
+  window.addEventListener("focus", () => {
+    if (!state.busyMod && !$("dialog").open) void syncGameMods();
+  });
   cachedPackages().then(result => { state.packages = {...result, ...state.packages}; render(); }).catch(() => {});
   detectGame().catch(error => show(t("failed"), element("p", String(error)), button(t("choose"), pickGame, "primary")));
   void checkApp(false);

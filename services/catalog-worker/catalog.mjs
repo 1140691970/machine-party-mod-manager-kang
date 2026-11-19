@@ -1,9 +1,11 @@
+import previous from "../../catalog/legacy-adapters.json" with {type: "json"};
 import snapshot from "../../catalog/mods.json" with {type: "json"};
 
 const headers = {"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"};
 const catalogKey = "catalog/revisions/" + snapshot.revision + ".json";
-const etag = '"' + snapshot.revision + '"';
-const packages = new Map(snapshot.mods.filter(mod => mod.package).map(mod =>
+const fullEtag = '"' + snapshot.revision + '"';
+const compatible = mod => previous[mod.id] ? {...mod, ...previous[mod.id]} : mod;
+const packages = new Map([...snapshot.mods.map(compatible), ...snapshot.mods].filter(mod => mod.package).map(mod =>
   [`/v1/downloads/${mod.id}/${mod.version}/${mod.package.assetId}`, mod]));
 
 export default {
@@ -13,11 +15,19 @@ export default {
       return new Response(null, {status: 405, headers: {...headers, Allow: "GET, HEAD"}});
     const path = new URL(request.url).pathname;
     if (path === "/v1/catalog.json") {
+      const legacy = new URL(request.url).searchParams.get("inventory") !== "id";
+      const prepared = new URL(request.url).searchParams.get("prepare") === "1" && !legacy;
+      const etag = !legacy && !prepared ? '"' + snapshot.revision + '-native"' : legacy ? '"' + snapshot.revision + '-legacy"' : fullEtag;
       const metadata = {...headers, ETag: etag, "Content-Type": "application/json; charset=utf-8"};
       if (request.headers.get("If-None-Match") === etag)
         return new Response(null, {status: 304, headers: metadata});
       const object = head ? await env.PACKAGES.head(catalogKey) : await env.PACKAGES.get(catalogKey);
       if (!object) return new Response(null, {status:503, headers});
+      if (!prepared && !head) {
+        const catalog = await new Response(object.body).json();
+        catalog.mods = catalog.mods.filter(mod => !legacy || !mod.inventoryById).map(compatible);
+        return Response.json(catalog, {headers:metadata});
+      }
       return new Response(head ? null : object.body, {headers:metadata});
     }
     const mod = packages.get(path);

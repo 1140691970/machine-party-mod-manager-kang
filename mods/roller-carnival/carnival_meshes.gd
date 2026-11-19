@@ -111,18 +111,11 @@ static func ensure_game_pck_mounted() -> bool:
 		_pck_available = true
 		return true
 
-	var candidates: Array[String] = []
-	var env_pck := OS.get_environment("MP_PCK_PATH")
-	if not env_pck.is_empty():
-		candidates.append(env_pck)
-	candidates.append("/Users/gongziming/Downloads/Machine Party.pck")
-
-	for pck_path in candidates:
-		if FileAccess.file_exists(pck_path):
-			var mounted := ProjectSettings.load_resource_pack(pck_path, false)
-			if mounted and ResourceLoader.exists("res://fonts/Terminal F4.ttf"):
-				_pck_available = true
-				return true
+	var pck_path := OS.get_environment("MP_PCK_PATH")
+	if not pck_path.is_empty() and FileAccess.file_exists(pck_path):
+		if ProjectSettings.load_resource_pack(pck_path, false):
+			_pck_available = ResourceLoader.exists("res://fonts/Terminal F4.ttf")
+			return _pck_available
 
 	_pck_available = false
 	return false
@@ -769,3 +762,22 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 		"root": root,
 		"spin": spin_pivot,
 	}
+
+
+## Original rolling drum pictogram for the official black-and-white icon grid.
+static func build_roller_icon() -> ImageTexture:
+	var image := Image.new()
+	image.load_svg_from_string("""
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+	  <rect width="256" height="256" fill="#000"/>
+	  <g fill="#e5e5e5">
+	    <path d="M15 150h48l-8 13H7zm14-26h48l-8 13H21zm-8 53h33l6 13H13z"/>
+	    <g transform="rotate(-28 145 132)">
+	      <path d="M82 78h110v108H82c-20 0-33-24-33-54s13-54 33-54z"/>
+	      <path d="M85 80c-23 25-23 78 0 104m25-104c-23 25-23 78 0 104" stroke="#000" stroke-width="10" fill="none"/>
+	      <ellipse cx="193" cy="132" rx="35" ry="56" stroke="#000" stroke-width="9"/>
+	      <ellipse cx="193" cy="132" rx="13" ry="25" fill="#000"/>
+	    </g>
+	  </g>
+	</svg>""")
+	return ImageTexture.create_from_image(image)

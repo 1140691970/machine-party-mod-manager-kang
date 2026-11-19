@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.8",
+  "revision": "2026-11-19.14-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -10,20 +10,24 @@
       "image": "overtime",
       "version": "v1.7",
       "package": {
-        "assetId": "594522622",
-        "filename": "Machine-Party-Overtime-1.7-MPML.zip",
-        "size": 830277,
-        "sha256": "49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e",
+        "assetId": "594522625",
+        "filename": "Machine-Party-Overtime-1.7-CLI.zip",
+        "size": 854623,
+        "sha256": "f98b51526c9ba38167adc0578f24d2d998f6d2f4df51e6146580df27b589245c",
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-6",
+      "windowsPreview": "0.1.2-7",
       "adapter": {
         "kind": "loader-files",
-        "platforms": ["windows"],
+        "platforms": [
+          "windows"
+        ],
         "target": "pckDir",
-        "touches": ["mods"],
+        "touches": [
+          "mods"
+        ],
         "exclusive": "loader",
         "autoLoader": true,
         "baseline": {
@@ -38,7 +42,9 @@
           "overtime_overlay.zip",
           "vanilla_md5.json"
         ],
-        "upstreamUninstall": false
+        "upstreamUninstall": false,
+        "conflictGroup": "eight-player",
+        "sourceRule": "overtime-manifest-v1"
       },
       "verified": false,
       "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
@@ -48,9 +54,9 @@
         "en": "Play online or locally with up to eight players."
       },
       "detail": {
-        "zh-CN": "采用 MPML 加载器套件并由管理器自动配置内置加载器，可与 MachineParty+、滚筒嘉年华等加载器模组共存，与直接修改 PCK 的补丁模组互斥。联机玩家需使用相同游戏与模组版本。",
-        "zh-TW": "採用 MPML 載入器套件並由管理器自動設定內建載入器，可與 MachineParty+、滾筒嘉年華等載入器模組共存，與直接修改 PCK 的補丁模組互斥。連線玩家需使用相同遊戲與模組版本。",
-        "en": "Uses the MPML loader package with the manager's built-in auto-loader; coexists with loader mods such as MachineParty+ and Roller Carnival, and conflicts with direct PCK patch mods. Players need matching game and mod versions."
+        "zh-CN": "管理器会将作者原包转成加载器模组。每份游戏副本可选用 Overtime、八人导播或 Binary1936 八人模组其中一种。",
+        "zh-TW": "管理器會將作者原包轉成載入器模組。每份遊戲副本可選用 Overtime、八人導播或 Binary1936 八人模組其中一種。",
+        "en": "The manager prepares the author package for the built-in loader. Choose one of Overtime, Broadcast 8P or Binary1936 8P per game copy."
       },
       "aliases": ["加班", "八人", "八人联机", "八人聯機", "8p", "本機"]
     },
@@ -69,7 +75,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-6",
+      "windowsPreview": "0.1.2-7",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -112,35 +118,31 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-6",
+      "windowsPreview": "0.1.2-7",
       "adapter": {
-        "kind": "upstream-cli",
-        "platforms": ["windows"],
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
         "target": "pckDir",
-        "touches": ["Machine Party.pck", "Machine Party.pck.broadcast_backup"],
-        "exclusive": "pck",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
         "baseline": {
           "file": "Machine Party.pck",
           "size": 634798100,
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
+        "requiredFiles": [
+          "mod.json",
+          "main.gd",
+          "overlay.zip"
+        ],
         "upstreamUninstall": false,
-        "run": {
-          "interpreter": "powershell",
-          "program": "patcher.ps1",
-          "common": ["-GameDir", "{gameDir}"]
-        },
-        "actions": {
-          "preflight": [],
-          "status": ["-Action", "verify"],
-          "install": ["-Action", "install"],
-          "uninstall": ["-Action", "uninstall"]
-        },
-        "status": {
-          "installed": "^State:\\s+patched$",
-          "vanilla": "^State:\\s+clean$"
-        },
-        "forbiddenArgs": ["--force"]
+        "conflictGroup": "eight-player",
+        "sourceRule": "broadcast-tree-v1"
       },
       "verified": false,
       "name": {"zh-CN": "Broadcast 8P Freecam", "zh-TW": "Broadcast 8P Freecam", "en": "Broadcast 8P Freecam"},
@@ -150,9 +152,9 @@
         "en": "Eight players, rotating teams and a free camera for the director."
       },
       "detail": {
-        "zh-CN": "支持一名导播和八名参赛者，卸载与备份恢复流程待实测。",
-        "zh-TW": "支援一名導播和八名參賽者，卸載與備份還原流程待實測。",
-        "en": "Supports one director and eight contestants. Uninstall and backup restoration await testing."
+        "zh-CN": "管理器会将作者原包转成加载器模组。每份游戏副本可选用 Overtime、八人导播或 Binary1936 八人模组其中一种。",
+        "zh-TW": "管理器會將作者原包轉成載入器模組。每份遊戲副本可選用 Overtime、八人導播或 Binary1936 八人模組其中一種。",
+        "en": "The manager prepares the author package for the built-in loader. Choose one of Overtime, Broadcast 8P or Binary1936 8P per game copy."
       },
       "aliases": ["直播", "导播", "導播", "觀戰", "八人"]
     },
@@ -170,35 +172,32 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-6",
+      "windowsPreview": "0.1.2-7",
       "adapter": {
-        "kind": "upstream-cli",
-        "platforms": ["windows"],
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
         "target": "pckDir",
-        "touches": ["Machine Party.pck"],
-        "exclusive": "pck",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
         "baseline": {
           "file": "Machine Party.pck",
           "size": 634798100,
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
+        "requiredFiles": [
+          "mod.json",
+          "main.gd",
+          "overlay.zip",
+          "NOTICE.md"
+        ],
         "upstreamUninstall": false,
-        "run": {
-          "interpreter": "bundled-python",
-          "program": "install.py",
-          "common": ["--game-dir", "{gameDir}"]
-        },
-        "actions": {
-          "preflight": [],
-          "status": ["--verify"],
-          "install": [],
-          "uninstall": []
-        },
-        "status": {
-          "installed": "^\\s*PATCHED\\b",
-          "vanilla": "^\\s*NOT PATCHED\\b"
-        },
-        "forbiddenArgs": ["--force"]
+        "conflictGroup": "eight-player",
+        "sourceRule": "binary-tree-v1"
       },
       "verified": false,
       "name": {"zh-CN": "八人联机模组", "zh-TW": "八人連線模組", "en": "Eight-player multiplayer"},
@@ -208,9 +207,9 @@
         "en": "Expands online play to eight players."
       },
       "detail": {
-        "zh-CN": "游戏数据的备份与还原流程待验证。",
-        "zh-TW": "遊戲資料的備份與還原流程待驗證。",
-        "en": "Game data backup and restoration await verification."
+        "zh-CN": "管理器会将作者原包转成加载器模组。每份游戏副本可选用 Overtime、八人导播或 Binary1936 八人模组其中一种。",
+        "zh-TW": "管理器會將作者原包轉成載入器模組。每份遊戲副本可選用 Overtime、八人導播或 Binary1936 八人模組其中一種。",
+        "en": "The manager prepares the author package for the built-in loader. Choose one of Overtime, Broadcast 8P or Binary1936 8P per game copy."
       },
       "aliases": ["8p", "八人聯機", "多人"]
     },
@@ -219,16 +218,16 @@
       "order": 5,
       "repo": "JamesGZM/machine-party-mod-manager",
       "image": "roller-carnival",
-      "version": "v0.1.0",
+      "version": "v0.1.1",
       "package": {
         "assetId": "1001",
-        "filename": "roller-carnival-0.1.0.zip",
-        "size": 138033,
-        "sha256": "ec10da25ecd98ac6e9179d81c2188f82ae752baf4783058c87f93ea020802ca4",
+        "filename": "roller-carnival-0.1.1.zip",
+        "size": 99769,
+        "sha256": "a7f323e7c0fec56b2ec124dd591bf5898b57cb7333a25539322d8b3e00d56986",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-6",
+      "windowsPreview": "0.1.2-7",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -247,6 +246,7 @@
           "config.gd",
           "carnival_meshes.gd",
           "roller_carnival_game.gd",
+          "official_minigame.gd",
           "override_game.gd",
           "override_playlist.gd",
           "override_picker.gd"
@@ -260,9 +260,9 @@
         "en": "Roller Carnival"
       },
       "summary": {
-        "zh-CN": "机械狂欢躲避小游戏，接入官方轮换与大厅快速开房设置。",
-        "zh-TW": "機械狂歡躲避小遊戲，接入官方輪換與大廳快速開房設定。",
-        "en": "Mechanical carnival dodge minigame joining the official rotation."
+        "zh-CN": "按实际参赛人数自动开局，跳跃和短蹲躲过越来越密的滚筒。",
+        "zh-TW": "依實際參賽人數自動開局，跳躍和短蹲躲過越來越密的滾筒。",
+        "en": "Jump or briefly duck as rollers arrive faster. Rounds start automatically with the players in your game."
       },
       "detail": {
         "zh-CN": "金色高滚筒按 S 下蹲、银色低滚筒按空格跳跃，碰撞推挤至左侧岩浆淘汰并按躲避数排名加分。",
@@ -270,6 +270,69 @@
         "en": "Crouch under gold high rollers, jump over silver low rollers, avoid being shoved into the lava, and score by dodge rank."
       },
       "aliases": ["滚筒", "滾筒嘉年華", "roller", "carnival"]
+    },
+    {
+      "id": "lobby-bots",
+      "order": 6,
+      "repo": "JamesGZM/machine-party-mod-manager",
+      "inventoryById": true,
+      "image": "lobby-bots",
+      "version": "v0.1.4",
+      "package": {
+        "assetId": "1006",
+        "filename": "lobby-bots-0.1.4.zip",
+        "size": 14900,
+        "sha256": "098e69f28452bc146142b83706060d4334f6d0c2b0b1fca1a7636048c6f54845",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.1.2-7",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
+        "target": "pckDir",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "junk_platform.gd",
+          "main.gd",
+          "mod.json"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": false,
+      "name": {
+        "zh-CN": "房间机器人",
+        "zh-TW": "房間機器人",
+        "en": "Lobby Bots"
+      },
+      "summary": {
+        "zh-CN": "房主可添加或移除默认就绪的测试机器人。",
+        "zh-TW": "房主可加入或移除預設就緒的測試機器人。",
+        "en": "Add or remove ready bots in online rooms."
+      },
+      "detail": {
+        "zh-CN": "每个机器人占一个参赛席位并独立计分。真人玩家需安装同版模组，Windows 实机验证待完成。",
+        "zh-TW": "每個機器人占一個參賽席位並獨立計分。真人玩家需安裝同版模組，Windows 實機驗證待完成。",
+        "en": "Each bot occupies one participant seat and scores separately. All human players need the same mod. Windows playtesting is pending."
+      },
+      "aliases": [
+        "bot",
+        "機器人",
+        "机器人"
+      ]
     }
   ]
 }
