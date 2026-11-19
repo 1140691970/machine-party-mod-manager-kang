@@ -1459,13 +1459,27 @@ fn install_loader_files(
     }
     save_transaction(config_dir, game_root, record.clone())?;
     let mut created_mod_dir = false;
+    let mut created_mods_root = false;
     let outcome = (|| -> Result<(), String> {
         if adapter.auto_loader {
-            pck_loader::ensure_loader_installed(&pck_dir, &loader_backup_pck, &adapter.baseline)?;
+            pck_loader::ensure_loader_installed(
+                &pck_dir,
+                &loader_backup_pck,
+                &adapter.baseline,
+                || lock_check.ensure_unlocked(&pck_dir, &pck_path),
+            )?;
         }
         record.post_pck = Some(file_fingerprint(&pck_path)?);
 
-        fs::create_dir_all(&mods_root).map_err(|_| "fileWriteError")?;
+        lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+        match fs::create_dir(&mods_root) {
+            Ok(()) => created_mods_root = true,
+            Err(e)
+                if e.kind() == io::ErrorKind::AlreadyExists
+                    && mods_root.is_dir()
+                    && !mods_root.is_symlink() => {}
+            Err(_) => return Err("fileWriteError".into()),
+        }
         fs::create_dir(&mod_dir).map_err(|_| "restoreResidue")?;
         created_mod_dir = true;
         for rel in owned_files.keys() {
@@ -1498,14 +1512,20 @@ fn install_loader_files(
                             .all(|(name, fp)| owned_files.get(name) == Some(fp))
                     })
                     && fs::remove_dir_all(&mod_dir).is_ok());
-            let _ = fs::remove_dir(pck_dir.join("mods"));
+            if created_mods_root {
+                let _ = fs::remove_dir(&mods_root);
+            }
             if !had_managed_loader
                 && pck_loader::read_managed_marker(&pck_dir)?.is_some()
                 && !has_other_loader_tx(config_dir, game_root, &mod_entry.id, &adapter.exclusive)
                     .unwrap_or(true)
                 && !has_remaining_mod_dirs(&pck_dir.join("mods"), None).unwrap_or(true)
             {
-                if pck_loader::restore_managed_loader(&pck_dir, &loader_backup_pck).is_ok() {
+                if pck_loader::restore_managed_loader(&pck_dir, &loader_backup_pck, || {
+                    lock_check.ensure_unlocked(&pck_dir, &pck_path)
+                })
+                .is_ok()
+                {
                     let _ = fs::remove_dir_all(&loader_backup_dir);
                 } else {
                     cleaned = false;
@@ -1860,7 +1880,7 @@ pub fn uninstall_mod(
             && !has_remaining_mod_dirs(&mods_root, Some(&mod_dir))?
             && !pck_loader::external_loader_present(&pck_dir)?
         {
-            restore.apply()?;
+            restore.apply(|| lock_check.ensure_unlocked(&pck_dir, &pck_path))?;
             mod_present = verify_mod()?;
             lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
         }
@@ -4792,6 +4812,63 @@ print("Patched")
         assert_eq!(
             uninstall_mod(&config, &game, &mods[2], &SystemRunner, &UnlockedCheck).unwrap(),
             base
+        );
+    }
+
+    #[test]
+    fn game_started_during_loader_preparation_preserves_existing_mods_root() {
+        struct StartedAfterBackup(PathBuf);
+        impl GameLockCheck for StartedAfterBackup {
+            fn ensure_unlocked(&self, _: &Path, _: &Path) -> Result<(), String> {
+                if self.0.is_file() {
+                    Err("gameRunning".into())
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        let root = tempfile::tempdir().unwrap();
+        let (game, dir, base) = setup_synthetic_game(
+            root.path(),
+            &pck_loader::build_synthetic_pck_v3(false, true),
+        );
+        fs::create_dir(dir.join("mods")).unwrap();
+        let config = root.path().join("config");
+        let bytes = build_test_zip(&[
+            (
+                "mod.json",
+                br#"{"id":"machineparty_plus","entry":"main.gd"}"#,
+                true,
+            ),
+            ("main.gd", b"extends Node", true),
+        ]);
+        let item = make_loader_entry_from_catalog("machineparty-plus", &bytes, &base);
+        let archive = root.path().join("release.zip");
+        fs::write(&archive, bytes).unwrap();
+        let backup = backup_dir_for(&config, &game, "_mpm_loader").join("Machine Party.pck");
+        let result = install_from_zip(
+            &config,
+            &game,
+            &archive,
+            &root.path().join("stage"),
+            &item,
+            std::slice::from_ref(&item),
+            &SystemRunner,
+            &StartedAfterBackup(backup),
+        );
+        assert_eq!(result.unwrap_err(), "gameRunning");
+        assert_eq!(
+            file_fingerprint(&dir.join("Machine Party.pck")).unwrap(),
+            base
+        );
+        assert!(!dir.join(pck_loader::LOADER_SIDECAR).exists());
+        assert_eq!(fs::read_dir(dir.join("mods")).unwrap().count(), 0);
+        assert_eq!(
+            get_transaction(&config, &game, &item.id)
+                .unwrap()
+                .unwrap()
+                .status,
+            TransactionStatus::RolledBack
         );
     }
 

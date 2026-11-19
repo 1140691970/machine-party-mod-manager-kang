@@ -4,6 +4,10 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-8 — 2026-11-19
+
+Windows preview 0.1.2-8 verifies the restored PCK before removing the last managed mod, preserves shared loaders for linked mods, and checks that the game is closed immediately before replacing its PCK.
+
 ## 0.1.2-7 — 2026-11-19
 
 Windows preview with six online mods, verified source-to-MPML conversion, and confirmation of the mods removed during switching.

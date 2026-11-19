@@ -46,12 +46,12 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-7 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-7/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-8 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-8/setup.exe) | NSIS installer, signed in-app updates |
 | macOS | Apple Silicon | [Stable v0.1.1 (`MachineParty-aarch64.app.tar.gz`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | Catalog browsing & signed updates |
 
 On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive and move the `.app` to a writable Applications folder.
 
-**Machine Party on Steam is Windows-only; the `0.1.2-7` workspace adds Windows `v2.1.2` adapters for all six catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
+**Machine Party on Steam is Windows-only; the `0.1.2-8` workspace adds Windows `v2.1.2` adapters for all six catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
 
 ## Getting started
 
@@ -83,7 +83,7 @@ See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance
 
 ## Release notes
 
-Windows preview **0.1.2-7** installs six catalog mods through MPML. Overtime, Broadcast and Binary1936 are prepared from their original release packages. [Full changelog](CHANGELOG.md).
+Windows preview **0.1.2-8** verifies the restored PCK before removing the last managed mod, preserves shared loaders for linked mods, and checks that the game is closed immediately before replacing its PCK. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

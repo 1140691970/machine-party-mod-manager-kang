@@ -605,6 +605,7 @@ pub fn ensure_loader_installed(
     pck_dir: &Path,
     backup_pck: &Path,
     baseline: &BaselineSpec,
+    before_write: impl FnOnce() -> Result<(), String>,
 ) -> Result<Option<ManagedLoaderState>, String> {
     if external_loader_present(pck_dir)? {
         return Ok(None);
@@ -706,6 +707,7 @@ pub fn ensure_loader_installed(
     } else {
         None
     };
+    before_write()?;
     installer::write_atomic(&sidecar, marker_bytes.as_ref().unwrap_or(&state_bytes))?;
     candidate.persist(&pck_path).map_err(|_| "fileWriteError")?;
     if marker_bytes.is_some() {
@@ -732,6 +734,7 @@ fn stage_pck(path: &Path, expected: &FileFingerprint) -> Result<tempfile::TempPa
 pub fn restore_managed_loader(
     pck_dir: &Path,
     backup_pck: &Path,
+    before_write: impl FnOnce() -> Result<(), String>,
 ) -> Result<FileFingerprint, String> {
     if external_loader_present(pck_dir)? {
         return Err("loaderConflict".into());
@@ -740,7 +743,7 @@ pub fn restore_managed_loader(
     let pck_path = pck_dir.join("Machine Party.pck");
     let current = file_fingerprint(&pck_path)?;
 
-    prepare_managed_restore(pck_dir, backup_pck, state, current)?.apply()
+    prepare_managed_restore(pck_dir, backup_pck, state, current)?.apply(before_write)
 }
 
 pub(super) struct PreparedRestore {
@@ -781,7 +784,10 @@ pub(super) fn prepare_managed_restore(
 }
 
 impl PreparedRestore {
-    pub(super) fn apply(self) -> Result<FileFingerprint, String> {
+    pub(super) fn apply(
+        self,
+        before_write: impl FnOnce() -> Result<(), String>,
+    ) -> Result<FileFingerprint, String> {
         let pck = self.pck_dir.join("Machine Party.pck");
         if external_loader_present(&self.pck_dir)?
             || read_managed_marker(&self.pck_dir)?.as_ref() != Some(&self.marker)
@@ -789,6 +795,7 @@ impl PreparedRestore {
         {
             return Err("gameUpdatedOrModified".into());
         }
+        before_write()?;
         if let Some(candidate) = self.candidate {
             candidate.persist(&pck).map_err(|_| "fileWriteError")?;
         }
@@ -957,7 +964,7 @@ mod tests {
             };
             let backup_pck = tmp.path().join("backup.pck");
 
-            let state = ensure_loader_installed(&pck_dir, &backup_pck, &baseline)
+            let state = ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(()))
                 .unwrap()
                 .expect("managed loader state created");
             assert_eq!(state.vanilla_sha256, vanilla_fp.sha256);
@@ -976,7 +983,7 @@ mod tests {
             assert_eq!(pb[1].0, "autoload/Globals");
 
             // Idempotent re-run must not append twice
-            let state2 = ensure_loader_installed(&pck_dir, &backup_pck, &baseline)
+            let state2 = ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(()))
                 .unwrap()
                 .unwrap();
             assert_eq!(state2, state);
@@ -986,7 +993,7 @@ mod tests {
             );
 
             // Lossless restore returns exact byte size and SHA-256
-            let restored = restore_managed_loader(&pck_dir, &backup_pck).unwrap();
+            let restored = restore_managed_loader(&pck_dir, &backup_pck, || Ok(())).unwrap();
             assert_eq!(restored, vanilla_fp);
             assert_eq!(fs::read(&pck_path).unwrap(), vanilla_bytes);
             assert!(!sidecar_path(&pck_dir).exists());
@@ -1023,7 +1030,7 @@ mod tests {
             sha256: vanilla.sha256,
         };
         let backup = dir.join("backup.pck");
-        let mut marker = ensure_loader_installed(dir, &backup, &baseline)
+        let mut marker = ensure_loader_installed(dir, &backup, &baseline, || Ok(()))
             .unwrap()
             .unwrap();
         let installed = fs::read(&pck).unwrap();
@@ -1031,11 +1038,48 @@ mod tests {
         fs::write(sidecar_path(dir), serde_json::to_vec(&marker).unwrap()).unwrap();
         fs::write(&backup, b"incomplete backup").unwrap();
         assert_eq!(
-            restore_managed_loader(dir, &backup).unwrap_err(),
+            restore_managed_loader(dir, &backup, || Ok(())).unwrap_err(),
             "restoreVerifyFailed"
         );
         assert_eq!(fs::read(&pck).unwrap(), installed);
         assert_eq!(read_managed_marker(dir).unwrap(), Some(marker));
+    }
+
+    #[test]
+    fn starting_the_game_before_commit_preserves_live_pck_and_marker() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path();
+        let pck = dir.join("Machine Party.pck");
+        fs::write(&pck, build_synthetic_pck_v3(false, true)).unwrap();
+        let original = file_fingerprint(&pck).unwrap();
+        let baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: original.size,
+            sha256: original.sha256.clone(),
+        };
+        let backup = dir.join("backup.pck");
+        let running = || Err("gameRunning".to_owned());
+        assert_eq!(
+            ensure_loader_installed(dir, &backup, &baseline, running).unwrap_err(),
+            "gameRunning"
+        );
+        assert_eq!(file_fingerprint(&pck).unwrap(), original);
+        assert!(!sidecar_path(dir).exists());
+
+        let marker = ensure_loader_installed(dir, &backup, &baseline, || Ok(()))
+            .unwrap()
+            .unwrap();
+        let installed = file_fingerprint(&pck).unwrap();
+        assert_eq!(
+            restore_managed_loader(dir, &backup, running).unwrap_err(),
+            "gameRunning"
+        );
+        assert_eq!(file_fingerprint(&pck).unwrap(), installed);
+        assert_eq!(read_managed_marker(dir).unwrap(), Some(marker));
+        assert_eq!(
+            restore_managed_loader(dir, &backup, || Ok(())).unwrap(),
+            original
+        );
     }
 
     #[test]
@@ -1053,15 +1097,15 @@ mod tests {
             sha256: fp.sha256,
         };
         let backup_pck = tmp.path().join("backup.pck");
-        ensure_loader_installed(&pck_dir, &backup_pck, &baseline).unwrap();
+        ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(())).unwrap();
 
         fs::write(&pck_path, b"STEAM_UPDATED_PCK").unwrap();
         assert_eq!(
-            restore_managed_loader(&pck_dir, &backup_pck).unwrap_err(),
+            restore_managed_loader(&pck_dir, &backup_pck, || Ok(())).unwrap_err(),
             "gameUpdatedOrModified"
         );
         assert_eq!(
-            ensure_loader_installed(&pck_dir, &backup_pck, &baseline).unwrap_err(),
+            ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(())).unwrap_err(),
             "gameUpdatedOrModified"
         );
     }
@@ -1083,7 +1127,7 @@ mod tests {
         let backup_pck = tmp.path().join("backup.pck");
         assert!(external_loader_present(&pck_dir).unwrap());
         assert_eq!(
-            ensure_loader_installed(&pck_dir, &backup_pck, &baseline).unwrap(),
+            ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(())).unwrap(),
             None
         );
         assert!(!backup_pck.exists());
@@ -1134,7 +1178,7 @@ mod tests {
         // A failed backup write must leave the previous bootstrap available to its mods.
         fs::create_dir(&backup_pck).unwrap();
         assert_eq!(
-            ensure_loader_installed(&pck_dir, &backup_pck, &baseline).unwrap_err(),
+            ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(())).unwrap_err(),
             "fileWriteError"
         );
         assert_eq!(file_fingerprint(&pck_path).unwrap(), old_patched);
@@ -1144,7 +1188,7 @@ mod tests {
         );
         fs::remove_dir(&backup_pck).unwrap();
         let old_bytes = fs::read(&pck_path).unwrap();
-        let upgraded = ensure_loader_installed(&pck_dir, &backup_pck, &baseline)
+        let upgraded = ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(()))
             .unwrap()
             .expect("upgraded loader marker created");
         assert_eq!(upgraded.loader_version, LOADER_VERSION);
@@ -1170,7 +1214,7 @@ mod tests {
         assert_eq!(read_managed_marker(&pck_dir).unwrap(), Some(old_marker));
         fs::write(&pck_path, new_bytes).unwrap();
         assert_eq!(read_managed_marker(&pck_dir).unwrap(), Some(upgraded));
-        let restored = restore_managed_loader(&pck_dir, &backup_pck).unwrap();
+        let restored = restore_managed_loader(&pck_dir, &backup_pck, || Ok(())).unwrap();
         assert_eq!(restored, vanilla_fp);
     }
 
@@ -1201,7 +1245,7 @@ mod tests {
         };
         let backup_pck = tmp.path().join("backup.pck");
 
-        let state = ensure_loader_installed(&pck_dir, &backup_pck, &baseline)
+        let state = ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(()))
             .unwrap()
             .expect("managed loader applied to v2.1.2 PCK");
         assert_eq!(state.vanilla_sha256, vanilla_fp.sha256);
@@ -1225,7 +1269,7 @@ mod tests {
             Some(BOOTSTRAP_SRC.as_bytes())
         );
 
-        let restored = restore_managed_loader(&pck_dir, &backup_pck).unwrap();
+        let restored = restore_managed_loader(&pck_dir, &backup_pck, || Ok(())).unwrap();
         assert_eq!(restored, vanilla_fp);
         assert!(!sidecar_path(&pck_dir).exists());
     }
