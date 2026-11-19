@@ -6,7 +6,9 @@ use std::{
     time::Duration,
 };
 
+use futures_util::future::{AbortHandle, Abortable};
 use sha2::{Digest, Sha256};
+use std::{collections::HashMap, sync::Mutex};
 use tauri::{AppHandle, Manager, ipc::Channel};
 
 use crate::{catalog, game, installer, inventory, packages, preferences};
@@ -41,6 +43,8 @@ async fn download_package_zip(
     let url = catalog::download_url(mod_entry)?;
     let _ = rustls::crypto::ring::default_provider().install_default();
     let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(12))
+        .read_timeout(Duration::from_secs(20))
         .timeout(Duration::from_secs(180))
         .build()
         .map_err(|_| "downloadFailed".to_string())?;
@@ -153,6 +157,16 @@ pub fn game_copies(path: PathBuf) -> Vec<PathBuf> {
     game::copy_directories(&path)
 }
 
+#[derive(Default)]
+pub struct Downloads(Mutex<HashMap<u32, AbortHandle>>);
+
+#[tauri::command]
+pub fn cancel_download(downloads: tauri::State<'_, Downloads>, channel: u32) {
+    if let Some(handle) = downloads.0.lock().unwrap().get(&channel) {
+        handle.abort();
+    }
+}
+
 #[tauri::command]
 pub async fn download_mod(
     app: AppHandle,
@@ -163,12 +177,26 @@ pub async fn download_mod(
     let item = trusted(&id, &version)?;
     let dir = config_dir(&app)?;
     let name = format!("package-{}", item.id);
-    let lock_dir = dir.clone();
-    let _guard = tauri::async_runtime::spawn_blocking(move || lock_file(&lock_dir, &name))
-        .await
-        .map_err(|e| e.to_string())??;
-    download_package_zip(&dir, &item, &progress).await?;
-    Ok(())
+    let downloads = app.state::<Downloads>();
+    let channel = progress.id();
+    let (handle, registration) = AbortHandle::new_pair();
+    downloads.0.lock().unwrap().insert(channel, handle);
+    // Acknowledge registration before waiting for a package lock or network response.
+    let _ = progress.send(0);
+    let result = Abortable::new(
+        async {
+            let lock_dir = dir.clone();
+            let _guard = tauri::async_runtime::spawn_blocking(move || lock_file(&lock_dir, &name))
+                .await
+                .map_err(|e| e.to_string())??;
+            download_package_zip(&dir, &item, &progress).await?;
+            Ok(())
+        },
+        registration,
+    )
+    .await;
+    downloads.0.lock().unwrap().remove(&channel);
+    result.map_err(|_| "downloadCancelled".to_string())?
 }
 
 #[tauri::command]

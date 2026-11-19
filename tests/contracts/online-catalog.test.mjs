@@ -70,3 +70,29 @@ test("validCatalog rejects unsafe adapter profiles", () => {
   badPath.mods[0].adapter.touches.push("../evil.txt");
   assert.equal(validCatalog(badPath), false);
 });
+
+test("a second approved GET uses the edge copy and HEAD does not prime an empty body", async () => {
+  const mod = snapshot.mods.find(m => m.package.mirrorApproved);
+  const values = new Map();
+  let reads = 0;
+  const cache = {match:async key => values.get(key)?.clone(), put:async (key,res) => values.set(key,res)};
+  const original = globalThis.caches;
+  globalThis.caches = {default:cache};
+  const pkg = {size:mod.package.size,body:new Uint8Array(mod.package.size)};
+  const env = {PACKAGES:{get:async () => { reads++; return pkg; },head:async () => pkg}};
+  const pending = [];
+  const get = method => worker.fetch(new Request(downloadUrl(mod), {method}),env,{waitUntil:p=>pending.push(p)});
+  try {
+    await get("HEAD");
+    assert.equal(values.size, 0);
+    assert.equal((await get("GET")).headers.get("x-package-cache"), "MISS");
+    await Promise.all(pending);
+    const hit = await get("GET");
+    assert.equal(hit.headers.get("x-package-cache"), "HIT");
+    assert.equal((await hit.arrayBuffer()).byteLength, pkg.size);
+    assert.equal(reads, 1);
+  } finally {
+    if (original === undefined) delete globalThis.caches;
+    else globalThis.caches = original;
+  }
+});

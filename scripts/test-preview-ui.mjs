@@ -40,6 +40,28 @@ try {
   `]);
   assert.equal(await app.evaluate('!!document.querySelector("dialog[open] .install-steps")'), false);
   assert.deepEqual(await app.evaluate('window.__TAURI__.core.invoke("cached_packages")'), {});
+  // Exercise Rust cancellation on the installed binary before retrying the same package.
+  const cancelled = await app.evaluate(`(async () => {
+    const {Channel,invoke} = window.__TAURI__.core;
+    const progress = new Channel();
+    let sent = false;
+    progress.onmessage = () => {
+      if (!sent) { sent = true; void invoke("cancel_download",{channel:progress.id}); }
+    };
+    try { await invoke("download_mod",{id:"overtime",version:"v1.7",progress}); }
+    catch(error) { return String(error); }
+  })()`);
+  assert.equal(cancelled, "downloadCancelled");
+  assert.deepEqual(await app.evaluate('window.__TAURI__.core.invoke("cached_packages")'), {});
+  await app.command("Network.enable");
+  await app.command("Network.setBlockedURLs",{urls:["*/v1/catalog.json*"]});
+  await app.evaluate('localStorage.removeItem("online-catalog-v1")');
+  await app.command("Page.reload");
+  await until(() => app.evaluate('document.querySelector(".list-status button") && !document.querySelector("article")'), "Remote catalog failure");
+  await shot("catalog-unavailable");
+  await app.command("Network.setBlockedURLs",{urls:[]});
+  await app.evaluate('document.querySelector(".list-status button").click()');
+  await until(() => app.evaluate('!!document.querySelector("article")'), "Retry remote catalog");
   const copy = JSON.stringify(process.env.PREVIEW_FIXTURE);
   await app.evaluate(`window.__TAURI__.core.invoke("save_game",{path:${copy}})`);
   // Capture the prior record as soon as it renders, before waiting for disk verification.

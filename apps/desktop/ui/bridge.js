@@ -23,10 +23,26 @@ const release = mod => ({id: mod.id, version: mod.version});
 export const verifyPackage = mod => invoke("verify_package", release(mod));
 export const clearPackage = mod => invoke("clear_package", release(mod));
 
-export function downloadMod(mod, onProgress) {
+export async function downloadMod(mod, onProgress, signal) {
   const progress = new core.Channel();
-  progress.onmessage = onProgress;
-  return invoke("download_mod", {...release(mod), progress});
+  let registered = false;
+  let cancelling = false;
+  const cancel = () => {
+    if (!registered || cancelling) return;
+    cancelling = true;
+    invoke("cancel_download", {channel:progress.id}).catch(console.error);
+  };
+  progress.onmessage = pct => {
+    registered = true;
+    if (signal.aborted) cancel();
+    else onProgress(pct);
+  };
+  signal.addEventListener("abort", cancel, {once:true});
+  try {
+    await invoke("download_mod", {...release(mod), progress});
+  } finally {
+    signal.removeEventListener("abort", cancel);
+  }
 }
 
 export const installMod = (path, mod, adopt, expectedDir) =>

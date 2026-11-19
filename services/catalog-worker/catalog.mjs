@@ -7,7 +7,7 @@ const packages = new Map(snapshot.mods.filter(mod => mod.package).map(mod =>
   [`/v1/downloads/${mod.id}/${mod.version}/${mod.package.assetId}`, mod]));
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const head = request.method === "HEAD";
     if (!head && request.method !== "GET")
       return new Response(null, {status: 405, headers: {...headers, Allow: "GET, HEAD"}});
@@ -23,12 +23,25 @@ export default {
     const pkg = mod.package;
     if (!pkg.mirrorApproved) return new Response(null, {status: 403, headers});
     const key = "packages/sha256/" + pkg.sha256 + ".zip";
+    const cache = globalThis.caches?.default;
+    const cacheKey = new URL(request.url);
+    cacheKey.search = "?sha256=" + pkg.sha256;
+    const hit = cache && await cache.match(cacheKey.href);
+    if (hit) {
+      const response = new Response(head ? null : hit.body, hit);
+      response.headers.set("X-Package-Cache", "HIT");
+      return response;
+    }
     const object = head ? await env.PACKAGES.head(key) : await env.PACKAGES.get(key);
     if (!object || object.size !== pkg.size) return new Response(null, {status: 503, headers});
-    return new Response(head ? null : object.body, {headers: {...headers,
+    const response = new Response(head ? null : object.body, {headers: {...headers,
+      "Cache-Control": "public, max-age=0, s-maxage=86400",
+      "X-Package-Cache": "MISS",
       "Content-Type": "application/zip", "Content-Length": String(pkg.size),
       "Content-Disposition": `attachment; filename="${pkg.filename}"`,
       ...(pkg.noticeFile && {Link: `<https://raw.githubusercontent.com/${mod.repo}/${mod.version}/${pkg.noticeFile}>; rel="describedby"`})
     }});
+    if (!head && cache && ctx) ctx.waitUntil(cache.put(cacheKey.href, response.clone()));
+    return response;
   }
 };

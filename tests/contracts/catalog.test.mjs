@@ -58,11 +58,9 @@ test("overtime declares a valid upstream-cli adapter profile", () => {
   assert.ok(!overtime.adapter.actions.install.includes("--force"));
 });
 
-test("the Windows preview keeps its pinned adapter online and after an offline restart", () => {
-  const pinned = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-2");
-  assert.ok(pinned.adapter && !pinned.verified);
-  const live = {...pinned, adapter: undefined};
-  assert.equal(sortMods({mods: [live]})[0], live);
-  assert.deepEqual(sortMods({mods: [live]}, pinned), [pinned]);
-  assert.deepEqual(sortMods({mods: []}, pinned), [pinned]);
+test("the preview displays exactly the remotely supplied catalog rows and metadata", () => {
+  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-3");
+  const live = {...preview, name:{...preview.name,en:"Updated online"}};
+  assert.equal(sortMods({mods:[live]})[0], live);
+  assert.deepEqual(sortMods({mods:[]}), []);
 });

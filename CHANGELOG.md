@@ -4,6 +4,10 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-3 — 2026-11-19
+
+Closing a download cancels the transfer and frees the install button. Packages can be served from the existing mirror’s edge cache. The list uses remote entries and offers a retry on sync failure. Offline copies of the last successful catalog are labeled.
+
 ## 0.1.2-2 — 2026-11-19
 
 The Windows preview supports Overtime v1.7 on the pinned v2.1.2 game build. Choose Install once. If the game folder is missing, select a copy before the download starts. The dialog downloads the package if needed, verifies it and installs it. Cached packages can be installed offline. Close the game before modifying a copy. Other catalog entries list compatibility as unconfirmed until a supported build is documented.

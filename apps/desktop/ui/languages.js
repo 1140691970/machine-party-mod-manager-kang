@@ -43,6 +43,7 @@ export const messages = {
   internalPackage:["安装包内部校验失败","安裝包內部校驗失敗","Package content verification failed"],
   testRelease:["测试版","測試版","Test release"],
   catalogLoading:["正在同步目录…","正在同步目錄…","Syncing catalog…"],
+  downloadCancelled:["下载已取消","下載已取消","Download cancelled"],
   catalogUnavailable:["暂时无法取得在线目录。","暫時無法取得線上目錄。","Online catalog unavailable."],
   catalogCached:["目录同步失败，显示上次取得的列表。","目錄同步失敗，顯示上次取得的列表。","Sync failed. Showing the last saved catalog."],
   retryCatalog:["重新加载","重新載入","Retry"],

@@ -10,6 +10,8 @@ import { versionState } from "./versions.js";
 const nameOf = mod => mod.name[state.locale];
 
 const cached = mod => Boolean(mod.package && state.packages[mod.id] === mod.package.sha256);
+const isPreview = mod => mod.id === state.previewMod?.id && mod.version === state.previewMod.version
+  && mod.package?.sha256 === state.previewMod.package?.sha256;
 const support = mod => mod.supportedGameVersions?.length
   ? t("supportedGame") + " · " + mod.supportedGameVersions.join(", ") : t("supportUnknown");
 const trustedPackage = mod => isDesktop && mod.package?.mirrorApproved && state.pinned.some(item =>
@@ -42,7 +44,7 @@ function details(mod) {
   else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
     parts.push(element("p", t(modState), "error"));
   if (state.scan === "failed") parts.push(element("p", t(state.scanError) || t("statusUnavailable"), "error"));
-  if (!mod.verified && mod !== state.previewMod) parts.push(element("p", t("installPending")));
+  if (!mod.verified && !isPreview(mod)) parts.push(element("p", t("installPending")));
   if (state.lastScan?.pckPath) parts.push(element("p", state.lastScan.pckPath, "file-detail"));
   if (state.lastScan?.pckSha256 === mod.adapter?.baseline?.sha256 && mod.adapter && mod.supportedGameVersions?.length === 1)
     parts.push(element("p", t("detectedVersion") + " · " + mod.supportedGameVersions[0]));
@@ -90,7 +92,7 @@ function cover(mod, name, status) {
   const tags = element("div", "", "cover-tags");
   const version = tag(mod.version || t("unlisted"));
   if (mod.version) version.classList.add("tag-mono");
-  const label = mod === state.previewMod && status === "pending" ? "testRelease" : status;
+  const label = isPreview(mod) && status === "pending" ? "testRelease" : status;
   tags.append(version, tag(t(label), statusTone[status]));
   box.append(tags);
   return box;
@@ -124,7 +126,16 @@ async function installDialog(mod, action) {
   const close = $("#close");
   let stage = 0;
   const preventCancel = event => event.preventDefault();
-  const ownsDialog = () => dialog.open && steps.isConnected;
+  const controller = new AbortController();
+  const ownsDialog = () => !controller.signal.aborted && dialog.open && steps.isConnected;
+  const onClose = () => {
+    if ((dialog.open && steps.isConnected) || close.disabled) return;
+    dialog.removeEventListener("close", onClose);
+    controller.abort();
+    state.busyMod = "";
+    render();
+  };
+  dialog.addEventListener("close", onClose);
   show(title, steps, location, bar.el);
   state.busyMod = mod.id;
   render();
@@ -133,7 +144,8 @@ async function installDialog(mod, action) {
       rows[0].textContent = t("usingCache");
     } else {
       rows[0].textContent = t("working");
-      await downloadMod(mod, pct => { rows[0].textContent = pct + "%"; bar.set(pct); });
+      await downloadMod(mod, pct => { rows[0].textContent = pct + "%"; bar.set(pct); }, controller.signal);
+      if (!ownsDialog()) return;
       state.packages[mod.id] = mod.package.sha256;
       rows[0].textContent = t("done");
     }
@@ -163,6 +175,7 @@ async function installDialog(mod, action) {
     }
     show(title, steps, location, button(t("close"), closeDialog));
   } catch (error) {
+    if (!ownsDialog()) return;
     const [key, ...detail] = String(error).split(": ");
     if (["downloadFirst", "packageCorrupt"].includes(key)) delete state.packages[mod.id];
     rows[stage].textContent = t("failed");
@@ -179,15 +192,18 @@ async function installDialog(mod, action) {
     if (stage === 2 && path && path === state.game) await syncGameMods(true);
     if (retryButton) retryButton.disabled = false;
   } finally {
-    close.disabled = false;
+    dialog.removeEventListener("close", onClose);
     dialog.removeEventListener("cancel", preventCancel);
-    state.busyMod = "";
-    render();
+    if (!controller.signal.aborted) {
+      close.disabled = false;
+      state.busyMod = "";
+      render();
+    }
   }
 }
 
 function currentAction(mod) {
-  return modAction({managed:trustedPackage(mod), verified:mod.verified || mod === state.previewMod,
+  return modAction({managed:trustedPackage(mod), verified:mod.verified || isPreview(mod),
     game:state.game, scan:state.scan, disk:state.modStates[mod.id]});
 }
 

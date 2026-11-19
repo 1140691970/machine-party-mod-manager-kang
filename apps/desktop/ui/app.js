@@ -50,8 +50,11 @@ function render() {
   if (state.page === "settings") renderSettings(content, applyLocale);
   else {
     if (catalogStatus && state.page === "catalog") {
-      content.append(element("p", t(catalogStatus)));
-      if (catalogStatus !== "catalogLoading") content.append(button(t("retryCatalog"), refreshCatalog));
+      const status = element("section", "", "list-status" + (state.mods.length ? " compact" : ""));
+      status.setAttribute("role", "status");
+      status.append(icon(catalogStatus === "catalogLoading" ? "refresh" : "catalog"), element("p", t(catalogStatus)));
+      if (catalogStatus !== "catalogLoading") status.append(button(t("retryCatalog"), refreshCatalog, "link", "refresh"));
+      content.append(status);
     }
     if (!catalogStatus || state.mods.length || state.page === "installed") renderModList(content);
   }
@@ -63,13 +66,13 @@ const cached = cachedCatalog(localStorage);
 const bundled = isDesktop ? await bundledCatalog() : {mods: []};
 state.pinned = bundled.mods;
 state.previewMod = bundled.previewMod ?? null;
-state.mods = sortMods(cached ?? bundled, state.previewMod);
+state.mods = cached ? sortMods(cached) : [];
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
   render();
   try {
-    state.mods = sortMods(await loadCatalog(localStorage), state.previewMod);
+    state.mods = sortMods(await loadCatalog(localStorage));
     catalogStatus = "";
   } catch {
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";

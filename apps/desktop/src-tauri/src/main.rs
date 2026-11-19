@@ -13,6 +13,7 @@ fn main() {
     #[cfg(any(windows, target_os = "macos"))]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
+        .manage(commands::Downloads::default())
         .invoke_handler(tauri::generate_handler![
             commands::app_version,
             commands::catalog,
@@ -22,6 +23,7 @@ fn main() {
             commands::validate_game_mods,
             commands::game_copies,
             commands::download_mod,
+            commands::cancel_download,
             commands::verify_package,
             commands::cached_packages,
             commands::clear_package,
