@@ -1,5 +1,5 @@
 import { downloadUrl } from "./online-catalog.js";
-import { modAction } from "./mod-action.js";
+import { installationProblem, modAction } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod } from "./bridge.js";
 import { visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
@@ -105,7 +105,7 @@ async function installDialog(mod, action) {
   if (state.busyMod) return;
   const path = state.game;
   const target = state.pckDir;
-  const title = t(action) + " · " + nameOf(mod) + " " + mod.version;
+  const title = key => t(key) + " · " + nameOf(mod) + " " + mod.version;
   const steps = element("ol", "", "install-steps");
   const lastStep = action === "identify" ? "identify" : action === "adoptManual" ? "adoptManual" : "installStep";
   const rows = ["downloadStep", "verifyStep", lastStep].map(key => {
@@ -132,7 +132,7 @@ async function installDialog(mod, action) {
     render();
   };
   dialog.addEventListener("close", onClose);
-  show(title, steps, location, bar.el);
+  show(title(action), steps, location, bar.el);
   state.busyMod = mod.id;
   render();
   try {
@@ -162,14 +162,17 @@ async function installDialog(mod, action) {
       if (state.scan !== "ready") throw state.scanError || "statusUnavailable";
       rows[stage].textContent = t("disk_" + state.modStates[mod.id]);
       if (state.modStates[mod.id] === "manualInstall") {
-        show(title, steps, location, button(t("adoptManual"), () => startInstall(mod, "adoptManual"), "primary"));
+        show(title("identifySuccess"), steps, location, button(t("adoptManual"), () => startInstall(mod, "adoptManual"), "primary"));
         return;
       }
     } else {
-      applyValidation(await installMod(path, mod, action === "adoptManual", target), path);
+      const result = await installMod(path, mod, action === "adoptManual", target);
+      applyValidation(result, path);
+      const problem = installationProblem(result, mod);
+      if (problem) throw problem;
       rows[stage].textContent = t("done");
     }
-    show(title, steps, location, button(t("close"), closeDialog));
+    show(title(action + "Success"), steps, location);
   } catch (error) {
     if (!ownsDialog()) return;
     const [key, ...detail] = String(error).split(": ");
@@ -183,7 +186,7 @@ async function installDialog(mod, action) {
         retryButton = button(t("retry"), () => startInstall(mod, action), "primary");
         retryButton.disabled = true;
       }
-      show(title, steps, location, message, ...(retryButton ? [retryButton] : []));
+      show(title(action + "Failure"), message, steps, location, ...(retryButton ? [retryButton] : []));
     }
     if (stage === 2 && path && path === state.game) await syncGameMods(true);
     if (retryButton) retryButton.disabled = false;

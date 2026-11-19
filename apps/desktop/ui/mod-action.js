@@ -9,3 +9,10 @@ export function modAction({managed, verified, game, scan, disk}) {
   if (disk === "vanilla") return "install";
   return "review";
 }
+
+export function installationProblem(result, mod) {
+  const disk = result.modStates[mod.id];
+  if (disk === "installed" && result.installed[mod.repo] === mod.version) return null;
+  if (disk === "needsRepair" || disk === "gameUpdatedOrModified") return disk;
+  return "statusUnavailable";
+}
