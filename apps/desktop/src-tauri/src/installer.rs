@@ -2367,7 +2367,6 @@ mod tests {
             repo: "DarkJadeStone/MachineParty-Overtime".into(),
             version: Some("v1.7".into()),
             verified: true,
-            first_party: false,
             package: Some(PackageSpec {
                 asset_id: "594522625".into(),
                 filename: "Machine-Party-Overtime-1.7-CLI.zip".into(),
@@ -3076,7 +3075,6 @@ print("Patched")
             repo: "Binary1936/machine-party-8p".into(),
             version: Some("v1.5".into()),
             verified: true,
-            first_party: false,
             package: Some(PackageSpec {
                 asset_id: "520133712".into(),
                 filename: "machine-party-8p-mod.zip".into(),
@@ -3466,7 +3464,6 @@ print("Patched")
             repo: "Ghostx10742/MachineParty-Plus".into(),
             version: Some("v2.1.0".into()),
             verified: true,
-            first_party: false,
             package: Some(PackageSpec {
                 asset_id: "511918824".into(),
                 filename: "Jarunk-MachinePartyPlus.zip".into(),
@@ -3602,7 +3599,6 @@ print("Patched")
             repo: "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher".into(),
             version: Some("v0.91".into()),
             verified: true,
-            first_party: false,
             package: Some(PackageSpec {
                 asset_id: "517871491".into(),
                 filename:
@@ -3776,7 +3772,6 @@ print("Patched")
             repo: "Ghostx10742/MachineParty-Plus".into(),
             version: Some("v2.1.0".into()),
             verified: true,
-            first_party: false,
             package: Some(PackageSpec {
                 asset_id: "511918824".into(),
                 filename: "Jarunk-MachinePartyPlus.zip".into(),

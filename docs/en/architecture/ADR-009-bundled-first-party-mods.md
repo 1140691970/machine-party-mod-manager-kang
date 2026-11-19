@@ -12,7 +12,7 @@ First-party gameplay mods authored inside this repository (starting with `mods/r
 
 1. **Repository-owned first-party mod source (`mods/<id>/`) and deterministic R2 ZIP packaging (`scripts/pack-mod.mjs`)**:
    - First-party mods live under `mods/<id>/` with a `mod.json` (`"id"` matching `^[a-z0-9-]+$`), clean GDScript sources, and `README.md`.
-   - `scripts/pack-mod.mjs` excludes macOS standalone development and documentation entries (`project.godot`, `*_scene.tscn`, `*.sh`, `*.md`, hidden entries, and symlinks) and builds a deterministic `ZIP_STORED` archive named `<id>-<version>.zip` whose size and SHA-256 are pinned in `catalog/mods.json` alongside `"firstParty": true`.
+   - `scripts/pack-mod.mjs` excludes macOS standalone development and documentation entries (`project.godot`, `*_scene.tscn`, `*.sh`, `*.md`, hidden entries, and symlinks) and builds a deterministic `ZIP_STORED` archive named `<id>-<version>.zip` whose size and SHA-256 are pinned in `catalog/mods.json` identically to every other catalog entry.
    - `.github/workflows/catalog-worker.yml` runs `node scripts/pack-mod.mjs --all --verify-catalog`, stages each `packages/sha256/<sha256>.zip` object into Cloudflare R2, verifies every `mirrorApproved` package in R2 before publishing `catalog/revisions/<revision>.json`, and deploys `services/catalog-worker`.
 2. **Built-in clean-room loader (`pck_loader.rs` + `assets/mpm_bootstrap.gd`)**:
    - Written from scratch under GPL-3.0-only without redistributing third-party binaries or upstream loader code.
@@ -20,10 +20,9 @@ First-party gameplay mods authored inside this repository (starting with `mods/r
      - If an external loader (`MachinePartyModLoader.exe` or an unmanaged `Machine Party.pck.modloader.json`) is present, it leaves that external loader untouched and installs `<pckDir>/mods/<id>/` beside existing mods.
      - Otherwise, it verifies the vanilla PCK baseline size/SHA-256, stores a verified per-copy vanilla backup under `_mpm_loader`, appends patched `project.binary` (`autoload/ModLoader = "*res://modloader/bootstrap.gd"` first) and `modloader/bootstrap.gd` to the GDPC Format 3 archive, reads back and verifies both entries, and records offsets and hashes in `Machine Party.pck.modloader.json` with `"managed_by": "machine-party-mod-manager"`.
    - When the last `loader-files` mod is uninstalled and no external loader or leftover `mods/` subdirectories remain, `installer.rs` invokes `pck_loader::restore_managed_loader` to restore the original `dir_offset`, truncate the PCK back to its exact vanilla size, verify the vanilla SHA-256, remove `Machine Party.pck.modloader.json`, and clean `_mpm_loader`. If Steam updated the PCK in between, restoration stops with `gameUpdatedOrModified`.
-3. **Catalog and UI integration (`firstParty: true`, `autoLoader: true`)**:
-   - `catalog/mods.json` records `firstParty: true` together with standard `package` metadata (`assetId`, `filename`, `size`, `sha256`, `mirrorApproved: true`) and optional `adapter.autoLoader: true` (allowed only on `kind: "loader-files"`).
-   - `catalog.rs::project_url` routes `firstParty` entries to `https://github.com/{app_repo}/tree/main/mods/{id}`.
-   - The UI downloads, caches, and verifies first-party mods identically to third-party mods via `download_mod` -> `verify_package` -> `install_mod`, displays a `First-party` card tag, and notes automatic loader setup & lossless restoration in the details dialog.
+3. **Uniform catalog and UI presentation**:
+   - `catalog/mods.json` uses the exact same `package` metadata (`assetId`, `filename`, `size`, `sha256`, `mirrorApproved: true`) and optional `adapter.autoLoader: true` (allowed only on `kind: "loader-files"`) without special UI badges, special repo overrides, or extra notes.
+   - The UI downloads, caches, verifies, installs, and displays repo-authored mods identically to every other catalog entry.
 
 ## Alternatives
 
@@ -33,7 +32,7 @@ First-party gameplay mods authored inside this repository (starting with `mods/r
 
 ## Compatibility
 
-- `catalog/mods.json` stays `schema: 1`; `firstParty` and `autoLoader` default to `false` when omitted.
+- `catalog/mods.json` stays `schema: 1`; `autoLoader` defaults to `false` when omitted.
 - `installations.json`, `game-path.json`, Tauri IPC command names, and existing `upstream-cli` / `loader-files` third-party mods remain unchanged.
 - Coexists safely with external `MachinePartyModLoader.exe` and enforces mutual exclusion (`loaderConflict` / `modConflict`) with direct PCK patchers such as `overtime`.
 

@@ -86,13 +86,13 @@ To publish a first-party mod into the catalog and R2/Worker pipeline:
 1. Create `mods/<id>/README.md`, `mods/<id>/mod.json`, runtime scripts, and cover image `apps/desktop/ui/images/<id>.png`.
 2. Run `node scripts/pack-mod.mjs <id>` to inspect the exact deterministic `filename`, `size`, `sha256`, and `files` list.
 3. Add an entry to [`catalog/mods.json`](../../../catalog/mods.json):
-   - Set `"id"` (`<id>`), unique `"order"`, unique `"repo"` (used for display and [`project_url`](../../../apps/desktop/src-tauri/src/catalog.rs), which automatically links first-party mods to `tree/main/mods/<id>`), `"image": "<id>"`, `"version": "v<mod.json.version>"`, and `"firstParty": true`.
+   - Set `"id"` (`<id>`), unique `"order"`, unique `"repo"` (for example `"JamesGZM/machine-party-mod-manager"`), `"image": "<id>"`, and `"version": "v<mod.json.version>"`.
    - Set `"package"`: unique numeric string `"assetId"` (e.g. `"1001"`), exact `"filename"`, `"size"`, `"sha256"` from `scripts/pack-mod.mjs`, and `"mirrorApproved": true`.
    - Set `"supportedGameVersions"`, `"windowsPreview"` matching the current app preview build, and `"verified": false` until Tier 3 passes.
    - Configure `"adapter"`: `"kind": "loader-files"`, `"platforms": ["windows"]`, `"target": "pckDir"`, `"touches": ["mods"]`, `"exclusive": "loader"`, `"autoLoader": true`, `"upstreamUninstall": false`, verified `"baseline"` (`Machine Party.pck` size + SHA-256), and exact `"requiredFiles"` matching `pack-mod.mjs` output.
    - Provide complete `zh-CN`, `zh-TW`, and `en` text for `name`, `summary`, and `detail`, plus `aliases`.
 4. Update [`mods/README.md`](../../../mods/README.md) with the new mod row.
-5. UI support is automatic: `catalog-view.js` displays a `First-party` badge (`mod.firstParty`), notes automatic loader setup & clean restoration (`adapter.autoLoader`), and runs the standard Worker download -> verify -> install progress dialog.
+5. No UI special-casing is needed or used: every catalog mod displays the exact same cards, badges, details dialog, and Worker download -> verify -> install workflow.
 
 ## 6. Packaging and R2 / Worker deployment
 

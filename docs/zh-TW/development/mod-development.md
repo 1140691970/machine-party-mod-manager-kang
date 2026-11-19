@@ -84,13 +84,13 @@
 1. 在 `mods/<id>/` 備妥 `README.md`、`mod.json`、執行期 GDScript 檔案，以及封面圖片 `apps/desktop/ui/images/<id>.png`。
 2. 執行 `node scripts/pack-mod.mjs <id>` 取得確定性的 `filename`、`size`、`sha256` 與 `files` 清單。
 3. 於 [`catalog/mods.json`](../../../catalog/mods.json) 新增對應條目：
-   - 填寫唯一 `id`、`order`、`repo`（[`catalog.rs`](../../../apps/desktop/src-tauri/src/catalog.rs) 中的 `project_url` 會為 `firstParty: true` 條目自動導向 `tree/main/mods/<id>`）、`image`、`"version": "v<mod.json.version>"` 與 `"firstParty": true`。
+   - 填寫唯一 `id`、`order`、`repo`（例如 `"JamesGZM/machine-party-mod-manager"`）、`image` 與 `"version": "v<mod.json.version>"`。
    - 填寫 `"package"`：唯一數字字串 `assetId`（例如 `"1001"`）、`scripts/pack-mod.mjs` 輸出的 `filename`、`size`、`sha256`，以及 `"mirrorApproved": true`。
    - 填寫 `supportedGameVersions` 與對應桌面版號的 `windowsPreview`，在通過 Tier 3 前一律保持 `"verified": false`。
    - 設定 `adapter`：`kind: "loader-files"`、`platforms: ["windows"]`、`target: "pckDir"`、`touches: ["mods"]`、`exclusive: "loader"`、`autoLoader: true`、`upstreamUninstall: false`、原版 `baseline` 指紋與逐一對應打包檔案的 `requiredFiles`。
    - 提供完整的 `zh-CN`、`zh-TW`、`en` 三語 `name`、`summary`、`detail` 與搜尋 `aliases`。
 4. 同步更新 [`mods/README.md`](../../../mods/README.md) 索引表。
-5. 前端自動完成整合：`catalog-view.js` 會為 `firstParty` 顯示「官方自研」標籤、在詳情提示自動配置載入器與無損還原機制（`adapter.autoLoader`），並沿用標準 Worker 下載 → 校驗 → 安裝彈窗流程。
+5. 不會有任何介面特例：所有目錄模組使用完全相同的卡片樣式、詳情版面與 Worker 下載 → 校驗 → 安裝彈窗流程。
 
 ## 6. 確定性 ZIP 打包與 R2 / Worker 部署流程
 

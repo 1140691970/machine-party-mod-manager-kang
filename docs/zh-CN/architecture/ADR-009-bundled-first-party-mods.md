@@ -12,7 +12,7 @@
 
 1. **自研模组源码归属（`mods/<id>/`）与确定性 R2 打包（`scripts/pack-mod.mjs`）**：
    - 自研模组源码位于仓库 `mods/<id>/` 下，内含合法 `mod.json`（`id` 匹配 `^[a-z0-9-]+$`）、纯粹 GDScript 实现与 `README.md`。
-   - `scripts/pack-mod.mjs` 自动排除本地开发辅助与文档文件（`project.godot`、`*_scene.tscn`、`*.sh`、`*.md`、隐藏项与符号链接），生成固定时间戳、排序一致的 `ZIP_STORED` 归档 `<id>-<version>.zip`，其字节数与 SHA-256 固定写入 `catalog/mods.json`（并标注 `"firstParty": true`）。
+   - `scripts/pack-mod.mjs` 自动排除本地开发辅助与文档文件（`project.godot`、`*_scene.tscn`、`*.sh`、`*.md`、隐藏项与符号链接），生成固定时间戳、排序一致的 `ZIP_STORED` 归档 `<id>-<version>.zip`，其字节数与 SHA-256 按与其他模组完全相同的格式写入 `catalog/mods.json`。
    - `.github/workflows/catalog-worker.yml` 在部署目录时执行 `node scripts/pack-mod.mjs --all --verify-catalog`，自动将生成的 ZIP 上传至 R2 的 `packages/sha256/<sha256>.zip`，校对所有 `mirrorApproved` 对象后再写入 `catalog/revisions/<revision>.json` 并部署 `services/catalog-worker`。
 2. **净室实现内置加载器（`pck_loader.rs` + `assets/mpm_bootstrap.gd`）**：
    - 依仓库 GPL-3.0-only 协议从零净室编写，不打包或再分发第三方可执行文件与上游加载器代码。
@@ -20,10 +20,9 @@
      - 若磁盘已有外部加载器（`MachinePartyModLoader.exe` 或非本管理器写入的 `Machine Party.pck.modloader.json`），则保留玩家原有的外部加载器不覆盖，直接写入当前模组目录。
      - 否则先校验原版 `Machine Party.pck` 指纹并在 `_mpm_loader` 下保留一份校验后的整包备份，以 GDPC Format 3 追加模式写入将 `*res://modloader/bootstrap.gd` 置首的 `project.binary`、`modloader/bootstrap.gd` 与 `.stamp`，读回解析验证后写入带 `"managed_by": "machine-party-mod-manager"` 标记的 `Machine Party.pck.modloader.json`。
    - 当卸载最后一个由管理器安装的 `loader-files` 模组、且不存在外部加载器或残留 `mods/` 子目录时，`installer.rs` 调用 `pck_loader::restore_managed_loader` 将目录指针恢复并截断回原版大小、校验原版 SHA-256、删除侧车标记与 `_mpm_loader` 备份；若期间 Steam 更新过 PCK，则拒绝截断并提示 `gameUpdatedOrModified`。
-3. **目录与界面联动（`firstParty: true`、`autoLoader: true`）**：
-   - `catalog/mods.json` 为自研模组填写 `firstParty: true` 与标准 `package` 字段（`assetId`、`filename`、`size`、`sha256`、`mirrorApproved: true`）及可选 `adapter.autoLoader: true`。
-   - `catalog.rs::project_url` 将 `firstParty` 条目自动映射至 `https://github.com/{app_repo}/tree/main/mods/{id}`。
-   - 桌面端与 UI 对自研模组完全沿用统一的 `download_mod` -> `verify_package` -> `install_mod` 流程，仅在卡片上额外显示「官方自研」角标，并在详情中提示首次安装自动配置加载器与卸载无损还原说明。
+3. **统一目录与界面展示**：
+   - `catalog/mods.json` 使用完全相同的 `package` 字段（`assetId`、`filename`、`size`、`sha256`、`mirrorApproved: true`）与可选 `adapter.autoLoader: true`，不添加特殊角标、特殊文案或独立链接规则。
+   - 桌面端与 UI 对所有目录模组使用完全一致的卡片、详情与 `download_mod` -> `verify_package` -> `install_mod` 流程。
 
 ## 备选方案
 
@@ -33,7 +32,7 @@
 
 ## 相容性
 
-- `catalog/mods.json` 保持 `schema: 1`；省略 `firstParty` 与 `autoLoader` 时默认 `false`。
+- `catalog/mods.json` 保持 `schema: 1`；省略 `autoLoader` 时默认 `false`。
 - `installations.json`、`game-path.json`、Tauri 命令名称与既有第三方 `upstream-cli` / `loader-files` 安装流全部保持兼容。
 - 与玩家既有 `MachinePartyModLoader.exe` 和平共存，并与 `overtime` 等直接修改 PCK 的模组严格互斥（`loaderConflict` / `modConflict`）。
 

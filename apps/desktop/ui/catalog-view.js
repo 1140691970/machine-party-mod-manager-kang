@@ -64,7 +64,6 @@ function details(mod) {
     closeDialog();
     render();
   }));
-  if (adapter?.autoLoader) parts.push(element("p", t("autoLoaderNote")));
   if (mod.package) {
     parts.push(element("p", mod.package.filename));
     if (mod.package.mirrorApproved) {
@@ -96,7 +95,6 @@ function cover(mod, name, status) {
   if (mod.version) version.classList.add("tag-mono");
   const label = isPreview(mod) && status === "pending" ? "testRelease" : status;
   tags.append(version, tag(t(label), statusTone[status]));
-  if (mod.firstParty) tags.append(tag(t("firstParty"), "accent"));
   box.append(tags);
   return box;
 }

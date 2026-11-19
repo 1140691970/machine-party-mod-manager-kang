@@ -173,8 +173,7 @@ async function verifyCatalogParity(packed, rootDir) {
   const catalog = JSON.parse(await readFile(path.join(rootDir, "catalog/mods.json"), "utf8"));
   for (const item of packed) {
     const entry = catalog.mods.find(mod => mod.id === item.id);
-    assert.ok(entry, `catalog/mods.json is missing first-party mod ${item.id}`);
-    assert.equal(entry.firstParty, true, `${item.id}: expected catalog entry.firstParty === true`);
+    assert.ok(entry, `catalog/mods.json is missing mod ${item.id}`);
     assert.equal(entry.version, `v${item.version}`, `${item.id}: version mismatch with catalog`);
     assert.ok(entry.package, `${item.id}: expected package metadata in catalog/mods.json`);
     assert.equal(entry.package.filename, item.filename, `${item.id}: package filename mismatch`);

@@ -4,13 +4,17 @@
 
 记录对玩家和贡献者有影响的变化。版本号与桌面 App 一致。
 
+## 0.1.2-6 — 2026-11-19
+
+移除特殊的「官方自研」界面角标与目录特例，使所有上架 R2 与目录 Worker 的模组（包括 `roller-carnival v0.1.0`）保持完全一致的目录结构、下载流程与卡片展示。
+
 ## 0.1.2-5 — 2026-11-19
 
-Windows 测试版 `0.1.2-5` 为目录内全部五个模组（`Overtime v1.7`、`MachineParty+ v2.1.0`、`Broadcast 8P Freecam v0.91`、`Binary1936 八人模组 v1.5` 与官方自研 `滚筒嘉年华 v0.1.0`）开放 `v2.1.2` 测试安装流程，新增 `loader-files`、PowerShell、内置 Python 适配器与互斥冲突检测，并加入管理器洁净室 PCK 自动加载器（`pck_loader.rs` + `mpm_bootstrap.gd`）与无损还原。
+Windows 测试版 `0.1.2-5` 为目录内全部五个模组（`Overtime v1.7`、`MachineParty+ v2.1.0`、`Broadcast 8P Freecam v0.91`、`Binary1936 八人模组 v1.5` 与 `滚筒嘉年华 v0.1.0`）开放 `v2.1.2` 测试安装流程，新增 `loader-files`、PowerShell、内置 Python 适配器与互斥冲突检测，并加入管理器洁净室 PCK 自动加载器（`pck_loader.rs` + `mpm_bootstrap.gd`）与无损还原。
 
 ### 新增
 
-- 通过 `scripts/pack-mod.mjs` 将 `mods/<id>/` 下的自研模组（`roller-carnival v0.1.0`）确定性打包为 `.zip`，经由 R2 与 `services/catalog-worker` 统一分发并展示「官方自研」角标，与第三方模组使用相同的下载和 SHA-256 校验流水线。
+- 通过 `scripts/pack-mod.mjs` 将 `mods/<id>/` 下的模组（`roller-carnival v0.1.0`）确定性打包为 `.zip`，经由 R2 与 `services/catalog-worker` 统一分发，与所有其他模组使用完全相同的下载与 SHA-256 校验流水线。
 
 ## 0.1.2-4 — 2026-11-19
 

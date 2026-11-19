@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.6",
+  "revision": "2026-11-19.7",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -18,7 +18,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-5",
+      "windowsPreview": "0.1.2-6",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],
@@ -79,7 +79,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-5",
+      "windowsPreview": "0.1.2-6",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -121,7 +121,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-5",
+      "windowsPreview": "0.1.2-6",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],
@@ -179,7 +179,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-5",
+      "windowsPreview": "0.1.2-6",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],
@@ -226,10 +226,9 @@
     {
       "id": "roller-carnival",
       "order": 5,
-      "repo": "JamesGZM/roller-carnival",
+      "repo": "JamesGZM/machine-party-mod-manager",
       "image": "roller-carnival",
       "version": "v0.1.0",
-      "firstParty": true,
       "package": {
         "assetId": "1001",
         "filename": "roller-carnival-0.1.0.zip",
@@ -238,7 +237,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-5",
+      "windowsPreview": "0.1.2-6",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -270,16 +269,16 @@
         "en": "Roller Carnival"
       },
       "summary": {
-        "zh-CN": "原创机械狂欢躲避小游戏，接入官方轮换与大厅快速开房设置。",
-        "zh-TW": "原創機械狂歡躲避小遊戲，接入官方輪換與大廳快速開房設定。",
-        "en": "Original mechanical carnival dodge minigame joining the official rotation."
+        "zh-CN": "机械狂欢躲避小游戏，接入官方轮换与大厅快速开房设置。",
+        "zh-TW": "機械狂歡躲避小遊戲，接入官方輪換與大廳快速開房設定。",
+        "en": "Mechanical carnival dodge minigame joining the official rotation."
       },
       "detail": {
-        "zh-CN": "官方自研玩法模组（经由 R2 镜像安装）：金色高滚筒按 S 下蹲、银色低滚筒按空格跳跃，碰撞推挤至左侧岩浆淘汰并按躲避数排名加分。",
-        "zh-TW": "官方自研玩法模組（經由 R2 鏡像安裝）：金色高滾筒按 S 下蹲、銀色低滾筒按空白鍵跳躍，碰撞推擠至左側岩漿淘汰並依躲避數排名加分。",
-        "en": "First-party minigame mod: crouch under gold high rollers, jump over silver low rollers, avoid being shoved into the lava, and score by dodge rank."
+        "zh-CN": "金色高滚筒按 S 下蹲、银色低滚筒按空格跳跃，碰撞推挤至左侧岩浆淘汰并按躲避数排名加分。",
+        "zh-TW": "金色高滾筒按 S 下蹲、銀色低滾筒按空白鍵跳躍，碰撞推擠至左側岩漿淘汰並依躲避數排名加分。",
+        "en": "Crouch under gold high rollers, jump over silver low rollers, avoid being shoved into the lava, and score by dodge rank."
       },
-      "aliases": ["滚筒", "滾筒嘉年華", "roller", "carnival", "自研", "官方自研"]
+      "aliases": ["滚筒", "滾筒嘉年華", "roller", "carnival"]
     }
   ]
 }

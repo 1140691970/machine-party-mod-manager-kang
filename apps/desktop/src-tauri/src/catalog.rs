@@ -22,8 +22,6 @@ pub struct ModEntry {
     pub repo: String,
     pub version: Option<String>,
     pub verified: bool,
-    #[serde(default, rename = "firstParty")]
-    pub first_party: bool,
     pub package: Option<PackageSpec>,
     pub adapter: Option<AdapterProfile>,
 }
@@ -189,18 +187,8 @@ pub fn project_url(repo: &str) -> Option<String> {
     catalog
         .mods
         .iter()
-        .find(|entry| entry.repo == repo)
-        .map(|entry| {
-            if entry.first_party {
-                let app_repo = catalog
-                    .repo
-                    .as_deref()
-                    .unwrap_or("JamesGZM/machine-party-mod-manager");
-                format!("https://github.com/{app_repo}/tree/main/mods/{}", entry.id)
-            } else {
-                format!("https://github.com/{repo}")
-            }
-        })
+        .any(|entry| entry.repo == repo)
+        .then(|| format!("https://github.com/{repo}"))
 }
 
 #[cfg(test)]
@@ -209,7 +197,7 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-5").len(), 5);
+        assert_eq!(preview_entries("0.1.2-6").len(), 5);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -218,10 +206,10 @@ mod tests {
             "roller-carnival",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-5"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-6"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-5"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-6"), "{id}");
         }
     }
 
@@ -288,7 +276,7 @@ mod tests {
         let entries = all_entries();
         assert_eq!(entries.len(), 5);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
-        assert!(roller.first_party);
+        assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller
             .package
             .as_ref()
@@ -297,10 +285,8 @@ mod tests {
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
-            project_url("JamesGZM/roller-carnival").as_deref(),
-            Some(
-                "https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival"
-            )
+            project_url("JamesGZM/machine-party-mod-manager").as_deref(),
+            Some("https://github.com/JamesGZM/machine-party-mod-manager")
         );
         assert_eq!(
             download_url(&mod_entry).unwrap(),

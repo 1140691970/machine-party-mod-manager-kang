@@ -10,11 +10,11 @@
 
 ## 決策
 
-`catalog/mods.json`（schema 1）是唯一來源。頂層記錄管理器自身的 `repo`，每個模組條目包含穩定的 `id`、固定的 `order`、`repo`、選填的 `image`、`version`、`verified`、`firstParty`、`supportedGameVersions`、`windowsPreview`，以及 `zh-CN`、`zh-TW`、`en` 三語的 `name`、`summary`、`detail`、搜尋用的 `aliases` 和可選的宣告式 `adapter` 設定。
+`catalog/mods.json`（schema 1）是唯一來源。頂層記錄管理器自身的 `repo`，每個模組條目包含穩定的 `id`、固定的 `order`、`repo`、選填的 `image`、`version`、`verified`、`supportedGameVersions`、`windowsPreview`，以及 `zh-CN`、`zh-TW`、`en` 三語的 `name`、`summary`、`detail`、搜尋用的 `aliases` 和可選的宣告式 `adapter` 設定。
 
-- Rust 在編譯期內嵌該檔案。`catalog` 命令把它交給介面，`open_project` 只接受目錄頂層的管理器 `repo` 或 `mods` 中列出的作者倉庫（其中 `firstParty: true` 條目在 `catalog.rs` 中對應到 `<app_repo>/tree/main/mods/<id>`，並透過 `scripts/pack-mod.mjs` 打包為 R2 壓縮檔）。
+- Rust 在編譯期內嵌該檔案。`catalog` 命令把它交給介面，`open_project` 只接受目錄頂層的管理器 `repo` 或 `mods` 中列出的作者倉庫。
 - 介面經 `bridge.js` 載入並按 `order` 排序。在一般瀏覽器預覽時從倉庫直接讀取。
-- `tests/contracts/catalog.test.mjs` 檢查 ID、序號與倉庫唯一、頂層 `repo`、自研模組清單/README/ZIP 契約、Windows 測試版中繼資料與 `adapter` 設定、翻譯完整以及封面圖片隨介面發布；Rust 測試檢查解析與白名單。
+- `tests/contracts/catalog.test.mjs` 檢查 ID、序號與倉庫唯一、頂層 `repo`、`mods/` 模組清單/README/ZIP 契約、Windows 測試版中繼資料與 `adapter` 設定、翻譯完整以及封面圖片隨介面發布；Rust 測試檢查解析與白名單。
 
 ## 替代方案
 

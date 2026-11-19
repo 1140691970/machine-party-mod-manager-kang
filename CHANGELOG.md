@@ -4,13 +4,17 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-6 — 2026-11-19
+
+Removed special `firstParty` UI badges and catalog overrides so every mod packaged into R2 (`roller-carnival v0.1.0` included) follows the exact same catalog schema, R2 Worker download flow, and UI presentation.
+
 ## 0.1.2-5 — 2026-11-19
 
-Windows preview `0.1.2-5` enables `v2.1.2` test installation across all five catalogued mods (`Overtime v1.7`, `MachineParty+ v2.1.0`, `Broadcast 8P Freecam v0.91`, `Binary1936 eight-player mod v1.5`, and first-party `Roller Carnival v0.1.0`), adding `loader-files`, PowerShell, and bundled-Python support, mutual-exclusion conflict checks, and the manager's clean-room PCK auto-loader (`pck_loader.rs` + `mpm_bootstrap.gd`) with lossless vanilla restoration.
+Windows preview `0.1.2-5` enables `v2.1.2` test installation across all five catalogued mods (`Overtime v1.7`, `MachineParty+ v2.1.0`, `Broadcast 8P Freecam v0.91`, `Binary1936 eight-player mod v1.5`, and `Roller Carnival v0.1.0`), adding `loader-files`, PowerShell, and bundled-Python support, mutual-exclusion conflict checks, and the manager's clean-room PCK auto-loader (`pck_loader.rs` + `mpm_bootstrap.gd`) with lossless vanilla restoration.
 
 ### Added
 
-- Deterministically package first-party repository mods under `mods/<id>/` (`roller-carnival v0.1.0`) via `scripts/pack-mod.mjs` into R2 + `services/catalog-worker`, displaying a `First-party` badge and downloading/verifying via SHA-256 like all other catalog entries.
+- Deterministically package mods under `mods/<id>/` (`roller-carnival v0.1.0`) via `scripts/pack-mod.mjs` into R2 + `services/catalog-worker`, downloading and verifying via SHA-256 identically to all other catalog entries.
 
 ## 0.1.2-4 — 2026-11-19
 

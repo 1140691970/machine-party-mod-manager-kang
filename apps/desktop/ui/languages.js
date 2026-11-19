@@ -25,8 +25,6 @@ export const messages = {
   retry:["重试","重試","Retry"],
   downloadFirst:["请先下载此版本。","請先下載此版本。","Download this version first."],
   cached:["已缓存","已快取","Cached"],
-  firstParty:["官方自研","官方自研","First-party"],
-  autoLoaderNote:["首次安装会自动配置加载器，卸载后可无损还原原版游戏。","首次安裝會自動配置載入器，解除安裝後可無損還原原版遊戲。","Automatically sets up the loader on first install and restores the original game cleanly on uninstall."],
   backup:["备份","備份","Backup"],
   clearCache:["清除此下载","清除此下載","Clear download"],
   detectedVersion:["当前游戏版本","目前遊戲版本","Detected game version"],

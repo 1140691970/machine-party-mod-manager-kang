@@ -51,7 +51,7 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存檔並將 `.app` 移入可寫入的應用程式目錄。
 
-**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-5` 工作區已為目錄內全部五個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
+**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-6` 工作區已為目錄內全部五個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
 
 ## 開始使用
 
@@ -74,13 +74,13 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公開房間、語音與文字聊天 | 載入器模組（`loader-files`，Windows 測試版） |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | 八人團播、四隊輪換與導播自由鏡頭 | PowerShell 修補（`upstream-cli`，Windows 測試版） |
 | [八人連線模組](https://github.com/Binary1936/machine-party-8p) | `v1.5` | 將線上遊戲擴充至 8 人 | 內建 Python 修補（`upstream-cli`，Windows 測試版） |
-| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | 原創機械狂歡躲避小遊戲 | 官方自研 R2 ZIP 搭配託管載入器（`firstParty` + `autoLoader`，Windows 測試版） |
+| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | 機械狂歡躲避小遊戲 | 載入器模組（`loader-files` + `autoLoader`，R2 ZIP，Windows 測試版） |
 
 驗收清單、上游授權邊界與互斥群組規則詳見[候選模組與收錄規範](../zh-TW/catalog/mods.md)。
 
 ## 更新紀錄
 
-目前開發版本 **0.1.2-5** 為全部五個目錄模組接入 Windows `v2.1.2` 適配器（含經由 R2 鏡像分發的官方自研模組《滾筒嘉年華》與自動 PCK 載入器配置），優化設定頁（三段式語言切換、右對齊目錄操作與 GitHub 連結合併列），並加入附帶更新說明的非強制啟動更新彈窗。[完整更新紀錄](../zh-TW/CHANGELOG.md)。
+目前開發版本 **0.1.2-6** 為全部五個目錄模組統一接入 R2 + Worker 分發與 Windows `v2.1.2` 適配器，優化設定頁（三段式語言切換、右對齊目錄操作與 GitHub 連結合併列），並加入附帶更新說明的非強制啟動更新彈窗。[完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 
