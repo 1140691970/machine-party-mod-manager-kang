@@ -21,3 +21,5 @@ Worker（`services/update-worker`）從私有 R2 bucket `machine-party-mods` 的
 首次部署或修改 Worker 時執行 **Deploy app update Worker**，在 production 核准。腳本使用既有的 Workers 權限綁定專案子網域。若無法自動取得區域 ID，可在 production 新增變數 `CLOUDFLARE_ZONE_ID`。部署使用 `CLOUDFLARE_ACCOUNT_ID` 與 `CLOUDFLARE_API_TOKEN`。發布另使用 `R2_BUCKET_NAME`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY` 與 `TAURI_SIGNING_PRIVATE_KEY`。
 
 首次安裝時，Windows 從 GitHub Release 下載 setup.exe。Apple Silicon Mac 下載 MachineParty-aarch64.app.tar.gz，解壓後將 .app 放到可寫入的應用程式目錄。Mac 套件使用 ad hoc 程式碼簽章，尚未經 Apple Developer ID 公證。早期 Mac 原型缺少更新器，需手動安裝一次支援更新的版本。客戶端內建更新公鑰。請將對應私鑰另存於受保護的離線備份，後續版本須能通過已安裝客戶端的公鑰驗證。Tauri 更新簽章與 Windows Authenticode 無關。
+
+Windows 專用套件的預設程式目錄為 MachinePartyModManager。設定倉庫變數 WINDOWS_SIGNING_RUNNER 與 WINDOWS_SIGNING_THUMBPRINT，使用已在簽署存放區配置程式碼簽署憑證及私鑰的專用 Windows runner，並將其限制於受信任的發布工作。建置時簽署主程式與 NSIS 安裝程式並加時間戳。正式發布驗證可信簽章與憑證指紋。未配置身分時僅可交付未簽署的預發行版。

@@ -15,7 +15,7 @@ A free, non-profit desktop tool for [Machine Party](https://store.steampowered.c
 Early prototype built with Rust and Tauri 2.
 
 - Available now: the bundled catalog with search in Simplified Chinese, Traditional Chinese and English, mod details, Steam game detection and manual folder selection, per-copy version comparison and signed in-app updates for the manager itself.
-- Not yet available: installing mods. All four candidates are awaiting Windows verification. The first acceptance target is installing Overtime on a clean game copy, playing a round from Steam, then uninstalling offline and confirming the original game data is restored.
+- The Windows preview supports Overtime v1.7 on the pinned v2.1.2 game build. Download it once, then install or uninstall offline. Close the game before modifying a copy. Other catalog entries list compatibility as unconfirmed until a supported build is documented.
 
 ## Download
 

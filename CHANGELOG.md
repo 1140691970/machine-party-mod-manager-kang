@@ -4,6 +4,10 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-2 — 2026-11-19
+
+The Windows preview supports Overtime v1.7 on the pinned v2.1.2 game build. Download it once, then install or uninstall offline. Close the game before modifying a copy. Other catalog entries list compatibility as unconfirmed until a supported build is documented.
+
 ## 0.1.2-1 — 2026-11-19
 
 Windows x64 preview for testing the refreshed interface, online mod catalog, game folder detection and per-copy status. This preview enables installation and offline restoration of the bundled Overtime v1.7 profile on Windows for testing.

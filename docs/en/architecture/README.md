@@ -57,3 +57,4 @@ Use the author's published CLI or underlying install script first. The app itsel
 - [ADR-005: Mod install transactions and backups (proposed)](ADR-005-install-transactions.md)
 - [ADR-006 · Online mod catalog](ADR-006-online-catalog.md)
 - [ADR-007: Mod adapters and macOS simulation (proposed)](ADR-007-mod-adapters.md)
+- [ADR-008 · Cached downloads, startup checks and verified restoration](ADR-008-cached-installations.md)

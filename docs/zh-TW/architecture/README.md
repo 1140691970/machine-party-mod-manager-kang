@@ -57,3 +57,4 @@ Steam 上的 Machine Party（App ID 4108000）僅支援 Windows，不考慮在 m
 - [ADR-005：模組安裝交易與備份（提議）](ADR-005-install-transactions.md)
 - [ADR-006 · 線上模組目錄](ADR-006-online-catalog.md)
 - [ADR-007：模組適配層與 macOS 模擬驗證（提議）](ADR-007-mod-adapters.md)
+- [ADR-008 · 下載快取、啟動偵測與還原校驗](ADR-008-cached-installations.md)
