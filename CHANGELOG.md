@@ -4,7 +4,9 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
-## Unreleased
+## 0.1.2-1 — 2026-11-19
+
+Windows x64 preview for testing the refreshed interface, online mod catalog, game folder detection and per-copy status. Overtime installation remains gated pending Windows validation.
 
 ### Changed
 
