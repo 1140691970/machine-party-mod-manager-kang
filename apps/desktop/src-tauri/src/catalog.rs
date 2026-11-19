@@ -22,6 +22,12 @@ pub struct ModEntry {
     pub repo: String,
     #[serde(default, rename = "inventoryById")]
     pub inventory_by_id: bool,
+    #[serde(
+        default,
+        rename = "legacyInventoryRepos",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub legacy_inventory_repos: Vec<String>,
     pub version: Option<String>,
     pub verified: bool,
     pub package: Option<PackageSpec>,
@@ -108,7 +114,7 @@ pub struct StatusMatchers {
 
 impl ModEntry {
     pub fn inventory_key(&self) -> &str {
-        if self.inventory_by_id {
+        if self.inventory_by_id || !self.legacy_inventory_repos.is_empty() {
             &self.id
         } else {
             &self.repo
@@ -253,10 +259,13 @@ mod tests {
     fn bundled_catalog_parses_with_unique_inventory_keys() {
         let catalog: Catalog = serde_json::from_str(BUNDLED).unwrap();
         assert_eq!(catalog.schema, SCHEMA);
-        let mut repos: Vec<_> = catalog.mods.iter().map(ModEntry::inventory_key).collect();
-        repos.sort();
-        repos.dedup();
-        assert_eq!(repos.len(), catalog.mods.len());
+        let mut keys = std::collections::BTreeSet::new();
+        for item in &catalog.mods {
+            assert!(keys.insert(item.inventory_key()));
+            for repo in &item.legacy_inventory_repos {
+                assert!(keys.insert(repo.as_str()), "duplicate inventory key {repo}");
+            }
+        }
         assert!(bundled().is_object());
     }
 

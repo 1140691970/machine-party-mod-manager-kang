@@ -1,5 +1,3 @@
-import { inventoryKey } from "./catalog.js";
-
 const origin = "https://machineparty.ailaogong.men";
 const cacheKey = "online-catalog-mpml-v1";
 const languages = ["zh-CN", "zh-TW", "en"];
@@ -47,6 +45,7 @@ function validEntry(mod) {
   const pkg = mod.package;
   return typeof mod.id === "string" && slug.test(mod.id)
     && (mod.inventoryById === undefined || typeof mod.inventoryById === "boolean")
+    && (mod.legacyInventoryRepos === undefined || stringArray(mod.legacyInventoryRepos))
     && typeof mod.repo === "string" && /^[\w-][\w.-]*\/[\w-][\w.-]*$/.test(mod.repo)
     && Number.isSafeInteger(mod.order) && mod.order > 0 && typeof mod.verified === "boolean"
     && (!mod.image || typeof mod.image === "string" && slug.test(mod.image))
@@ -65,7 +64,7 @@ function validEntry(mod) {
 export function validCatalog(data) {
   return data?.schema === 1 && typeof data.revision === "string" && data.revision.length > 0
     && Array.isArray(data.mods) && data.mods.every(validEntry)
-    && new Set(data.mods.map(inventoryKey)).size === data.mods.length
+    && new Set(data.mods.map(mod => mod.inventoryById ? mod.id : mod.repo)).size === data.mods.length
     && ["id", "order"].every(key => new Set(data.mods.map(mod => mod[key])).size === data.mods.length);
 }
 

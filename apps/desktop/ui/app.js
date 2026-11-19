@@ -77,14 +77,14 @@ state.pinned = bundled.mods;
 state.previewMod = bundled.previewMod ?? null;
 state.previewMods = bundled.previewMods ?? (bundled.previewMod ? [bundled.previewMod] : []);
 state.appRepo = bundled.repo || state.appRepo;
-state.mods = cached ? sortMods(cached) : [];
+state.mods = cached ? sortMods(cached, state.pinned) : [];
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
   catalogError = "";
   render();
   try {
-    state.mods = sortMods(await loadCatalog(localStorage));
+    state.mods = sortMods(await loadCatalog(localStorage), state.pinned);
     catalogStatus = "";
   } catch (error) {
     catalogError = error.message;

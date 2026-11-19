@@ -119,9 +119,13 @@ test("first-party mods sharing a repository have independent installed versions"
   const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
   const bot = catalog.mods.find(mod => mod.id === "lobby-bots");
   assert.equal(roller.repo, bot.repo);
-  const both = {[roller.repo]: roller.version, [bot.id]: bot.version};
+  const both = {[roller.id]: roller.version, [bot.id]: bot.version};
   assert.deepEqual(installedRows(both, catalog.mods, []).map(row => [row.mod.id, row.version]),
     [[roller.id, roller.version], [bot.id, bot.version]]);
+  const cached = {...roller};
+  delete cached.legacyInventoryRepos;
+  const rows = installedRows(both, sortMods({mods:[cached, bot]}, catalog.mods), catalog.mods);
+  assert.deepEqual(rows.map(row => row.mod.id), [roller.id, bot.id]);
   delete both[bot.id];
   assert.deepEqual(installedRows(both, [], catalog.mods).map(row => row.mod.id), [roller.id]);
 });

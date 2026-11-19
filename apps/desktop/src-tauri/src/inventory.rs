@@ -42,31 +42,44 @@ fn write_inventory(config_dir: &Path, inventory: &Inventory) -> Result<(), Strin
     })
 }
 
+// Repository aliases are ordered newest first. A record already keyed by ID wins.
+fn normalize_keys(mods: &mut Installed) {
+    for entry in crate::catalog::all_entries() {
+        for repo in &entry.legacy_inventory_repos {
+            if let Some(version) = mods.remove(repo) {
+                mods.entry(entry.id.clone()).or_insert(version);
+            }
+        }
+    }
+}
+
 pub fn installed_versions(config_dir: &Path, game: &Path) -> Result<Installed, String> {
     let (mut inventory, _) = read_inventory(config_dir)?;
-    Ok(inventory.remove(game).unwrap_or_default())
+    let mut mods = inventory.remove(game).unwrap_or_default();
+    normalize_keys(&mut mods);
+    Ok(mods)
 }
 
 pub fn record_installed(
     config_dir: &Path,
     game: &Path,
-    repo: &str,
+    key: &str,
     version: &str,
 ) -> Result<(), String> {
     let (mut inventory, _) = read_inventory(config_dir)?;
-    inventory
-        .entry(game.to_path_buf())
-        .or_default()
-        .insert(repo.to_owned(), version.to_owned());
+    let mods = inventory.entry(game.to_path_buf()).or_default();
+    normalize_keys(mods);
+    mods.insert(key.to_owned(), version.to_owned());
     write_inventory(config_dir, &inventory)
 }
 
-pub fn remove_installed(config_dir: &Path, game: &Path, repo: &str) -> Result<(), String> {
+pub fn remove_installed(config_dir: &Path, game: &Path, key: &str) -> Result<(), String> {
     let (mut inventory, existed) = read_inventory(config_dir)?;
     let Some(mods) = inventory.get_mut(game) else {
         return Ok(());
     };
-    if mods.remove(repo).is_none() {
+    normalize_keys(mods);
+    if mods.remove(key).is_none() {
         return Ok(());
     }
     if mods.is_empty() {

@@ -1759,7 +1759,8 @@ pub fn uninstall_mod(
         || tx.pck_dir != pck_dir
         || tx.backup_dir != backup_dir_for(config_dir, game_root, &mod_entry.id)
         || (!recorded_loader && tx.version != mod_entry.version.as_deref().unwrap_or_default())
-        || tx.repo != mod_entry.repo
+        || (tx.repo != mod_entry.repo
+            && !(recorded_loader && mod_entry.legacy_inventory_repos.contains(&tx.repo)))
     {
         return Err("gameUpdatedOrModified".into());
     }
@@ -2857,6 +2858,7 @@ mod tests {
         let zip_sha = hex::encode(Sha256::digest(zip_bytes));
         ModEntry {
             inventory_by_id: false,
+            legacy_inventory_repos: Vec::new(),
             id: "overtime".into(),
             order: 1,
             repo: "DarkJadeStone/MachineParty-Overtime".into(),
@@ -3568,6 +3570,7 @@ print("Patched")
 
         let mod_entry = ModEntry {
             inventory_by_id: false,
+            legacy_inventory_repos: Vec::new(),
             id: "binary1936-8p".into(),
             order: 4,
             repo: "Binary1936/machine-party-8p".into(),
@@ -3967,6 +3970,7 @@ print("Patched")
         fs::write(&plus_zip, &plus_zip_bytes).unwrap();
         let plus_entry = ModEntry {
             inventory_by_id: false,
+            legacy_inventory_repos: Vec::new(),
             id: "machineparty-plus".into(),
             order: 2,
             repo: "Ghostx10742/MachineParty-Plus".into(),
@@ -4105,6 +4109,7 @@ print("Patched")
 
         let broadcast = ModEntry {
             inventory_by_id: false,
+            legacy_inventory_repos: Vec::new(),
             id: "broadcast-8p-freecam".into(),
             order: 3,
             repo: "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher".into(),
@@ -4366,6 +4371,7 @@ print("Patched")
         fs::write(&plus_zip, &plus_zip_bytes).unwrap();
         let plus_entry = ModEntry {
             inventory_by_id: false,
+            legacy_inventory_repos: Vec::new(),
             id: "machineparty-plus".into(),
             order: 2,
             repo: "Ghostx10742/MachineParty-Plus".into(),
@@ -4585,6 +4591,103 @@ print("Patched")
             sha256: baseline.sha256.clone(),
         };
         entry
+    }
+
+    #[test]
+    fn legacy_roller_inventory_and_uninstall_use_the_catalog_id() {
+        let root = tempfile::tempdir().unwrap();
+        let bytes = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game, pck, baseline) = setup_synthetic_game(root.path(), &bytes);
+        let config = root.path().join("config");
+        let zip = build_test_zip(&[
+            (
+                "mod.json",
+                br#"{"id":"roller-carnival","entry":"main.gd"}"#,
+                true,
+            ),
+            ("main.gd", b"extends Node", true),
+        ]);
+        let zip_path = root.path().join("roller.zip");
+        fs::write(&zip_path, &zip).unwrap();
+        let current = crate::catalog::entry("roller-carnival").unwrap();
+        let historical_repo = "JamesGZM/roller-carnival";
+        let mut old = make_loader_entry_from_catalog(&current.id, &zip, &baseline);
+        old.repo = historical_repo.into();
+        old.legacy_inventory_repos.clear();
+        old.adapter.as_mut().unwrap().required_files = vec!["mod.json".into(), "main.gd".into()];
+        let mut tx = install_from_zip(
+            &config,
+            &game,
+            &zip_path,
+            &root.path().join("stage"),
+            &old,
+            std::slice::from_ref(&old),
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        tx.source_sha256 = None;
+        tx.preparation_rule = None;
+        save_transaction(&config, &game, tx.clone()).unwrap();
+
+        let other_game = root.path().join("other");
+        let inventory_path = config.join("installations.json");
+        let historical = serde_json::json!({
+            game.to_str().unwrap(): {
+                historical_repo: "v0.1.0", &current.repo: "v0.1.0", "lobby-bots": "v0.1.4"
+            },
+            other_game.to_str().unwrap(): {historical_repo: "v0.1.0"}
+        });
+        fs::write(&inventory_path, serde_json::to_vec(&historical).unwrap()).unwrap();
+        let scan = validate_game_mods(&config, &game, std::slice::from_ref(&current)).unwrap();
+        assert_eq!(scan.mod_states[&current.id], "installed");
+        assert_eq!(scan.installed.len(), 2);
+        assert_eq!(scan.installed[&current.id], "v0.1.0");
+        assert_eq!(
+            inventory::installed_versions(&config, &game).unwrap(),
+            scan.installed
+        );
+        let script = pck.join("mods/roller-carnival/main.gd");
+        let original = fs::read(&script).unwrap();
+        let patched = file_fingerprint(&pck.join("Machine Party.pck")).unwrap();
+        fs::write(&script, b"player change").unwrap();
+        assert_eq!(
+            uninstall_mod(&config, &game, &current, &SystemRunner, &UnlockedCheck).unwrap_err(),
+            "gameUpdatedOrModified"
+        );
+        assert_eq!(fs::read(&script).unwrap(), b"player change");
+        assert_eq!(
+            file_fingerprint(&pck.join("Machine Party.pck")).unwrap(),
+            patched
+        );
+        fs::write(&script, original).unwrap();
+        tx.repo = "unknown/repo".into();
+        save_transaction(&config, &game, tx.clone()).unwrap();
+        assert_eq!(
+            uninstall_mod(&config, &game, &current, &SystemRunner, &UnlockedCheck).unwrap_err(),
+            "gameUpdatedOrModified"
+        );
+        tx.repo = historical_repo.into();
+        save_transaction(&config, &game, tx).unwrap();
+        let restored =
+            uninstall_mod(&config, &game, &current, &SystemRunner, &UnlockedCheck).unwrap();
+        assert_eq!(restored, baseline);
+        assert!(!script.exists());
+        assert!(
+            get_transaction(&config, &game, &current.id)
+                .unwrap()
+                .is_none()
+        );
+        let raw: serde_json::Value =
+            serde_json::from_slice(&fs::read(inventory_path).unwrap()).unwrap();
+        assert_eq!(
+            raw[game.to_str().unwrap()],
+            serde_json::json!({"lobby-bots":"v0.1.4"})
+        );
+        assert_eq!(
+            raw[other_game.to_str().unwrap()],
+            historical[other_game.to_str().unwrap()]
+        );
     }
 
     #[test]

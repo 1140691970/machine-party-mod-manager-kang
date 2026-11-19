@@ -1,9 +1,16 @@
 // Pure helpers over catalog/mods.json entries.
 
-export const inventoryKey = mod => mod.inventoryById ? mod.id : mod.repo;
+export const inventoryKey = mod => (mod.inventoryById || mod.legacyInventoryRepos?.length) ? mod.id : mod.repo;
 
-export function sortMods(catalog) {
-  return [...catalog.mods].sort((a, b) => a.order - b.order);
+export function sortMods(catalog, bundled = []) {
+  // Disk records use the identity rules shipped with this desktop build, even offline.
+  const pinned = new Map(bundled.map(mod => [mod.id, mod]));
+  return catalog.mods.map(mod => {
+    const local = pinned.get(mod.id);
+    if (local?.legacyInventoryRepos?.length && inventoryKey(mod) !== local.id)
+      return {...mod, legacyInventoryRepos: local.legacyInventoryRepos};
+    return mod;
+  }).sort((a, b) => a.order - b.order);
 }
 
 export function searchText(mod) {
