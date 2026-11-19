@@ -1,6 +1,7 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.3",
+  "revision": "2026-11-19.6",
+  "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
       "id": "overtime",
@@ -17,7 +18,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-4",
+      "windowsPreview": "0.1.2-5",
       "adapter": {
         "kind": "upstream-cli",
         "platforms": ["windows"],
@@ -77,6 +78,22 @@
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
+      "supportedGameVersions": ["v2.1.2"],
+      "windowsPreview": "0.1.2-5",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": ["windows"],
+        "target": "pckDir",
+        "touches": ["mods"],
+        "exclusive": "loader",
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": ["mod.json", "main.gd"],
+        "upstreamUninstall": false
+      },
       "verified": false,
       "name": {"zh-CN": "MachineParty+", "zh-TW": "MachineParty+", "en": "MachineParty+"},
       "summary": {
@@ -102,6 +119,37 @@
         "size": 21037309,
         "sha256": "988b5068c0d4f054a4654b965628ca666d7ebf4e65b6a1cb60f8615a85c3f7ac",
         "mirrorApproved": true
+      },
+      "supportedGameVersions": ["v2.1.2"],
+      "windowsPreview": "0.1.2-5",
+      "adapter": {
+        "kind": "upstream-cli",
+        "platforms": ["windows"],
+        "target": "pckDir",
+        "touches": ["Machine Party.pck", "Machine Party.pck.broadcast_backup"],
+        "exclusive": "pck",
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "upstreamUninstall": false,
+        "run": {
+          "interpreter": "powershell",
+          "program": "patcher.ps1",
+          "common": ["-GameDir", "{gameDir}"]
+        },
+        "actions": {
+          "preflight": [],
+          "status": ["-Action", "verify"],
+          "install": ["-Action", "install"],
+          "uninstall": ["-Action", "uninstall"]
+        },
+        "status": {
+          "installed": "^State:\\s+patched$",
+          "vanilla": "^State:\\s+clean$"
+        },
+        "forbiddenArgs": ["--force"]
       },
       "verified": false,
       "name": {"zh-CN": "Broadcast 8P Freecam", "zh-TW": "Broadcast 8P Freecam", "en": "Broadcast 8P Freecam"},
@@ -130,6 +178,37 @@
         "noticeFile": "NOTICE.md",
         "mirrorApproved": true
       },
+      "supportedGameVersions": ["v2.1.2"],
+      "windowsPreview": "0.1.2-5",
+      "adapter": {
+        "kind": "upstream-cli",
+        "platforms": ["windows"],
+        "target": "pckDir",
+        "touches": ["Machine Party.pck"],
+        "exclusive": "pck",
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "upstreamUninstall": false,
+        "run": {
+          "interpreter": "bundled-python",
+          "program": "install.py",
+          "common": ["--game-dir", "{gameDir}"]
+        },
+        "actions": {
+          "preflight": [],
+          "status": ["--verify"],
+          "install": [],
+          "uninstall": []
+        },
+        "status": {
+          "installed": "^\\s*PATCHED\\b",
+          "vanilla": "^\\s*NOT PATCHED\\b"
+        },
+        "forbiddenArgs": ["--force"]
+      },
       "verified": false,
       "name": {"zh-CN": "八人联机模组", "zh-TW": "八人連線模組", "en": "Eight-player multiplayer"},
       "summary": {
@@ -143,6 +222,64 @@
         "en": "Game data backup and restoration await verification."
       },
       "aliases": ["8p", "八人聯機", "多人"]
+    },
+    {
+      "id": "roller-carnival",
+      "order": 5,
+      "repo": "JamesGZM/roller-carnival",
+      "image": "roller-carnival",
+      "version": "v0.1.0",
+      "firstParty": true,
+      "package": {
+        "assetId": "1001",
+        "filename": "roller-carnival-0.1.0.zip",
+        "size": 138033,
+        "sha256": "ec10da25ecd98ac6e9179d81c2188f82ae752baf4783058c87f93ea020802ca4",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": ["v2.1.2"],
+      "windowsPreview": "0.1.2-5",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": ["windows"],
+        "target": "pckDir",
+        "touches": ["mods"],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "mod.json",
+          "main.gd",
+          "config.gd",
+          "carnival_meshes.gd",
+          "roller_carnival_game.gd",
+          "override_game.gd",
+          "override_playlist.gd",
+          "override_picker.gd"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": false,
+      "name": {
+        "zh-CN": "滚筒嘉年华",
+        "zh-TW": "滾筒嘉年華",
+        "en": "Roller Carnival"
+      },
+      "summary": {
+        "zh-CN": "原创机械狂欢躲避小游戏，接入官方轮换与大厅快速开房设置。",
+        "zh-TW": "原創機械狂歡躲避小遊戲，接入官方輪換與大廳快速開房設定。",
+        "en": "Original mechanical carnival dodge minigame joining the official rotation."
+      },
+      "detail": {
+        "zh-CN": "官方自研玩法模组（经由 R2 镜像安装）：金色高滚筒按 S 下蹲、银色低滚筒按空格跳跃，碰撞推挤至左侧岩浆淘汰并按躲避数排名加分。",
+        "zh-TW": "官方自研玩法模組（經由 R2 鏡像安裝）：金色高滾筒按 S 下蹲、銀色低滾筒按空白鍵跳躍，碰撞推擠至左側岩漿淘汰並依躲避數排名加分。",
+        "en": "First-party minigame mod: crouch under gold high rollers, jump over silver low rollers, avoid being shoved into the lava, and score by dodge rank."
+      },
+      "aliases": ["滚筒", "滾筒嘉年華", "roller", "carnival", "自研", "官方自研"]
     }
   ]
 }

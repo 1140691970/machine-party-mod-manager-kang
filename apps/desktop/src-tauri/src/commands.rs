@@ -94,6 +94,7 @@ pub fn catalog() -> serde_json::Value {
     let mut snapshot = catalog::bundled();
     if cfg!(windows) {
         snapshot["previewMod"] = catalog::preview_entry(env!("CARGO_PKG_VERSION")).into();
+        snapshot["previewMods"] = catalog::preview_entries(env!("CARGO_PKG_VERSION")).into();
     }
     snapshot
 }

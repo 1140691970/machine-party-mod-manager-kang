@@ -10,11 +10,11 @@ Mod entries existed in three places: an array in `ui/app.js`, summaries and deta
 
 ## Decision
 
-`catalog/mods.json` (schema 1) is the single source. Each entry has a stable `id`, a fixed `order`, `repo`, optional `image` and `version`, `verified`, `name`, `summary` and `detail` in `zh-CN`, `zh-TW` and `en`, and search `aliases`.
+`catalog/mods.json` (schema 1) is the single source. It records the manager's own top-level `repo` alongside each mod entry's stable `id`, fixed `order`, `repo`, optional `image` and `version`, `verified`, optional `firstParty`, `supportedGameVersions`, `windowsPreview`, `name`, `summary` and `detail` in `zh-CN`, `zh-TW` and `en`, search `aliases`, and optional declarative `adapter` profiles.
 
-- Rust embeds the file at compile time. The `catalog` command returns it to the UI and `open_project` only accepts repositories listed in it.
+- Rust embeds the file at compile time. The `catalog` command returns it to the UI and `open_project` only accepts the top-level manager `repo` or repositories listed in `mods` (entries with `firstParty: true` resolve to `<app_repo>/tree/main/mods/<id>` in `catalog.rs` and package via `scripts/pack-mod.mjs`).
 - The UI loads it through `bridge.js` and sorts by `order`. In a plain browser preview it is fetched from the repository.
-- `tests/contracts/catalog.test.mjs` checks unique IDs, order and repositories, complete translations and shipped cover images; Rust tests check parsing and the allowlist.
+- `tests/contracts/catalog.test.mjs` checks unique IDs, order and repositories, valid top-level `repo`, first-party manifest/README/ZIP parity, Windows preview metadata and `adapter` profiles, complete translations and shipped cover images; Rust tests check parsing and the allowlist.
 
 ## Alternatives
 

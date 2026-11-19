@@ -2,7 +2,7 @@
 
 [English](../../en/architecture/ADR-007-mod-adapters.md) · **简体中文** · [繁體中文](../../zh-TW/architecture/ADR-007-mod-adapters.md)
 
-日期：2026-11-18。状态：提议；待 Windows 上的 Overtime 验收（P2）后与 [ADR-005](ADR-005-install-transactions.md) 一并定稿。
+日期：2026-11-18（2026-11-19 更新）。状态：提议；`upstream-cli`（`exe`、`bundled-python`、`powershell`）与 `loader-files`（支持可选的内置 `bundled` 释放与 `autoLoader` PCK 加载器自动配置）均已在 `installer.rs` 实现，并在 `catalog/mods.json` 为全部五个 `v2.1.2` Windows 测试版模组（含内置自研模组 `滚筒嘉年华`）完成配置，待完整 Windows 实机验收后与 [ADR-005](ADR-005-install-transactions.md) 一并定稿。
 
 ## 问题
 
@@ -30,8 +30,8 @@
 
 适配器工厂根据 Rust 内置适配器种类派发：
 
-- `upstream-cli`：在已校验的解压目录内，使用白名单允许的解释器（`exe`、`bundled-python`、`powershell`）运行相对路径程序或脚本；使用固定的动作参数模板（`preflight`、`status`、`install`、`uninstall`）、仅限引擎提供的占位符（`{gameDir}`）、关闭 `stdin`、强制非交互参数（如 `--no-pause`）、禁用参数守卫（始终拒绝 `--force`），以及用于判定 `installed`、`vanilla`、`older` 状态的正则或退出码规则。
-- `loader-files`（P3 使用）：在 MPML `mods/<id>` 等加载器目录中复制或移除声明的模组文件。
+- `upstream-cli`：在已校验的解压目录内，使用白名单允许的解释器（`exe`、`bundled-python`、`powershell`）运行相对路径程序或脚本；使用固定的动作参数模板（`preflight`、`status`、`install`、`uninstall`）、仅限引擎提供的占位符（`{gameDir}`）；`SystemRunner` 写入单行 `y\n` 确认后即关闭 `stdin`（无需 `--force` 即可通过 Binary1936 `install.py` 等单次目录确认提示，同时 EOF 会中止意外警告提示）；强制非交互参数（如 `--no-pause`）；禁用参数守卫（始终拒绝 `--force`）；`run_status_cmd` 在因非零退出码报错前先匹配状态正则（例如 `install.py --verify` 在未打补丁 `NOT PATCHED` 时返回退出码 `1`）；整包备份卸载时一并清理 `touches` 中声明的附属文件（如 `Machine Party.pck.broadcast_backup`）。
+- `loader-files`：将声明的模组文件（来自已校验的 Worker/R2 下载包）复制到 `mods/<id>` 等加载器目录中，在交易记录保存逐文件 SHA-256 `owned_files` 指纹，卸载时若发现文件被篡改则拒绝操作，同时保留 `mods/` 下的其他同级模组目录，并校验与 `pck` 直接改包模组及 MPML 加载器标记之间的互斥冲突。开启 `"autoLoader": true` 时，`pck_loader.rs`（`ensure_loader_installed` / `restore_managed_loader`）会在 `_mpm_loader` 下备份原版 PCK，修补 `res://project.binary` 并内嵌 `assets/mpm_bootstrap.gd`（状态记录于 `Machine Party.pck.modloader.json`），并在卸载最后一个托管加载器模组时自动还原原版 PCK。
 
 后续新增模组只要符合既有适配器种类，只需在 `catalog/mods.json` 中补充声明式 `adapter` 配置并通过实机验收即可，无需改动代码；新增适配器种类则需要 Rust 代码与新的 ADR。
 
@@ -84,4 +84,4 @@ Steam 上的 Machine Party（App ID 4108000）仅支持 Windows，不支持在 m
 
 ## 所需证据
 
-macOS 上通过 L1、L2、L3 模拟验证，随后在 Windows Steam v2.1.2 完成实机验收（P2）：安装 Overtime v1.7，从 Steam 启动完成一局，断网后单次卸载并确认还原后的 `Machine Party.pck` 与原版 SHA-256 一致，详见[产品需求](../requirements.md)与[开发指南](../development/README.md)。
+macOS 上的 L1、L2、L3 单元与集成测试已覆盖全部四类模组适配器（`loader-files`、`powershell`、`bundled-python`，以及通过 Mono 在未提交的 Windows v2.1.2 原版 `Machine Party.pck` 上完成 Overtime v1.7 实测与逐字节还原验证），同时也在原版 v2.1.2 PCK 上本地验证了 `binary1936-8p/install.py` 与 `broadcast-8p-freecam` 的覆盖逻辑。仍需完成 Windows Steam v2.1.2 实机验收：在 Windows 上实测安装各模组（包括 PowerShell `patcher.ps1`、内置 Windows `python.exe` 搭配 `install.py`、以及 MPML 搭配 `MachineParty+`），从 Steam 启动运行后断网单次卸载并核验游戏目录完整还原，详见[产品需求](../requirements.md)与[开发指南](../development/README.md)。

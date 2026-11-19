@@ -1,13 +1,39 @@
 import { checkAppUpdate, installAppUpdate, isDesktop } from "./bridge.js";
-import { button, closeDialog, element, progress, show } from "./dom.js";
+import { $, button, closeDialog, element, progress, show } from "./dom.js";
 import { render, state, t } from "./state.js";
+
+const dismissKey = "dismissed-app-update";
+let activeClose;
+let queued = false;
 
 export function showRelease() {
   if (!state.release || state.installing) return;
   const selected = state.release;
-  show(t("appUpdate") + " · v" + selected.version, element("p", selected.notes || ""),
+  const dialog = $("dialog");
+  if (dialog && activeClose) {
+    dialog.removeEventListener("close", activeClose);
+    activeClose = null;
+  }
+  let started = false;
+  const onClose = () => {
+    activeClose = null;
+    if (!started) localStorage.setItem(dismissKey, selected.version);
+  };
+  if (dialog) {
+    activeClose = onClose;
+    dialog.addEventListener("close", onClose, { once: true });
+  }
+  const body = selected.notes?.trim()
+    ? element("p", selected.notes.trim(), "release-notes")
+    : element("p", t("appUpdatePrompt"));
+  show(t("appUpdate") + " · v" + selected.version, body,
     button(t("installApp"), async () => {
       if (state.installing) return;
+      started = true;
+      if (dialog && activeClose) {
+        dialog.removeEventListener("close", activeClose);
+        activeClose = null;
+      }
       state.installing = true;
       const status = element("p", t("loadingApp"));
       const bar = progress();
@@ -21,21 +47,51 @@ export function showRelease() {
         state.installing = false;
       }
     }, "primary", "download"),
-    button(t("close"), closeDialog, "ghost"));
+    button(t("laterUpdate"), () => {
+      localStorage.setItem(dismissKey, selected.version);
+      closeDialog();
+    }, "ghost"));
+}
+
+function queueReleasePrompt() {
+  if (!state.release || state.installing || localStorage.getItem(dismissKey) === state.release.version) return;
+  const dialog = $("dialog");
+  if (!dialog) return;
+  if (dialog.open) {
+    if (!queued) {
+      queued = true;
+      dialog.addEventListener("close", () => {
+        queued = false;
+        queueReleasePrompt();
+      }, { once: true });
+    }
+    return;
+  }
+  showRelease();
 }
 
 export async function checkApp(manual) {
   if (!isDesktop || state.checking || state.installing) return;
   state.checking = true;
-  state.checkResult = "";
-  if (manual) render();
+  if (manual) {
+    state.checkResult = "";
+    render();
+  }
+  let found = null;
   try {
-    state.release = await checkAppUpdate();
-    state.checkResult = state.release ? "" : "latestApp";
+    found = await checkAppUpdate();
+    state.release = found;
+    if (manual && !found) state.checkResult = "latestApp";
   } catch (error) {
-    state.checkResult = String(error) === "unsupportedPlatform" ? "unsupportedPlatform" : "appNetwork";
+    if (manual) {
+      state.checkResult = String(error) === "unsupportedPlatform" ? "unsupportedPlatform" : "appNetwork";
+    }
   } finally {
     state.checking = false;
     render();
+  }
+  if (found) {
+    if (manual) showRelease();
+    else queueReleasePrompt();
   }
 }

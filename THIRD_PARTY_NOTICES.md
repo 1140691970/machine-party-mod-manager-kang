@@ -10,7 +10,7 @@ Machine Party and its assets belong to their developer and publisher. This proje
 
 ## Catalogued mods
 
-Mods listed in `catalog/mods.json` are the work of their authors. The manager shows each author and links to the original repository; licences are summarised in the [candidate list](docs/en/catalog/mods.md). No mod package is bundled with the app.
+Mods listed in `catalog/mods.json` are the work of their authors. The manager shows each author and links to the original repository; licences are summarised in the [candidate list](docs/en/catalog/mods.md). No third-party mod package is bundled with the app. First-party gameplay mods under `mods/` (including `mods/roller-carnival/`) and the built-in loader bootstrap (`apps/desktop/src-tauri/assets/mpm_bootstrap.gd` and `apps/desktop/src-tauri/src/pck_loader.rs`) are authored in this repository under GPL-3.0-only.
 
 ## Cover images
 
@@ -18,6 +18,7 @@ Mods listed in `catalog/mods.json` are the work of their authors. The manager sh
 | --- | --- | --- |
 | `apps/desktop/ui/images/overtime.png` | [Overtime screenshot](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) | DarkJadeStone, MIT ([licence](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE)), showing game content owned by the game's developer |
 | `apps/desktop/ui/images/plus.png` | [MachineParty+ banner](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png) | Ghostx10742, MIT |
+| `apps/desktop/ui/images/roller-carnival.png` | Self-captured preview screenshot from `mods/roller-carnival/` | Project contributors, GPL-3.0-only (rendered scene uses local game assets owned by the game's developer) |
 
 ## Software dependencies
 

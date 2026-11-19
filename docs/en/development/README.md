@@ -16,6 +16,7 @@
 | `apps/desktop/src-tauri` | Rust crate, `tauri.conf.json`, capabilities and icons |
 | `apps/desktop/ui` | HTML, CSS and ES modules loaded directly by the WebView |
 | `catalog/mods.json` | Mod catalog shipped with the app |
+| `mods/<id>/` | First-party GDScript mods packaged into `.zip` archives by `scripts/pack-mod.mjs` for R2 + catalog Worker delivery |
 | `services/update-worker` | Cloudflare Worker for app updates |
 | `scripts` | Release, deployment, upgrade acceptance and `check_architecture.mjs` |
 | `tests` | Node tests: `ui`, `contracts`, `architecture` |
@@ -61,6 +62,7 @@ Machine Party on Steam is Windows-only, so playing the game on macOS is out of s
 ## Common changes
 
 - **Add or edit a mod**: change `catalog/mods.json` only. Provide `name`, `summary` and `detail` in all three languages, keep `id` and `repo` stable, and add a cover to `apps/desktop/ui/images/{image}.png` if `image` is set. Inclusion follows the [mod catalog guide](../catalog/mods.md).
+- **Add a first-party mod**: follow the [first-party mod specification](mod-development.md) (`mods/<id>/` with `README.md`, `mod.json` matching `^[a-z0-9-]+$`, and GDScript sources), run `node scripts/pack-mod.mjs <id>` (`scripts/pack-mod.mjs` excludes `project.godot`, `*_scene.tscn`, `*.sh`, and `*.md`), add a `firstParty: true` + `package` + `adapter.kind: "loader-files"` (`autoLoader: true`) entry in `catalog/mods.json`, and run Godot syntax/self-tests plus `npm run test:rust` and `npm test` ([ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)).
 - **Add UI text**: add one key with Simplified Chinese, Traditional Chinese and English values to `apps/desktop/ui/languages.js`.
 - **Add a command**: implement the logic in a Tauri-free module with a unit test, expose it in `commands.rs`, register it in `main.rs`, and call it only from `bridge.js`.
 - **Change architecture**: add an ADR in `docs/en`, `docs/zh-CN` and `docs/zh-TW` and update the current architecture page.

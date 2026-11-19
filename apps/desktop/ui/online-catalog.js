@@ -20,7 +20,9 @@ function validAdapter(adapter) {
     || typeof base.sha256 !== "string" || !sha256Hex.test(base.sha256)) return false;
   if (adapter.verifyFiles !== undefined && !safeFilename(adapter.verifyFiles)) return false;
   if (adapter.upstreamUninstall !== undefined && typeof adapter.upstreamUninstall !== "boolean") return false;
+  if (adapter.autoLoader !== undefined && typeof adapter.autoLoader !== "boolean") return false;
   if (adapter.kind === "loader-files") return true;
+  if (adapter.autoLoader) return false;
   const run = adapter.run;
   const actions = adapter.actions;
   const status = adapter.status;
@@ -45,6 +47,7 @@ function validEntry(mod) {
     && (!mod.image || typeof mod.image === "string" && slug.test(mod.image))
     && (!mod.version || typeof mod.version === "string" && version.test(mod.version))
     && (mod.supportedGameVersions === undefined || stringArray(mod.supportedGameVersions))
+    && (mod.firstParty === undefined || typeof mod.firstParty === "boolean")
     && Array.isArray(mod.aliases) && mod.aliases.every(alias => typeof alias === "string")
     && ["name", "summary", "detail"].every(key => languages.every(lang =>
       typeof mod[key]?.[lang] === "string" && mod[key][lang].length))

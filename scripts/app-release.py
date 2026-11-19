@@ -56,6 +56,29 @@ def publish_immutable(name, file):
         raise ValueError("Published object differs from this build: " + name)
 
 
+def release_notes():
+    env_notes = os.environ.get("RELEASE_NOTES", "").strip()
+    if env_notes:
+        return env_notes
+    changelog = root / "CHANGELOG.md"
+    if not changelog.is_file():
+        return ""
+    lines = changelog.read_text(encoding="utf-8").splitlines()
+    heading = re.compile(rf"^##\s+v?{re.escape(version)}(?:\s|$|—|-)")
+    section = []
+    inside = False
+    for line in lines:
+        if re.match(r"^##\s+", line):
+            if inside:
+                break
+            if heading.match(line):
+                inside = True
+            continue
+        if inside:
+            section.append(line)
+    return "\n".join(section).strip()
+
+
 def stage():
     platforms = {}
     for target, name in packages.items():
@@ -65,10 +88,15 @@ def stage():
 
     existing = existing_object("manifest.json")
     if existing is None:
-        manifest.write_text(json.dumps({
-            "version": version, "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "platforms": platforms
-        }), encoding="utf-8")
+        payload = {
+            "version": version,
+            "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "platforms": platforms,
+        }
+        notes = release_notes()
+        if notes:
+            payload["notes"] = notes
+        manifest.write_text(json.dumps(payload), encoding="utf-8")
     else:
         saved = json.loads(existing)
         if saved["version"] != version or saved["platforms"].keys() != platforms.keys():

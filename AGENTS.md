@@ -7,6 +7,7 @@ Read the [architecture](docs/en/architecture/README.md) and [development guide](
 - `apps/desktop/src-tauri`: Tauri shell. `main.rs` only assembles plugins and commands; `commands.rs` decodes and validates IPC, resolves platform paths and delegates. `game`, `inventory`, `preferences` and `catalog` are Tauri-free domain modules with unit tests beside them. `app_updates.rs` owns the signed updater.
 - `apps/desktop/ui`: native ES modules without a build step. Only `bridge.js` touches `window.__TAURI__`. `catalog.js` and `versions.js` stay pure; views render from `state.js`; UI strings live in `languages.js` in all three languages.
 - `catalog/mods.json`: the single source of mod identity, order, version, translations and aliases. The Rust author-page allowlist and the UI both read it.
+- `mods/<id>/`: first-party GDScript mods deterministically packaged by `scripts/pack-mod.mjs` for R2 + catalog Worker delivery (`mod.json` + runtime scripts + `README.md`), following the [mod development specification](docs/en/development/mod-development.md) and [ADR-009](docs/en/architecture/ADR-009-bundled-first-party-mods.md).
 - `services/update-worker`: read-only Cloudflare Worker serving signed app releases from R2. It never imports app code.
 - `scripts`: release, deployment, acceptance and repository checks. `tests`: Node suites grouped as `ui`, `contracts` and `architecture`.
 - `docs/en`, `docs/zh-CN`, `docs/zh-TW`: the same guide paths in each language ([ADR-004](docs/en/architecture/ADR-004-language-documentation.md)).

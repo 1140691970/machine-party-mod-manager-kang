@@ -10,6 +10,8 @@ fn default_true() -> bool {
 #[derive(Deserialize)]
 struct Catalog {
     schema: u32,
+    #[serde(default)]
+    repo: Option<String>,
     mods: Vec<ModEntry>,
 }
 
@@ -20,6 +22,8 @@ pub struct ModEntry {
     pub repo: String,
     pub version: Option<String>,
     pub verified: bool,
+    #[serde(default, rename = "firstParty")]
+    pub first_party: bool,
     pub package: Option<PackageSpec>,
     pub adapter: Option<AdapterProfile>,
 }
@@ -42,6 +46,8 @@ pub struct AdapterProfile {
     pub target: String,
     pub touches: Vec<String>,
     pub exclusive: String,
+    #[serde(default, rename = "autoLoader")]
+    pub auto_loader: bool,
     pub baseline: BaselineSpec,
     #[serde(default, rename = "requiredFiles")]
     pub required_files: Vec<String>,
@@ -49,10 +55,13 @@ pub struct AdapterProfile {
     pub verify_files: Option<String>,
     #[serde(rename = "upstreamUninstall", default = "default_true")]
     pub upstream_uninstall: bool,
+    #[serde(default)]
     pub run: RunSpec,
+    #[serde(default)]
     pub actions: ActionSpec,
+    #[serde(default)]
     pub status: StatusMatchers,
-    #[serde(rename = "forbiddenArgs")]
+    #[serde(default, rename = "forbiddenArgs")]
     pub forbidden_args: Vec<String>,
 }
 
@@ -63,14 +72,14 @@ pub struct BaselineSpec {
     pub sha256: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct RunSpec {
     pub interpreter: String,
     pub program: String,
     pub common: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ActionSpec {
     pub preflight: Vec<String>,
     pub status: Vec<String>,
@@ -78,7 +87,7 @@ pub struct ActionSpec {
     pub uninstall: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct StatusMatchers {
     pub installed: String,
     pub vanilla: String,
@@ -90,22 +99,31 @@ pub fn bundled() -> serde_json::Value {
     serde_json::from_str(BUNDLED).expect("catalog/mods.json is validated by tests")
 }
 
+/// Previews can exercise only the exact adapters and packages embedded in that build.
+pub fn preview_entries(version: &str) -> Vec<serde_json::Value> {
+    bundled()["mods"]
+        .as_array()
+        .map(|mods| {
+            mods.iter()
+                .filter(|item| {
+                    item["windowsPreview"].as_str() == Some(version) && item["adapter"].is_object()
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// A preview can exercise only the exact adapter and package embedded in that build.
 pub fn preview_entry(version: &str) -> Option<serde_json::Value> {
-    bundled()["mods"]
-        .as_array()?
-        .iter()
-        .find(|item| {
-            item["windowsPreview"].as_str() == Some(version) && item["adapter"].is_object()
-        })
-        .cloned()
+    preview_entries(version).into_iter().next()
 }
 
 pub fn matches_preview(request: &ModEntry, version: &str) -> bool {
-    preview_entry(version)
-        .and_then(|entry| serde_json::from_value::<ModEntry>(entry).ok())
-        .as_ref()
-        == Some(request)
+    preview_entries(version)
+        .into_iter()
+        .filter_map(|entry| serde_json::from_value::<ModEntry>(entry).ok())
+        .any(|entry| &entry == request)
 }
 
 /// Returns all entries from the bundled catalog.
@@ -159,17 +177,30 @@ pub fn entry(id: &str) -> Option<ModEntry> {
     parse_entry(BUNDLED, id).ok()
 }
 
-/// Author pages may only be opened for repositories listed in the bundled catalog.
+/// Author pages and the app repository may only be opened when listed in the bundled catalog.
 pub fn project_url(repo: &str) -> Option<String> {
     let catalog: Catalog = serde_json::from_str(BUNDLED).ok()?;
     if catalog.schema != SCHEMA {
         return None;
     }
+    if catalog.repo.as_deref() == Some(repo) {
+        return Some(format!("https://github.com/{repo}"));
+    }
     catalog
         .mods
         .iter()
-        .any(|entry| entry.repo == repo)
-        .then(|| format!("https://github.com/{repo}"))
+        .find(|entry| entry.repo == repo)
+        .map(|entry| {
+            if entry.first_party {
+                let app_repo = catalog
+                    .repo
+                    .as_deref()
+                    .unwrap_or("JamesGZM/machine-party-mod-manager");
+                format!("https://github.com/{app_repo}/tree/main/mods/{}", entry.id)
+            } else {
+                format!("https://github.com/{repo}")
+            }
+        })
 }
 
 #[cfg(test)]
@@ -178,11 +209,20 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        let mut item = entry("overtime").unwrap();
-        assert!(matches_preview(&item, "0.1.2-4"));
-        assert!(!matches_preview(&item, "0.1.2"));
-        item.package.as_mut().unwrap().sha256.clear();
-        assert!(!matches_preview(&item, "0.1.2-4"));
+        assert_eq!(preview_entries("0.1.2-5").len(), 5);
+        for id in [
+            "overtime",
+            "machineparty-plus",
+            "broadcast-8p-freecam",
+            "binary1936-8p",
+            "roller-carnival",
+        ] {
+            let mut item = entry(id).unwrap();
+            assert!(matches_preview(&item, "0.1.2-5"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2"), "{id}");
+            item.package.as_mut().unwrap().sha256.clear();
+            assert!(!matches_preview(&item, "0.1.2-5"), "{id}");
+        }
     }
 
     #[test]
@@ -202,6 +242,10 @@ mod tests {
             project_url("DarkJadeStone/MachineParty-Overtime").as_deref(),
             Some("https://github.com/DarkJadeStone/MachineParty-Overtime")
         );
+        assert_eq!(
+            project_url("JamesGZM/machine-party-mod-manager").as_deref(),
+            Some("https://github.com/JamesGZM/machine-party-mod-manager")
+        );
         assert_eq!(project_url("evil/repo"), None);
         assert_eq!(
             project_url("DarkJadeStone/MachineParty-Overtime/../x"),
@@ -210,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn overtime_entry_deserializes_package_and_adapter() {
+    fn bundled_entries_deserialize_packages_and_adapters() {
         let mod_entry = entry("overtime").expect("overtime entry present");
         assert_eq!(mod_entry.repo, "DarkJadeStone/MachineParty-Overtime");
         assert_eq!(mod_entry.version.as_deref(), Some("v1.7"));
@@ -225,11 +269,46 @@ mod tests {
         assert!(adapter.forbidden_args.contains(&"--force".to_string()));
         assert!(parse_entry(BUNDLED, "missing").is_err());
 
+        let plus = entry("machineparty-plus").expect("plus entry present");
+        assert_eq!(plus.adapter.as_ref().unwrap().kind, "loader-files");
+        assert_eq!(plus.adapter.as_ref().unwrap().exclusive, "loader");
+
+        let broadcast = entry("broadcast-8p-freecam").expect("broadcast entry present");
+        assert_eq!(
+            broadcast.adapter.as_ref().unwrap().run.interpreter,
+            "powershell"
+        );
+
+        let b8p = entry("binary1936-8p").expect("binary1936-8p entry present");
+        assert_eq!(
+            b8p.adapter.as_ref().unwrap().run.interpreter,
+            "bundled-python"
+        );
+
         let entries = all_entries();
-        assert!(!entries.is_empty());
+        assert_eq!(entries.len(), 5);
+        let roller = entry("roller-carnival").expect("roller-carnival entry present");
+        assert!(roller.first_party);
+        let roller_pkg = roller
+            .package
+            .as_ref()
+            .expect("roller-carnival package present");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.0.zip");
+        assert!(roller_pkg.mirror_approved);
+        assert!(roller.adapter.as_ref().unwrap().auto_loader);
+        assert_eq!(
+            project_url("JamesGZM/roller-carnival").as_deref(),
+            Some(
+                "https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival"
+            )
+        );
         assert_eq!(
             download_url(&mod_entry).unwrap(),
             "https://machineparty.ailaogong.men/v1/downloads/overtime/v1.7/594522625"
+        );
+        assert_eq!(
+            download_url(&roller).unwrap(),
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.0/1001"
         );
     }
 }

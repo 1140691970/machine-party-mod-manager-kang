@@ -139,14 +139,41 @@
 .field input::placeholder {
   color: var(--text-muted);
 }
-.select {
-  min-height: 34px;
-  padding: 0 var(--space-3);
-  color: var(--text);
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  min-height: 36px;
   background: var(--wine-900);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  font: var(--text-md) var(--font-ui);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  flex: none;
+}
+.segment {
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: calc(var(--radius-md) - 3px);
+  background: none;
+  color: var(--text-secondary);
+  font: 500 var(--text-sm) / 1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.segment:hover:not(.active) {
+  color: var(--text);
+  background: var(--bg-raised);
+}
+.segment.active {
+  color: #fff1df;
+  background: var(--selected);
+  box-shadow: inset 0 0 0 1px var(--selected-line);
+  font-weight: 600;
 }
 
 /* Card */
@@ -275,6 +302,7 @@
 }
 
 .file-detail { overflow-wrap: anywhere; }
+.release-notes { white-space: pre-line; }
 
 .install-steps {
   margin: 0;

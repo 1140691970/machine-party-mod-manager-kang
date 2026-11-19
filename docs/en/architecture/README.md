@@ -22,13 +22,14 @@ flowchart LR
 
 | Directory | Responsibility |
 | --- | --- |
-| `apps/desktop/src-tauri` | Tauri 2 shell. `main.rs` only assembles; `commands.rs` decodes and validates IPC and delegates; `game.rs` recognizes Steam game copies; `inventory.rs` reads per-copy installation records; `preferences.rs` stores the manual choice; `catalog.rs` embeds the catalog and restricts which author pages may open; `app_updates.rs` owns signed updates. |
+| `apps/desktop/src-tauri` | Tauri 2 shell. `main.rs` only assembles; `commands.rs` decodes and validates IPC and delegates; `game.rs` recognizes Steam game copies; `installer.rs` is the Tauri-free transaction engine and adapter factory; `pck_loader.rs` patches and restores the manager-owned Godot PCK loader using `assets/mpm_bootstrap.gd` and `Machine Party.pck.modloader.json`; `inventory.rs` reads per-copy installation records; `preferences.rs` stores the manual choice; `catalog.rs` embeds the catalog and restricts which author/repository pages may open (`open_project` allowlists both mod repos and the manager's top-level `repo`); `app_updates.rs` owns signed updates. |
 | `apps/desktop/ui` | Native ES modules with no build step. `bridge.js` is the only file that touches Tauri; `catalog.js` and `versions.js` are pure; `state.js` holds UI state; each `*-view.js` renders. Styling has three layers: design tokens in `tokens.css`, shared components in `components.css` and page layout in `style.css`; `dom.js` and `icons.js` create components and icons. |
-| `catalog/mods.json` | Single source of mod IDs, order, versions, three-language text and aliases ([ADR-002](ADR-002-catalog-source.md)). |
+| `catalog/mods.json` | Single source of the manager's top-level `repo`, mod IDs, order, versions, three-language text, aliases and declarative `adapter` profiles ([ADR-002](ADR-002-catalog-source.md)). |
+| `mods/<id>/` | First-party GDScript mods authored in this repository, packaged into deterministic ZIPs by `scripts/pack-mod.mjs` for R2 + Worker delivery and installed with the built-in auto-loader ([ADR-009](ADR-009-bundled-first-party-mods.md)). |
 | `services/update-worker` | Read-only Worker serving the stable manifest and version-pinned installers from R2 ([ADR-003](ADR-003-desktop-updates.md)). |
 | `scripts`, `tests` | Release, deployment, acceptance and boundary checks. Node tests are grouped as `ui`, `contracts` and `architecture`; Rust unit tests sit beside their modules. |
 
-Local data lives in the app configuration directory. `game-path.json` stores the chosen game path. In `installations.json` the first-level key is the game path, the second is `owner/repo`, and the value is the version this manager installed. The UI language is kept in WebView localStorage.
+Local data lives in the app configuration directory. `game-path.json` stores the chosen game path. In `installations.json` the first-level key is the game path, the second is `owner/repo`, and the value is the version this manager installed. The UI language and `dismissed-app-update` (the latest dismissed manager update version) are kept in WebView `localStorage`.
 
 ## Locating and identifying the game
 
@@ -58,3 +59,4 @@ Use the author's published CLI or underlying install script first. The app itsel
 - [ADR-006 · Online mod catalog](ADR-006-online-catalog.md)
 - [ADR-007: Mod adapters and macOS simulation (proposed)](ADR-007-mod-adapters.md)
 - [ADR-008 · Cached downloads, startup checks and verified restoration](ADR-008-cached-installations.md)
+- [ADR-009: First-party mods, deterministic R2 packaging and self-managed loader (proposed)](ADR-009-bundled-first-party-mods.md)

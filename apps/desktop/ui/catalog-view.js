@@ -10,12 +10,15 @@ import { versionState } from "./versions.js";
 const nameOf = mod => mod.name[state.locale];
 
 const cached = mod => Boolean(mod.package && state.packages[mod.id] === mod.package.sha256);
-const isPreview = mod => mod.id === state.previewMod?.id && mod.version === state.previewMod.version
-  && mod.package?.sha256 === state.previewMod.package?.sha256;
-const support = mod => mod.supportedGameVersions?.length
-  ? t("supportedGame") + " · " + mod.supportedGameVersions.join(", ") : t("supportUnknown");
-const trustedPackage = mod => isDesktop && mod.package?.mirrorApproved && state.pinned.some(item =>
-  item.id === mod.id && item.version === mod.version && item.package?.sha256 === mod.package.sha256);
+const matchesMod = (item, mod) => item.id === mod.id && item.version === mod.version
+  && item.package?.sha256 === mod.package?.sha256;
+const pinnedOf = mod => state.pinned.find(item => matchesMod(item, mod));
+const isPreview = mod => [...state.previewMods, ...(state.previewMod ? [state.previewMod] : [])].some(item => matchesMod(item, mod));
+const support = mod => {
+  const versions = mod.supportedGameVersions?.length ? mod.supportedGameVersions : pinnedOf(mod)?.supportedGameVersions;
+  return versions?.length ? t("supportedGame") + " · " + versions.join(", ") : t("supportUnknown");
+};
+const trustedPackage = mod => isDesktop && Boolean(mod.package?.mirrorApproved) && Boolean(pinnedOf(mod));
 
 const statusTone = {
   pending: "", release: "", waiting: "", same: "success",
@@ -46,19 +49,22 @@ function details(mod) {
   if (state.scan === "failed") parts.push(element("p", t(state.scanError) || t("statusUnavailable"), "error"));
   if (!mod.verified && !isPreview(mod)) parts.push(element("p", t("installPending")));
   if (state.lastScan?.pckPath) parts.push(element("p", state.lastScan.pckPath, "file-detail"));
-  if (state.lastScan?.pckSha256 === mod.adapter?.baseline?.sha256 && mod.adapter && mod.supportedGameVersions?.length === 1)
-    parts.push(element("p", t("detectedVersion") + " · " + mod.supportedGameVersions[0]));
+  const adapter = mod.adapter || pinnedOf(mod)?.adapter;
+  const versions = mod.supportedGameVersions?.length ? mod.supportedGameVersions : pinnedOf(mod)?.supportedGameVersions;
+  if (state.lastScan?.pckSha256 === adapter?.baseline?.sha256 && adapter && versions?.length === 1)
+    parts.push(element("p", t("detectedVersion") + " · " + versions[0]));
   if (state.lastScan?.pckSha256) parts.push(element("p", "SHA-256 · " + state.lastScan.pckSha256, "file-detail"));
   const repair = state.lastScan?.repair?.[mod.id];
   if (repair) parts.push(element("p", t("backup") + " · " + repair[0], "file-detail"));
   if (repair?.[1]) parts.push(element("p", t(repair[1]) || repair[1]));
-  if (["restoreResidue", "identifyPending", "loaderConflict"].includes(modState)) parts.push(element("p", t(modState)));
+  if (["restoreResidue", "identifyPending", "loaderConflict", "modConflict"].includes(modState)) parts.push(element("p", t(modState)));
   if (cached(mod)) parts.push(button(t("clearCache"), async () => {
     await clearPackage(mod);
     delete state.packages[mod.id];
     closeDialog();
     render();
   }));
+  if (adapter?.autoLoader) parts.push(element("p", t("autoLoaderNote")));
   if (mod.package) {
     parts.push(element("p", mod.package.filename));
     if (mod.package.mirrorApproved) {
@@ -90,6 +96,7 @@ function cover(mod, name, status) {
   if (mod.version) version.classList.add("tag-mono");
   const label = isPreview(mod) && status === "pending" ? "testRelease" : status;
   tags.append(version, tag(t(label), statusTone[status]));
+  if (mod.firstParty) tags.append(tag(t("firstParty"), "accent"));
   box.append(tags);
   return box;
 }
@@ -108,7 +115,8 @@ async function installDialog(mod, action) {
   const title = key => t(key) + " · " + nameOf(mod) + " " + mod.version;
   const steps = element("ol", "", "install-steps");
   const lastStep = action === "identify" ? "identify" : action === "adoptManual" ? "adoptManual" : "installStep";
-  const rows = ["downloadStep", "verifyStep", lastStep].map(key => {
+  const stepKeys = ["downloadStep", "verifyStep", lastStep];
+  const rows = stepKeys.map(key => {
     const row = element("li");
     const status = element("span");
     row.append(element("span", t(key)), status);
@@ -121,6 +129,7 @@ async function installDialog(mod, action) {
   const dialog = $("dialog");
   const close = $("#close");
   let stage = 0;
+  const installStage = stepKeys.length - 1;
   const preventCancel = event => event.preventDefault();
   const controller = new AbortController();
   const ownsDialog = () => !controller.signal.aborted && dialog.open && steps.isConnected;
@@ -152,7 +161,7 @@ async function installDialog(mod, action) {
     await verifyPackage(mod);
     rows[stage].textContent = t("done");
     if (!ownsDialog()) return;
-    stage = 2;
+    stage = installStage;
     if (path !== state.game || target !== state.pckDir) throw "statusUnavailable";
     rows[stage].textContent = t("working");
     close.disabled = true;
@@ -188,7 +197,7 @@ async function installDialog(mod, action) {
       }
       show(title(action + "Failure"), message, steps, location, ...(retryButton ? [retryButton] : []));
     }
-    if (stage === 2 && path && path === state.game) await syncGameMods(true);
+    if (stage === installStage && path && path === state.game) await syncGameMods(true);
     if (retryButton) retryButton.disabled = false;
   } finally {
     dialog.removeEventListener("close", onClose);
@@ -206,30 +215,69 @@ function currentAction(mod) {
     game:state.game, scan:state.scan, disk:state.modStates[mod.id]});
 }
 
+function uninstallDialog(mod) {
+  const path = state.game;
+  const target = state.pckDir;
+  const name = nameOf(mod);
+  const title = key => t(key) + " · " + name + (mod.version ? " " + mod.version : "");
+  const steps = element("ol", "", "install-steps");
+  const row = element("li");
+  const status = element("span");
+  row.append(element("span", t("restoreStep")), status);
+  steps.append(row);
+  steps.setAttribute("aria-live", "polite");
+  const location = element("p", state.lastScan?.pckPath || target, "file-detail");
+  const dialog = $("dialog");
+  const close = $("#close");
+  const preventCancel = event => event.preventDefault();
+
+  const run = async () => {
+    if (state.busyMod || path !== state.game || target !== state.pckDir) return;
+    state.busyMod = mod.id;
+    status.textContent = t("working");
+    close.disabled = true;
+    dialog.addEventListener("cancel", preventCancel);
+    show(title("uninstall"), steps, location);
+    render();
+    try {
+      const result = await uninstallMod(path, mod, target);
+      applyValidation(result, path);
+      if (result.modStates[mod.id] !== "vanilla") {
+        throw result.modStates[mod.id] || "uninstallFailed";
+      }
+      status.textContent = t("done");
+      show(title("uninstallSuccess"), steps, location);
+    } catch (error) {
+      status.textContent = t("failed");
+      const [key, ...detail] = String(error).split(": ");
+      const message = element("p", [t(key) || key, ...detail].join(" · "), "error");
+      const retry = ["gameRunning", "gamePermissionDenied", "diskSpace"].includes(key);
+      let retryButton;
+      if (retry) {
+        retryButton = button(t("retry"), run, "primary");
+        retryButton.disabled = true;
+      }
+      show(title("uninstallFailure"), message, steps, location, ...(retryButton ? [retryButton] : []));
+      if (state.game === path) await syncGameMods(true);
+      if (retryButton) retryButton.disabled = false;
+    } finally {
+      dialog.removeEventListener("cancel", preventCancel);
+      close.disabled = false;
+      state.busyMod = "";
+      render();
+    }
+  };
+
+  show(title("uninstall"), steps, location, button(t("uninstall"), run, "primary"));
+}
+
 function primaryAction(mod, name) {
   const action = currentAction(mod);
   const el = button(t(action === "review" ? "viewReason" : action), () => {
     if (action === "review") return details(mod);
     if (action === "retryCheck") return syncGameMods(true);
     if (action !== "uninstall") return startInstall(mod, action);
-    const path = state.game;
-    const target = state.pckDir;
-    show(t(action) + " · " + name, element("p", state.lastScan?.pckPath || target, "file-detail"), button(t(action), async () => {
-      if (state.busyMod || path !== state.game || target !== state.pckDir) return;
-      state.busyMod = mod.id;
-      render();
-      show(t(action) + " · " + name, element("p", t("uninstallingMod")));
-      try {
-        applyValidation(await uninstallMod(path, mod, target), path);
-        closeDialog();
-      } catch (error) {
-        if (state.game === path) await syncGameMods(true);
-        throw error;
-      } finally {
-        state.busyMod = "";
-        render();
-      }
-    }, "primary"));
+    uninstallDialog(mod);
   }, ["review", "uninstall", "checking"].includes(action) ? "secondary" : "primary");
   el.disabled = Boolean(state.busyMod) || action === "checking";
   el.classList.add("btn-block");

@@ -74,3 +74,35 @@ test("an install resolves its game copy before continuing and cancellation does 
   await withGameCopy(install);
   assert.deepEqual(calls, ["game_copies","choose_game"]);
 });
+
+test("rescan preserves an existing valid game folder when no Steam installs are detected", async () => {
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const {detectGame} = await import("../../apps/desktop/ui/game-folder.js");
+  const existing = "D:/Games/Machine Party";
+  state.game = existing;
+  state.pckDir = existing + "/Machine Party_Windows";
+  state.scan = "ready";
+  localStorage.setItem("game-path", existing);
+  const dialog = {open: false, showModal() { this.open = true; }, close() { this.open = false; }};
+  const nodes = new Map([["dialog", dialog], ["#dialogTitle", {}], ["#dialogBody", {replaceChildren() {}}]]);
+  const makeNode = tag => ({
+    tag, className: "", textContent: "", children: [],
+    matches: sel => sel === ".btn" && tag === "button",
+    append(...items) { this.children.push(...items); },
+    prepend(...items) { this.children.unshift(...items); },
+    setAttribute() {}
+  });
+  globalThis.document = {
+    querySelector: sel => nodes.get(sel) ?? makeNode("div"),
+    createElement: makeNode,
+    createElementNS: () => makeNode("svg")
+  };
+  window.__TAURI__.core.invoke = async (command, {path} = {}) => {
+    if (command === "find_games") return [];
+    if (command === "game_copies") return path === existing ? [state.pckDir] : [];
+  };
+  await detectGame(true);
+  assert.equal(state.game, existing);
+  assert.equal(localStorage.getItem("game-path"), existing);
+  assert.equal(dialog.open, true);
+});

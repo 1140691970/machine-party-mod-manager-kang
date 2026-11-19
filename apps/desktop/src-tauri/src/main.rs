@@ -6,6 +6,7 @@ mod game;
 mod installer;
 mod inventory;
 mod packages;
+mod pck_loader;
 mod preferences;
 
 fn main() {

@@ -7,6 +7,8 @@ export const state = {
   page: "catalog",
   mods: [],
   previewMod: null,
+  previewMods: [],
+  appRepo: "JamesGZM/machine-party-mod-manager",
   game: localStorage.getItem("game-path") || "",
   pckDir: "",
   inventory: {},

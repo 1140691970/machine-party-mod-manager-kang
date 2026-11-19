@@ -1,7 +1,7 @@
-import { checkApp } from "./app-update.js";
-import { isDesktop } from "./bridge.js";
-import { $, button, element } from "./dom.js";
-import { detectGame, pickGame, syncGameMods } from "./game-folder.js";
+import { checkApp, showRelease } from "./app-update.js";
+import { isDesktop, openProject } from "./bridge.js";
+import { $, button, element, tag } from "./dom.js";
+import { detectGame, pickGame } from "./game-folder.js";
 import { locales } from "./languages.js";
 import { render, setLocale, state, t } from "./state.js";
 
@@ -9,52 +9,92 @@ const languageNames = ["简体中文", "繁體中文", "English"];
 
 function languagePanel(applyLocale) {
   const panel = element("section", "", "panel");
-  const row = element("label", "", "panel-row");
-  const select = element("select", "", "select");
+  const row = element("div", "", "panel-row");
+  const group = element("div", "", "segmented");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", t("language"));
   languageNames.forEach((name, index) => {
-    const option = element("option", name);
-    option.value = locales[index];
-    select.append(option);
+    const code = locales[index];
+    const active = state.locale === code;
+    const item = element("button", name, "segment" + (active ? " active" : ""));
+    item.type = "button";
+    item.setAttribute("aria-pressed", String(active));
+    item.onclick = () => {
+      if (state.locale === code) return;
+      setLocale(code);
+      applyLocale();
+      render();
+      $(".segment.active")?.focus();
+    };
+    group.append(item);
   });
-  select.value = state.locale;
-  select.onchange = () => {
-    setLocale(select.value);
-    applyLocale();
-    render();
-    $("select").focus();
-  };
-  row.append(element("h2", t("language")), select);
+  row.append(element("h2", t("language")), group);
   panel.append(row);
   return panel;
 }
 
 function folderPanel() {
   const panel = element("section", "", "panel");
-  panel.append(element("h2", t("folder")), element("p", state.game || t("unset"), "panel-value"));
+  const row = element("div", "", "panel-row panel-row-folder");
+  const info = element("div", "", "panel-info");
+  const heading = element("div", "", "panel-heading");
+  heading.append(element("h2", t("folder")));
+  if (state.game && state.scan === "ready" && state.lastScan) {
+    const baselineMod = state.pinned.find(item =>
+      item.adapter?.baseline?.sha256 && item.supportedGameVersions?.length === 1
+      && item.adapter.baseline.sha256 === state.lastScan.pckSha256);
+    if (baselineMod) {
+      const ver = tag(baselineMod.supportedGameVersions[0]);
+      ver.classList.add("tag-mono");
+      heading.append(ver);
+    }
+  }
+  info.append(heading, element("p", state.game || t("unset"), "panel-value"));
+  row.append(info);
   if (isDesktop) {
     const actions = element("div", "", "panel-actions");
     actions.append(button(t("choose"), pickGame, "primary", "folder"),
       button(t("rescan"), () => detectGame(true), "secondary", "refresh"));
-    if (state.game) actions.append(button(t("fullCheck"), () => syncGameMods(true), "secondary", "refresh"));
-    panel.append(actions);
+    row.append(actions);
   }
+  panel.append(row);
   return panel;
 }
 
-function managerPanel() {
+function appPanel() {
   const panel = element("section", "", "panel");
   const row = element("div", "", "panel-row");
-  const check = button(t(state.checking ? "checkingApp" : "checkApp"), () => checkApp(true), "secondary", "refresh");
-  check.disabled = state.checking || state.installing;
-  row.append(element("h2", t("manager") + " " + state.appVersion), check);
+  const repoLink = element("button", "Machine Party " + t("manager"), "project-link");
+  repoLink.type = "button";
+  repoLink.onclick = () => openProject(state.appRepo);
+  row.append(repoLink);
+  if (state.appVersion) {
+    const ver = element("button", "", "version-btn");
+    ver.type = "button";
+    ver.disabled = state.checking || state.installing;
+    ver.append(element("span", state.appVersion));
+    if (state.release) {
+      const dot = element("span", "", "update-dot");
+      dot.setAttribute("aria-hidden", "true");
+      ver.append(dot);
+      const tip = t("appUpdate") + " · v" + state.release.version;
+      ver.title = tip;
+      ver.setAttribute("aria-label", state.appVersion + " · " + tip);
+    } else {
+      ver.title = t("checkApp");
+      ver.setAttribute("aria-label", state.appVersion + " · " + t("checkApp"));
+    }
+    ver.onclick = () => (state.release ? showRelease() : checkApp(true));
+    row.append(ver);
+  }
   panel.append(row);
-  if (state.checkResult) panel.append(element("p", t(state.checkResult), "panel-note"));
+  const note = state.checking ? t("checkingApp") : state.checkResult ? t(state.checkResult) : "";
+  if (note) panel.append(element("p", note, "panel-note"));
   return panel;
 }
 
 export function renderSettings(content, applyLocale) {
   const page = element("div", "", "settings");
-  page.append(languagePanel(applyLocale), folderPanel());
-  if (isDesktop) page.append(managerPanel());
+  page.append(languagePanel(applyLocale), folderPanel(), appPanel());
   content.append(page);
 }

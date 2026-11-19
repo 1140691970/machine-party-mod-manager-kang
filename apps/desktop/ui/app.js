@@ -1,4 +1,4 @@
-import { checkApp, showRelease } from "./app-update.js";
+import { checkApp } from "./app-update.js";
 import { appVersion, bundledCatalog, cachedPackages, isDesktop, setAppTitle } from "./bridge.js";
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
@@ -37,10 +37,15 @@ function render() {
     if (active) el.setAttribute("aria-current", "page");
     else el.removeAttribute("aria-current");
   });
-  const banner = $("#appRelease");
-  banner.hidden = !state.release;
-  if (state.release) banner.replaceChildren(icon("download"), t("appUpdate") + " · v" + state.release.version);
-  banner.onclick = showRelease;
+  const settingsNav = document.querySelector('[data-page="settings"]');
+  const existingDot = settingsNav?.querySelector(".update-dot");
+  if (state.release && settingsNav && !existingDot) {
+    const dot = element("span", "", "update-dot");
+    dot.setAttribute("aria-hidden", "true");
+    settingsNav.append(dot);
+  } else if (!state.release && existingDot) {
+    existingDot.remove();
+  }
   $("h1").textContent = t(state.page);
   $("#subtitle").textContent = state.page === "settings" ? "" : t(state.page + "Sub");
   $("#search").hidden = state.page !== "catalog";
@@ -67,6 +72,8 @@ const cached = cachedCatalog(localStorage);
 const bundled = isDesktop ? await bundledCatalog() : {mods: []};
 state.pinned = bundled.mods;
 state.previewMod = bundled.previewMod ?? null;
+state.previewMods = bundled.previewMods ?? (bundled.previewMod ? [bundled.previewMod] : []);
+state.appRepo = bundled.repo || state.appRepo;
 state.mods = cached ? sortMods(cached) : [];
 
 async function refreshCatalog() {

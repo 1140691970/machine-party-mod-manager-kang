@@ -12,6 +12,7 @@
 ## 開發者
 
 - [開發指南](development/README.md)
+- [自研模組開發、測試、接入與打包規範](development/mod-development.md)
 - [發布管理器更新](development/releasing.md)
 - [現行架構](architecture/README.md)及 ADR
 

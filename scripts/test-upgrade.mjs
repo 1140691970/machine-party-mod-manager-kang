@@ -6,9 +6,13 @@ const version = JSON.parse(await readFile(new URL("../apps/desktop/src-tauri/tau
 const current = 'window.__TAURI__.core.invoke("app_version")';
 const old = await until(connect,"Opening installed bootstrap");
 assert.equal(await old.evaluate(current),"0.0.1");
-await until(()=>old.evaluate('document.querySelector("#appRelease")?.hidden === false'),"Background update check");
-await old.evaluate(`document.querySelector("dialog").close(); localStorage.setItem("upgrade-test","retained"); document.querySelector("#appRelease").click()`);
-assert.ok((await old.evaluate('document.querySelector("#dialogTitle").textContent')).includes(version));
+await until(()=>old.evaluate('Boolean(document.querySelector("[data-page=settings] .update-dot"))'),"Background update check");
+await old.evaluate(`
+  localStorage.setItem("upgrade-test","retained");
+  const dialog = document.querySelector("dialog");
+  if (dialog?.open && !document.querySelector("#dialogTitle").textContent.includes(${JSON.stringify(version)})) dialog.close();
+`);
+await until(()=>old.evaluate(`Boolean(document.querySelector("dialog")?.open && document.querySelector("#dialogTitle").textContent.includes(${JSON.stringify(version)}))`),"Update dialog opens");
 await old.evaluate('document.querySelector("#dialogBody button.btn-primary").click()');
 old.close();
 await until(async()=>{

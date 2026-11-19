@@ -12,6 +12,7 @@
 ## Developers
 
 - [Development guide](development/README.md)
+- [First-party mod development specification](development/mod-development.md)
 - [Releasing manager updates](development/releasing.md)
 - [Current architecture](architecture/README.md) and its ADRs
 

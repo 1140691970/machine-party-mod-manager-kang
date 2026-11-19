@@ -105,21 +105,25 @@ export async function detectGame(rescan = false) {
     await loadGame(candidates[0]);
     return;
   }
-  localStorage.removeItem("game-path");
-  state.game = "";
-  state.inventory = {};
-  state.modStates = {};
-  state.pckDir = "";
-  generation++;
-  active = null;
-  state.scan = "idle";
-  render();
+  const keepCurrent = rescan && state.game && (await gameCopies(state.game)).length === 1;
+  if (request !== selection) return;
+  if (!keepCurrent) {
+    localStorage.removeItem("game-path");
+    state.game = "";
+    state.inventory = {};
+    state.modStates = {};
+    state.pckDir = "";
+    generation++;
+    active = null;
+    state.scan = "idle";
+    render();
+  }
   if (!rescan && candidates.length === 0 && localStorage.getItem("game-prompt-dismissed")) return;
   show(t("choose"), element("p", t(candidates.length ? "multiple" : "missing")),
     ...candidates.map(path => button(path, () => selectPath(path), "secondary", "folder")),
     button(t("choose"), pickGame, "primary"),
     button(t("later"), () => {
-      if (candidates.length === 0) localStorage.setItem("game-prompt-dismissed", "1");
+      if (candidates.length === 0 && !keepCurrent) localStorage.setItem("game-prompt-dismissed", "1");
       closeDialog();
     }, "ghost"));
 }

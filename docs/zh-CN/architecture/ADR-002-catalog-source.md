@@ -10,11 +10,11 @@
 
 ## 决策
 
-`catalog/mods.json`（schema 1）是唯一来源。每个条目包含稳定的 `id`、固定的 `order`、`repo`、可选的 `image` 和 `version`、`verified`，以及 `zh-CN`、`zh-TW`、`en` 三语的 `name`、`summary`、`detail`，还有搜索用的 `aliases`。
+`catalog/mods.json`（schema 1）是唯一来源。顶层记录管理器自身的 `repo`，每个模组条目包含稳定的 `id`、固定的 `order`、`repo`、可选的 `image`、`version`、`verified`、`firstParty`、`supportedGameVersions`、`windowsPreview`，以及 `zh-CN`、`zh-TW`、`en` 三语的 `name`、`summary`、`detail`、搜索用 `aliases` 和可选的声明式 `adapter` 配置。
 
-- Rust 在编译期内嵌该文件。`catalog` 命令把它交给界面，`open_project` 只接受其中列出的仓库。
+- Rust 在编译期内嵌该文件。`catalog` 命令把它交给界面，`open_project` 只接受目录顶层的管理器 `repo` 或 `mods` 中列出的作者仓库（其中 `firstParty: true` 条目在 `catalog.rs` 中映射到 `<app_repo>/tree/main/mods/<id>`，并由 `scripts/pack-mod.mjs` 打包为 R2 压缩包）。
 - 界面经 `bridge.js` 加载并按 `order` 排序。在普通浏览器预览时从仓库直接读取。
-- `tests/contracts/catalog.test.mjs` 检查 ID、序号与仓库唯一、翻译完整、封面图片随界面发布；Rust 测试检查解析与白名单。
+- `tests/contracts/catalog.test.mjs` 检查 ID、序号与仓库唯一、顶层 `repo`、自研模组清单/README/ZIP 契约、Windows 测试版元数据与 `adapter` 配置、翻译完整以及封面图片随界面发布；Rust 测试检查解析与白名单。
 
 ## 替代方案
 

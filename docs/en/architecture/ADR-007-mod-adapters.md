@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/architecture/ADR-007-mod-adapters.md) · [繁體中文](../../zh-TW/architecture/ADR-007-mod-adapters.md)
 
-Date: 2026-11-18. Status: proposed; to be finalised with [ADR-005](ADR-005-install-transactions.md) after Overtime acceptance on Windows (P2).
+Date: 2026-11-18 (updated 2026-11-19). Status: proposed; both `upstream-cli` (`exe`, `bundled-python`, `powershell`) and `loader-files` (with optional `bundled` staging and `autoLoader` PCK loader setup) are implemented in `installer.rs` and configured in `catalog/mods.json` for all five `v2.1.2` Windows preview mods (including built-in `Roller Carnival`), awaiting full physical Windows acceptance ([ADR-005](ADR-005-install-transactions.md)).
 
 ## Problem
 
@@ -30,8 +30,8 @@ A Tauri-free Rust transaction engine owns all cross-mod safety guarantees:
 
 The adapter factory dispatches on built-in Rust adapter kinds:
 
-- `upstream-cli`: runs an allowlisted interpreter (`exe`, `bundled-python`, `powershell`) against a relative binary or script inside the verified package directory, using fixed action argument lists (`preflight`, `status`, `install`, `uninstall`), engine-supplied placeholders only (`{gameDir}`), closed `stdin`, non-interactive flags (such as `--no-pause`), a forbidden-argument guard (`--force` is always rejected), and regex/exit-code matchers for `installed`, `vanilla` and `older` states.
-- `loader-files` (for P3): copies and removes declared mod files inside a loader directory such as MPML `mods/<id>`.
+- `upstream-cli`: runs an allowlisted interpreter (`exe`, `bundled-python`, `powershell`) against a relative binary or script inside the verified package directory, using fixed action argument lists (`preflight`, `status`, `install`, `uninstall`), engine-supplied placeholders only (`{gameDir}`), `SystemRunner` writing a single `y\n` confirmation line then closing `stdin` (satisfying single directory-confirmation prompts such as Binary1936 `install.py` without `--force`, while EOF aborts unexpected prompts), non-interactive flags (such as `--no-pause`), a forbidden-argument guard (`--force` is always rejected), regex/exit-code matchers (`run_status_cmd` evaluates `installed`/`vanilla`/`older` regexes before rejecting non-zero exit codes such as `install.py --verify` returning `1` on `NOT PATCHED`), and cleanup of declared `touches` sidecars (such as `Machine Party.pck.broadcast_backup`) on full-backup uninstall.
+- `loader-files`: copies declared mod files from a verified Worker/R2 ZIP package into a loader directory such as `mods/<id>`, records per-file SHA-256 `owned_files` fingerprints in the transaction record, refuses uninstallation if files were tampered with, preserves sibling mod folders under `mods/`, and enforces mutual exclusion against `pck` patchers and MPML loader markers. When `autoLoader: true` is set, `pck_loader.rs` (`ensure_loader_installed` / `restore_managed_loader`) backs up the vanilla PCK under `_mpm_loader`, patches `res://project.binary` and embeds `assets/mpm_bootstrap.gd` (recorded in `Machine Party.pck.modloader.json`), and automatically restores the vanilla PCK on uninstall once no other managed loader mods remain.
 
 Onboarding a future mod that fits an existing adapter kind requires only a declarative `adapter` profile in `catalog/mods.json` and physical acceptance; introducing a new adapter kind requires Rust implementation and an ADR.
 
@@ -84,4 +84,4 @@ Development verification on macOS proceeds in three simulation tiers before phys
 
 ## Evidence needed
 
-Passing L1, L2 and L3 verification on macOS, followed by physical Windows Steam v2.1.2 acceptance (P2): install Overtime v1.7, launch from Steam and finish a round, then disconnect from the network, uninstall once and verify the restored `Machine Party.pck` matches the vanilla SHA-256, as listed in the [requirements](../requirements.md) and [development guide](../development/README.md).
+On macOS, L1/L2/L3 unit and integration tests cover all four mod adapters (`loader-files`, `powershell`, `bundled-python`, and L3 real Overtime v1.7 via Mono on the uncommitted Windows v2.1.2 `Machine Party.pck` with byte-for-byte restoration), alongside local verification of `binary1936-8p/install.py` and `broadcast-8p-freecam` overlay paths against the vanilla v2.1.2 PCK. Full physical Windows Steam v2.1.2 acceptance remains required: install each mod on Windows, launch from Steam, verify in-game behaviour (including PowerShell `patcher.ps1`, bundled Windows `python.exe` + `install.py`, and MPML + `MachineParty+`), then disconnect from the network, uninstall once, and verify the restored game copy matches the vanilla baseline as listed in [requirements](../requirements.md) and the [development guide](../development/README.md).

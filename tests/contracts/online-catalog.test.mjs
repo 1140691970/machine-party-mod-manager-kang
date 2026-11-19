@@ -26,7 +26,7 @@ test("the client loads the Worker snapshot and retains it across failed refreshe
 });
 
 test("each download resolves only its approved version and R2 key", async () => {
-  for (const mod of snapshot.mods) {
+  for (const mod of snapshot.mods.filter(entry => entry.package)) {
     const pkg = mod.package;
     const env = {PACKAGES: {head: async key => {
       assert.ok(pkg.mirrorApproved);
@@ -52,7 +52,7 @@ test("the public gateway forwards catalog requests to the catalog service", asyn
   const env = {CATALOG: {fetch: request => worker.fetch(request, catalogStore)}};
   const response = await gateway.fetch(new Request(catalogUrl), env);
   assert.deepEqual(await response.json(), snapshot);
-  for (const mod of snapshot.mods) {
+  for (const mod of snapshot.mods.filter(entry => entry.package)) {
     const service = {PACKAGES: {head: async () => ({size: mod.package.size})}};
     const bindings = {CATALOG: {fetch: request => worker.fetch(request, service)}};
     const request = new Request(downloadUrl(mod), {method: "HEAD"});
@@ -73,6 +73,10 @@ test("validCatalog rejects unsafe adapter profiles", () => {
   const badPath = structuredClone(snapshot);
   badPath.mods[0].adapter.touches.push("../evil.txt");
   assert.equal(validCatalog(badPath), false);
+
+  const badAutoLoader = structuredClone(snapshot);
+  badAutoLoader.mods[0].adapter.autoLoader = true;
+  assert.equal(validCatalog(badAutoLoader), false);
 });
 
 test("a second approved GET uses the edge copy and HEAD does not prime an empty body", async () => {

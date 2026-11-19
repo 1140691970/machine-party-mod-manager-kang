@@ -10,7 +10,7 @@ Machine Party 及其资源属于其开发商与发行商。本项目与其无关
 
 ## 收录的模组
 
-`catalog/mods.json` 中列出的模组是其作者的作品。管理器显示每位作者并链接到原始仓库；授权摘要见[候选清单](catalog/mods.md)。App 不内置任何模组安装包。
+`catalog/mods.json` 中列出的模组是其作者的作品。管理器显示每位作者并链接到原始仓库；授权摘要见[候选清单](catalog/mods.md)。App 不内置任何第三方模组安装包。仓库 `mods/` 目录下的自研玩法模组（含 `mods/roller-carnival/`）与内置加载引导器（`apps/desktop/src-tauri/assets/mpm_bootstrap.gd` 与 `apps/desktop/src-tauri/src/pck_loader.rs`）均由本仓库按 GPL-3.0-only 编写。
 
 ## 封面图片
 
@@ -18,6 +18,7 @@ Machine Party 及其资源属于其开发商与发行商。本项目与其无关
 | --- | --- | --- |
 | `apps/desktop/ui/images/overtime.png` | [Overtime 截图](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) | DarkJadeStone，MIT（[授权](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE)），画面中的游戏内容属于游戏开发商 |
 | `apps/desktop/ui/images/plus.png` | [MachineParty+ 横幅](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png) | Ghostx10742，MIT |
+| `apps/desktop/ui/images/roller-carnival.png` | `mods/roller-carnival/` 自研玩法预览截图 | 本项目贡献者，GPL-3.0-only（画面中所呈现的原版美术素材属于游戏开发商） |
 
 ## 软件依赖
 

@@ -12,7 +12,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
-      - name: Stage immutable catalog snapshot and verify its contents
+      - name: Stage immutable catalog and first-party mod ZIPs in R2
+        shell: bash
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -22,12 +23,26 @@ jobs:
           ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           BUCKET: ${{ vars.R2_BUCKET_NAME }}
         run: |
-          set -eu
+          set -euo pipefail
+          r2() { aws --endpoint-url "https://$ACCOUNT_ID.r2.cloudflarestorage.com" s3api "$@"; }
+
+          node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"
+          for zip in "$RUNNER_TEMP/packages"/*.zip; do
+            pkg_key="packages/sha256/$(basename "$zip")"
+            if ! r2 head-object --bucket "$BUCKET" --key "$pkg_key" >/dev/null 2>&1; then
+              r2 put-object --bucket "$BUCKET" --key "$pkg_key" --body "$zip" --content-type application/zip --if-none-match '*'
+            fi
+          done
+
+          while read -r sha size; do
+            actual=$(r2 head-object --bucket "$BUCKET" --key "packages/sha256/$sha.zip" --query ContentLength --output text)
+            test "$actual" = "$size"
+          done < <(jq -r '.mods[] | select(.package.mirrorApproved == true) | "\(.package.sha256) \(.package.size)"' catalog/mods.json)
+
           revision=$(jq -er '.revision | select(test("^[a-zA-Z0-9._-]+$"))' catalog/mods.json)
           key="catalog/revisions/$revision.json"
-          r2() { aws --endpoint-url "https://$ACCOUNT_ID.r2.cloudflarestorage.com" s3api "$@"; }
           if ! r2 get-object --bucket "$BUCKET" --key "$key" "$RUNNER_TEMP/catalog.json"; then
-            r2 put-object --bucket "$BUCKET" --key "$key" --body catalog/mods.json --if-none-match '*'
+            r2 put-object --bucket "$BUCKET" --key "$key" --body catalog/mods.json --content-type application/json --if-none-match '*'
             r2 get-object --bucket "$BUCKET" --key "$key" "$RUNNER_TEMP/catalog.json"
           fi
           cmp catalog/mods.json "$RUNNER_TEMP/catalog.json"
@@ -35,3 +50,17 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify live Worker catalog and package downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision=$(jq -er '.revision' catalog/mods.json)
+          curl --fail --silent --show-error --retry 3 https://machineparty.ailaogong.men/v1/catalog.json -o "$RUNNER_TEMP/live-catalog.json"
+          test "$(jq -er '.revision' "$RUNNER_TEMP/live-catalog.json")" = "$revision"
+          while read -r id version asset size; do
+            url="https://machineparty.ailaogong.men/v1/downloads/$id/$version/$asset"
+            headers=$(curl --fail --silent --show-error --retry 3 -I "$url" | tr -d '\r')
+            actual=$(awk 'tolower($1) == "content-length:" { print $2 }' <<< "$headers")
+            test "$actual" = "$size"
+            echo "Verified $url ($actual bytes)"
+          done < <(jq -r '.mods[] | select(.package.mirrorApproved == true) | "\(.id) \(.version) \(.package.assetId) \(.package.size)"' catalog/mods.json)
