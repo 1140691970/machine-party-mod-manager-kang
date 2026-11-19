@@ -307,9 +307,13 @@ pub async fn install_mod(
         let is_manual = adopt.unwrap_or(false);
         let state = validation.mod_states.get(&id).map(String::as_str);
         match (state, is_manual) {
-            (Some("manualInstall"), true) | (Some("vanilla"), false) => {}
+            (Some("manualInstall"), true)
+            | (Some("vanilla"), false)
+            | (Some("modConflict"), false) => {}
             (Some("manualInstall"), false) => return Err("manualDetected".into()),
-            (Some("vanilla"), true) => return Err("statusUnavailable".into()),
+            (Some("vanilla"), true) | (Some("modConflict"), true) => {
+                return Err("statusUnavailable".into());
+            }
             (Some(reason), _) => return Err(reason.into()),
             _ => return Err("unsupportedAdapter".into()),
         }
@@ -334,6 +338,17 @@ pub async fn install_mod(
                 &staging_dir,
                 &mod_entry,
                 &installer::SystemRunner,
+            )?;
+        } else if state == Some("modConflict") {
+            installer::switch_from_zip(
+                &dir,
+                &path,
+                &zip_path,
+                &staging_dir,
+                &mod_entry,
+                &list,
+                &installer::SystemRunner,
+                &installer::SystemGameLockCheck,
             )?;
         } else {
             installer::install_from_zip(

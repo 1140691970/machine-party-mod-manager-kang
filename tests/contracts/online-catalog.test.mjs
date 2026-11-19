@@ -62,20 +62,23 @@ test("the public gateway forwards catalog requests to the catalog service", asyn
 
 test("validCatalog rejects unsafe adapter profiles", () => {
   assert.ok(validCatalog(snapshot));
+  const cliIdx = snapshot.mods.findIndex(mod => mod.adapter?.kind === "upstream-cli");
+  assert.ok(cliIdx >= 0);
+
   const forced = structuredClone(snapshot);
-  forced.mods[0].adapter.actions.install.push("--force");
+  forced.mods[cliIdx].adapter.actions.install.push("--force");
   assert.equal(validCatalog(forced), false);
 
   const badInterp = structuredClone(snapshot);
-  badInterp.mods[0].adapter.run.interpreter = "bash";
+  badInterp.mods[cliIdx].adapter.run.interpreter = "bash";
   assert.equal(validCatalog(badInterp), false);
 
   const badPath = structuredClone(snapshot);
-  badPath.mods[0].adapter.touches.push("../evil.txt");
+  badPath.mods[cliIdx].adapter.touches.push("../evil.txt");
   assert.equal(validCatalog(badPath), false);
 
   const badAutoLoader = structuredClone(snapshot);
-  badAutoLoader.mods[0].adapter.autoLoader = true;
+  badAutoLoader.mods[cliIdx].adapter.autoLoader = true;
   assert.equal(validCatalog(badAutoLoader), false);
 });
 

@@ -907,6 +907,38 @@ fn verify_checksum_manifest(
     Ok(())
 }
 
+fn normalize_loader_staging(staging_dir: &Path) -> Result<(), String> {
+    if staging_dir.join("mod.json").is_file() {
+        return Ok(());
+    }
+    let mut dirs = Vec::new();
+    let mut has_files = false;
+    let entries = fs::read_dir(staging_dir).map_err(|_| "fileReadError".to_string())?;
+    for item in entries {
+        let item = item.map_err(|_| "fileReadError".to_string())?;
+        let file_type = item.file_type().map_err(|_| "fileReadError".to_string())?;
+        if file_type.is_symlink() {
+            return Err("packageCorrupt".into());
+        }
+        if file_type.is_dir() {
+            dirs.push(item.path());
+        } else if file_type.is_file() {
+            has_files = true;
+        }
+    }
+    if !has_files && dirs.len() == 1 && dirs[0].join("mod.json").is_file() {
+        let tmp_dir = staging_dir.join(format!(".hoist-{}", unique_suffix()));
+        fs::rename(&dirs[0], &tmp_dir).map_err(|_| "fileWriteError".to_string())?;
+        for item in fs::read_dir(&tmp_dir).map_err(|_| "fileReadError".to_string())? {
+            let item = item.map_err(|_| "fileReadError".to_string())?;
+            let dst = staging_dir.join(item.file_name());
+            fs::rename(item.path(), dst).map_err(|_| "fileWriteError".to_string())?;
+        }
+        fs::remove_dir(&tmp_dir).map_err(|_| "fileWriteError".to_string())?;
+    }
+    Ok(())
+}
+
 /// Verifies an outer package ZIP, extracts it into staging, verifies `SHA256SUMS.txt`, and runs `preflight`.
 pub fn stage_package(
     zip_path: &Path,
@@ -940,6 +972,7 @@ pub fn stage_package(
         )
         .map_err(|_| format!("internalPackage: {manifest}"))?;
     } else if adapter.kind == "loader-files" {
+        normalize_loader_staging(staging_dir)?;
         if !adapter
             .required_files
             .iter()
@@ -1119,6 +1152,53 @@ fn collect_dir_paths(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
     Ok(())
 }
 
+fn has_unmanaged_loader_dirs(
+    pck_dir: &Path,
+    mods: &[ModEntry],
+    transactions: &Transactions,
+    game_root: &Path,
+) -> Result<bool, String> {
+    let mods_root = pck_dir.join("mods");
+    if !mods_root.is_dir() {
+        return Ok(false);
+    }
+    let per_copy = transactions.get(game_root);
+    let entries = fs::read_dir(&mods_root).map_err(|_| "fileReadError".to_string())?;
+    for entry in entries {
+        let entry = entry.map_err(|_| "fileReadError".to_string())?;
+        let name = entry.file_name();
+        let Some(name_str) = name.to_str() else {
+            return Ok(true);
+        };
+        if name_str.starts_with('.') {
+            continue;
+        }
+        let file_type = entry.file_type().map_err(|_| "fileReadError".to_string())?;
+        if !file_type.is_dir() {
+            return Ok(true);
+        }
+        let managed_ok = mods.iter().any(|item| {
+            item.id == name_str
+                && item
+                    .adapter
+                    .as_ref()
+                    .is_some_and(|a| a.kind == "loader-files")
+                && per_copy
+                    .and_then(|map| map.get(&item.id))
+                    .is_some_and(|record| {
+                        record.status == TransactionStatus::Committed
+                            && !record.owned_files.is_empty()
+                            && collect_dir_fingerprints(&entry.path()).ok().as_ref()
+                                == Some(&record.owned_files)
+                    })
+        });
+        if !managed_ok {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 pub fn check_exclusive_conflicts(
     config_dir: &Path,
     game_root: &Path,
@@ -1127,7 +1207,7 @@ pub fn check_exclusive_conflicts(
     all_mods: &[ModEntry],
 ) -> Result<(), String> {
     let target = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
-    if adapter.exclusive == "pck" && loader_marker_present(&target)? {
+    if adapter.exclusive == "pck" && pck_loader::external_loader_present(&target)? {
         return Err("loaderConflict".into());
     }
     let installed = inventory::installed_versions(config_dir, game_root)?;
@@ -1148,6 +1228,9 @@ pub fn check_exclusive_conflicts(
         {
             return Err("modConflict".into());
         }
+    }
+    if adapter.exclusive == "pck" && loader_marker_present(&target)? {
+        return Err("loaderConflict".into());
     }
     Ok(())
 }
@@ -1703,6 +1786,113 @@ pub fn uninstall_mod(
     Ok(restored)
 }
 
+/// Safely switches from conflicting manager-installed mod(s) to `mod_entry`.
+#[allow(clippy::too_many_arguments)]
+pub fn switch_from_zip(
+    config_dir: &Path,
+    game_root: &Path,
+    zip_path: &Path,
+    staging_dir: &Path,
+    mod_entry: &ModEntry,
+    all_mods: &[ModEntry],
+    runner: &dyn ProcessRunner,
+    lock_check: &dyn GameLockCheck,
+) -> Result<TransactionRecord, String> {
+    let pkg = mod_entry.package.as_ref().ok_or("missingPackage")?;
+    let adapter = mod_entry.adapter.as_ref().ok_or("unsupportedAdapter")?;
+    validate_adapter(adapter)?;
+
+    let pck_dir = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
+    let pck_path = pck_dir.join(&adapter.baseline.file);
+    lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+
+    let validation = validate_game_mods(config_dir, game_root, all_mods)?;
+    match validation.mod_states.get(&mod_entry.id).map(String::as_str) {
+        Some("vanilla") => {
+            return install_from_zip(
+                config_dir,
+                game_root,
+                zip_path,
+                staging_dir,
+                mod_entry,
+                all_mods,
+                runner,
+                lock_check,
+            );
+        }
+        Some("modConflict") => {}
+        Some(other) => return Err(other.to_string()),
+        None => return Err("unsupportedAdapter".into()),
+    }
+
+    let mut to_uninstall = Vec::new();
+    for other in all_mods {
+        if other.id == mod_entry.id {
+            continue;
+        }
+        let Some(other_adapter) = &other.adapter else {
+            continue;
+        };
+        let conflicts = adapter.exclusive == "pck" || other_adapter.exclusive != adapter.exclusive;
+        if !conflicts {
+            continue;
+        }
+        match validation.mod_states.get(&other.id).map(String::as_str) {
+            Some("installed") => to_uninstall.push(other),
+            Some("vanilla") | Some("modConflict") | Some("loaderConflict") => {}
+            _ => return Err("modConflict".into()),
+        }
+    }
+    if to_uninstall.is_empty() {
+        return Err("modConflict".into());
+    }
+
+    let installed = inventory::installed_versions(config_dir, game_root)?;
+    for repo in installed.keys() {
+        if repo == &mod_entry.repo {
+            continue;
+        }
+        let handled = all_mods.iter().any(|other| {
+            &other.repo == repo
+                && (to_uninstall.iter().any(|u| u.id == other.id)
+                    || other.adapter.as_ref().is_some_and(|a| {
+                        adapter.exclusive != "pck" && a.exclusive == adapter.exclusive
+                    }))
+        });
+        if !handled {
+            return Err("modConflict".into());
+        }
+    }
+
+    // Stage and preflight-verify the target archive before uninstalling the active mod.
+    stage_package(zip_path, staging_dir, pkg, adapter, &pck_dir, runner)?;
+    check_space(&pck_dir, adapter.baseline.size)?;
+
+    for old_mod in to_uninstall {
+        uninstall_mod(config_dir, game_root, old_mod, runner, lock_check)?;
+    }
+
+    let restored_pck = file_fingerprint(&pck_path)?;
+    if restored_pck.size != adapter.baseline.size
+        || !restored_pck
+            .sha256
+            .eq_ignore_ascii_case(&adapter.baseline.sha256)
+    {
+        return Err("baselineMismatch".into());
+    }
+
+    install_from_zip(
+        config_dir,
+        game_root,
+        zip_path,
+        staging_dir,
+        mod_entry,
+        all_mods,
+        runner,
+        lock_check,
+    )
+}
+
 /// Adopts a pre-existing manual installation only when its restore baseline matches vanilla.
 pub fn adopt_manual_install(
     config_dir: &Path,
@@ -1964,11 +2154,14 @@ pub fn validate_game_mods(
     let mut mod_states = BTreeMap::new();
     let mut repair = BTreeMap::new();
     let loader_present = loader_marker_present(&pck_dir)?;
+    let external_loader = pck_loader::external_loader_present(&pck_dir)?;
     let managed_marker = pck_loader::read_managed_marker(&pck_dir)?;
     let managed_loader_tampered = managed_marker.as_ref().is_some_and(|m| {
         current_pck.size != m.patched_size
             || !current_pck.sha256.eq_ignore_ascii_case(&m.patched_sha256)
     });
+    let unmanaged_loader_dirs =
+        has_unmanaged_loader_dirs(&pck_dir, mods, &transactions, game_root)?;
     let active_pck_mod = mods.iter().find_map(|item| {
         let adapter = item.adapter.as_ref()?;
         if adapter.exclusive != "pck" {
@@ -1978,6 +2171,12 @@ pub fn validate_game_mods(
         (tx.status == TransactionStatus::Committed && tx.post_pck.as_ref() == Some(&current_pck))
             .then_some(item.id.as_str())
     });
+    let has_pck_sidecar_residue = active_pck_mod.is_none()
+        && mods.iter().any(|other| {
+            other.adapter.as_ref().is_some_and(|a| {
+                a.exclusive == "pck" && !sidecars_absent(a, &pck_dir).unwrap_or(false)
+            })
+        });
     let mut has_active_loader_mod = false;
     for item in mods {
         if item
@@ -2027,22 +2226,16 @@ pub fn validate_game_mods(
                 }
             } else {
                 installed.remove(&item.repo);
-                if active_pck_mod.is_some()
-                    || mods.iter().any(|other| {
-                        other.adapter.as_ref().is_some_and(|a| {
-                            a.exclusive == "pck" && !sidecars_absent(a, &pck_dir).unwrap_or(false)
-                        })
-                    })
-                {
+                if active_pck_mod.is_some() {
                     "modConflict"
+                } else if has_pck_sidecar_residue {
+                    "restoreResidue"
                 } else if !vanilla && !loader_present {
                     "gameUpdatedOrModified"
                 } else {
                     "vanilla"
                 }
             }
-        } else if loader_present && adapter.exclusive == "pck" {
-            "loaderConflict"
         } else if tx.is_some_and(|r| {
             matches!(
                 r.status,
@@ -2050,11 +2243,24 @@ pub fn validate_game_mods(
             )
         }) {
             "needsRepair"
+        } else if external_loader && adapter.exclusive == "pck" {
+            "loaderConflict"
+        } else if managed_loader_tampered {
+            "gameUpdatedOrModified"
+        } else if has_active_loader_mod
+            && adapter.exclusive == "pck"
+            && (vanilla || managed_marker.is_some())
+        {
+            if unmanaged_loader_dirs {
+                "loaderConflict"
+            } else {
+                "modConflict"
+            }
+        } else if managed_marker.is_some() && adapter.exclusive == "pck" {
+            "loaderConflict"
         } else if vanilla {
             installed.remove(&item.repo);
-            if has_active_loader_mod && adapter.exclusive == "pck" {
-                "modConflict"
-            } else if sidecars_absent(adapter, &pck_dir)? {
+            if sidecars_absent(adapter, &pck_dir)? {
                 "vanilla"
             } else {
                 "restoreResidue"
@@ -2068,9 +2274,7 @@ pub fn validate_game_mods(
             }
         } else if installed.contains_key(&item.repo) {
             "needsRepair"
-        } else if active_pck_mod.is_some_and(|id| id != item.id)
-            || (has_active_loader_mod && adapter.exclusive == "pck")
-        {
+        } else if active_pck_mod.is_some_and(|id| id != item.id) {
             "modConflict"
         } else if uses_delta_restore(adapter)
             && restore.is_file()
@@ -2136,9 +2340,17 @@ fn scan_stamp(config: &Path, root: &Path, mods: &[ModEntry]) -> Result<ScanStamp
         dir.join("Machine Party.pck.modloader.json"),
         dir.join("Machine Party.exe"),
         dir.join("Machine Party.pck"),
+        dir.join("mods"),
         config.join(TRANSACTIONS_FILE),
         config.join("installations.json"),
     ];
+    let mods_root = dir.join("mods");
+    if mods_root.is_dir() {
+        for entry in fs::read_dir(&mods_root).map_err(|_| "fileReadError".to_string())? {
+            let entry = entry.map_err(|_| "fileReadError".to_string())?;
+            paths.push(entry.path());
+        }
+    }
     for item in mods {
         if let Some(adapter) = &item.adapter {
             if adapter.kind == "loader-files" {
@@ -3367,7 +3579,10 @@ print("Patched")
         #[cfg(unix)]
         fs::set_permissions(&pck_path, fs::Permissions::from_mode(0o644)).unwrap();
 
-        let overtime = crate::catalog::entry("overtime").expect("overtime entry present");
+        let src_bytes = fs::read(&src_zip).unwrap();
+        let src_fp = file_fingerprint(&src_pck).unwrap();
+        let mut overtime = synthetic_overtime_entry(&src_fp, &src_bytes, true);
+        overtime.package.as_mut().unwrap().asset_id = "594522625".into();
         let mods = vec![overtime.clone()];
         let config_dir = root.join("config");
         let staging_dir = root.join("staging");
@@ -3529,7 +3744,7 @@ print("Patched")
 
         let v1 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v1.mod_states["machineparty-plus"], "installed");
-        assert_eq!(v1.mod_states["overtime"], "modConflict");
+        assert_eq!(v1.mod_states["overtime"], "loaderConflict");
         assert_eq!(
             install_from_zip(
                 &config_dir,
@@ -3836,7 +4051,7 @@ print("Patched")
 
         let v1 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v1.mod_states["roller-carnival"], "installed");
-        assert_eq!(v1.mod_states["overtime"], "loaderConflict");
+        assert_eq!(v1.mod_states["overtime"], "modConflict");
         assert_eq!(v1.mod_states["machineparty-plus"], "vanilla");
 
         // Co-install a second loader mod alongside first-party roller-carnival.
@@ -3918,6 +4133,406 @@ print("Patched")
         assert_eq!(
             uninstall_mod(&config_dir, &game_root, &roller, &runner, &UnlockedCheck).unwrap_err(),
             "gameUpdatedOrModified"
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    fn make_loader_entry_from_catalog(
+        id: &str,
+        zip_bytes: &[u8],
+        baseline: &FileFingerprint,
+    ) -> ModEntry {
+        let mut entry = crate::catalog::entry(id).unwrap();
+        entry.verified = true;
+        let pkg = entry.package.as_mut().unwrap();
+        pkg.size = zip_bytes.len() as u64;
+        pkg.sha256 = hex::encode(Sha256::digest(zip_bytes));
+        entry.adapter.as_mut().unwrap().baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: baseline.size,
+            sha256: baseline.sha256.clone(),
+        };
+        entry
+    }
+
+    #[test]
+    fn l1_nested_mpml_zip_coexists_with_loader_mods() {
+        let root = test_root("l1-nested-mpml-coexist");
+        let pck_bytes = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game_root, pck_dir, baseline) = setup_synthetic_game(&root, &pck_bytes);
+
+        let ot_zip_bytes = build_test_zip(&[
+            ("overtime/BUILDINFO.json", b"{}", true),
+            ("overtime/main.gd", b"extends Node\n# overtime", true),
+            (
+                "overtime/mod.json",
+                b"{\"id\":\"overtime\",\"priority\":-1000}",
+                true,
+            ),
+            ("overtime/overtime_overlay.zip", b"PK\x05\x06", false),
+            ("overtime/vanilla_md5.json", b"{}", true),
+        ]);
+        let ot_zip = root.join("overtime-mpml.zip");
+        fs::write(&ot_zip, &ot_zip_bytes).unwrap();
+        let overtime = make_loader_entry_from_catalog("overtime", &ot_zip_bytes, &baseline);
+
+        let plus_zip_bytes = build_test_zip(&[
+            ("mod.json", b"{\"id\":\"machineparty_plus\"}", true),
+            ("main.gd", b"extends Node\n# plus", true),
+        ]);
+        let plus_zip = root.join("plus.zip");
+        fs::write(&plus_zip, &plus_zip_bytes).unwrap();
+        let plus = make_loader_entry_from_catalog("machineparty-plus", &plus_zip_bytes, &baseline);
+
+        let roller_zip_bytes = build_test_zip(&[
+            ("mod.json", b"{\"id\":\"roller-carnival\"}", true),
+            ("main.gd", b"extends Node\n# roller", true),
+            ("config.gd", b"extends RefCounted\n", true),
+            ("carnival_meshes.gd", b"extends RefCounted\n", true),
+            ("roller_carnival_game.gd", b"extends Node3D\n", true),
+            ("override_game.gd", b"extends Node\n", true),
+            ("override_playlist.gd", b"extends Node\n", true),
+            ("override_picker.gd", b"extends Node\n", true),
+        ]);
+        let roller_zip = root.join("roller.zip");
+        fs::write(&roller_zip, &roller_zip_bytes).unwrap();
+        let roller =
+            make_loader_entry_from_catalog("roller-carnival", &roller_zip_bytes, &baseline);
+
+        let mods = vec![overtime.clone(), plus.clone(), roller.clone()];
+        let config_dir = root.join("config");
+        let staging_dir = root.join("staging");
+        let runner = FakeCliRunner {
+            vanilla_bytes: pck_bytes.clone(),
+            vanilla_sha: baseline.sha256.clone(),
+            fault: FakeFault::None,
+            calls: RefCell::new(Vec::new()),
+        };
+
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &ot_zip,
+            &staging_dir.join("ot"),
+            &overtime,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        assert!(pck_dir.join("mods/overtime/mod.json").is_file());
+        assert!(!pck_dir.join("mods/overtime/overtime").exists());
+
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &plus_zip,
+            &staging_dir.join("plus"),
+            &plus,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &roller_zip,
+            &staging_dir.join("roller"),
+            &roller,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+
+        let state = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(state.mod_states["overtime"], "installed");
+        assert_eq!(state.mod_states["machineparty-plus"], "installed");
+        assert_eq!(state.mod_states["roller-carnival"], "installed");
+        assert!(pck_loader::read_managed_marker(&pck_dir).unwrap().is_some());
+
+        uninstall_mod(&config_dir, &game_root, &overtime, &runner, &UnlockedCheck).unwrap();
+        uninstall_mod(&config_dir, &game_root, &plus, &runner, &UnlockedCheck).unwrap();
+        let restored =
+            uninstall_mod(&config_dir, &game_root, &roller, &runner, &UnlockedCheck).unwrap();
+        assert_eq!(restored, baseline);
+        assert!(pck_loader::read_managed_marker(&pck_dir).unwrap().is_none());
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn l1_switch_between_loader_mods_and_pck_mods() {
+        let root = test_root("l1-switch-mods");
+        let pck_bytes = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game_root, pck_dir, baseline) = setup_synthetic_game(&root, &pck_bytes);
+
+        let ot_zip_bytes = build_test_zip(&[
+            ("overtime/BUILDINFO.json", b"{}", true),
+            ("overtime/main.gd", b"extends Node\n# ot", true),
+            ("overtime/mod.json", b"{\"id\":\"overtime\"}", true),
+            ("overtime/overtime_overlay.zip", b"PK\x05\x06", false),
+            ("overtime/vanilla_md5.json", b"{}", true),
+        ]);
+        let ot_zip = root.join("ot.zip");
+        fs::write(&ot_zip, &ot_zip_bytes).unwrap();
+        let overtime = make_loader_entry_from_catalog("overtime", &ot_zip_bytes, &baseline);
+
+        let roller_zip_bytes = build_test_zip(&[
+            ("mod.json", b"{\"id\":\"roller-carnival\"}", true),
+            ("main.gd", b"extends Node\n# roller", true),
+            ("config.gd", b"extends RefCounted\n", true),
+            ("carnival_meshes.gd", b"extends RefCounted\n", true),
+            ("roller_carnival_game.gd", b"extends Node3D\n", true),
+            ("override_game.gd", b"extends Node\n", true),
+            ("override_playlist.gd", b"extends Node\n", true),
+            ("override_picker.gd", b"extends Node\n", true),
+        ]);
+        let roller_zip = root.join("roller.zip");
+        fs::write(&roller_zip, &roller_zip_bytes).unwrap();
+        let roller =
+            make_loader_entry_from_catalog("roller-carnival", &roller_zip_bytes, &baseline);
+
+        let b_zip_bytes = build_test_zip(&[("patcher.ps1", b"# ps", true)]);
+        let b_zip = root.join("broadcast.zip");
+        fs::write(&b_zip, &b_zip_bytes).unwrap();
+        let mut broadcast = crate::catalog::entry("broadcast-8p-freecam").unwrap();
+        broadcast.verified = true;
+        broadcast.package.as_mut().unwrap().size = b_zip_bytes.len() as u64;
+        broadcast.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(&b_zip_bytes));
+        broadcast.adapter.as_mut().unwrap().baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: baseline.size,
+            sha256: baseline.sha256.clone(),
+        };
+
+        let p_zip_bytes = build_test_zip(&[("install.py", b"# py", true)]);
+        let p_zip = root.join("b8p.zip");
+        fs::write(&p_zip, &p_zip_bytes).unwrap();
+        let mut b8p = crate::catalog::entry("binary1936-8p").unwrap();
+        b8p.verified = true;
+        b8p.package.as_mut().unwrap().size = p_zip_bytes.len() as u64;
+        b8p.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(&p_zip_bytes));
+        b8p.adapter.as_mut().unwrap().baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: baseline.size,
+            sha256: baseline.sha256.clone(),
+        };
+
+        struct SwitchRunner {
+            vanilla_sha: String,
+        }
+        impl ProcessRunner for SwitchRunner {
+            fn run(&self, req: &CommandRequest) -> Result<CommandOutput, String> {
+                if let Some(idx) = req.args.iter().position(|a| a == "-GameDir") {
+                    let dir = PathBuf::from(&req.args[idx + 1]);
+                    let pck = dir.join("Machine Party.pck");
+                    let action = req
+                        .args
+                        .iter()
+                        .position(|a| a == "-Action")
+                        .map(|i| req.args[i + 1].as_str())
+                        .unwrap_or("");
+                    return match action {
+                        "verify" => {
+                            let bytes = fs::read(&pck).unwrap();
+                            let s = if bytes.ends_with(b"BROADCAST") {
+                                "State: patched\n"
+                            } else if file_fingerprint(&pck)?.sha256 == self.vanilla_sha {
+                                "State: clean\n"
+                            } else {
+                                "State: other\n"
+                            };
+                            Ok(CommandOutput {
+                                code: 0,
+                                stdout: s.into(),
+                                stderr: String::new(),
+                            })
+                        }
+                        "install" => {
+                            let mut orig = fs::read(&pck).unwrap();
+                            fs::write(dir.join("Machine Party.pck.broadcast_backup"), &orig)
+                                .unwrap();
+                            orig.extend_from_slice(b"BROADCAST");
+                            fs::write(&pck, orig).unwrap();
+                            Ok(CommandOutput {
+                                code: 0,
+                                stdout: "Installed.\n".into(),
+                                stderr: String::new(),
+                            })
+                        }
+                        _ => panic!("unexpected ps action {action}"),
+                    };
+                }
+                if let Some(idx) = req.args.iter().position(|a| a == "--game-dir") {
+                    let dir = PathBuf::from(&req.args[idx + 1]);
+                    let pck = dir.join("Machine Party.pck");
+                    if req.args.iter().any(|a| a == "--verify") {
+                        let bytes = fs::read(&pck).unwrap();
+                        return if bytes.ends_with(b"B8P_V1_5") {
+                            Ok(CommandOutput {
+                                code: 0,
+                                stdout: "PATCHED\n".into(),
+                                stderr: String::new(),
+                            })
+                        } else {
+                            Ok(CommandOutput {
+                                code: 1,
+                                stdout: "NOT PATCHED\n".into(),
+                                stderr: String::new(),
+                            })
+                        };
+                    }
+                    let mut orig = fs::read(&pck).unwrap();
+                    orig.extend_from_slice(b"B8P_V1_5");
+                    fs::write(&pck, orig).unwrap();
+                    return Ok(CommandOutput {
+                        code: 0,
+                        stdout: "Patched\n".into(),
+                        stderr: String::new(),
+                    });
+                }
+                panic!("unexpected command {:?}", req.args);
+            }
+        }
+
+        let mods = vec![
+            overtime.clone(),
+            roller.clone(),
+            broadcast.clone(),
+            b8p.clone(),
+        ];
+        let config_dir = root.join("config");
+        let staging_dir = root.join("staging");
+        let runner = SwitchRunner {
+            vanilla_sha: baseline.sha256.clone(),
+        };
+
+        // Install two coexisting autoLoader mods.
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &ot_zip,
+            &staging_dir.join("ot"),
+            &overtime,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &roller_zip,
+            &staging_dir.join("roller"),
+            &roller,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+
+        let v_loader = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v_loader.mod_states["broadcast-8p-freecam"], "modConflict");
+        assert_eq!(v_loader.mod_states["binary1936-8p"], "modConflict");
+
+        // Corrupt target ZIP must fail before uninstalling existing mods.
+        let bad_zip = root.join("bad.zip");
+        fs::write(&bad_zip, b"CORRUPT").unwrap();
+        assert_eq!(
+            switch_from_zip(
+                &config_dir,
+                &game_root,
+                &bad_zip,
+                &staging_dir.join("bad"),
+                &broadcast,
+                &mods,
+                &runner,
+                &UnlockedCheck,
+            )
+            .unwrap_err(),
+            "packageCorrupt"
+        );
+        let after_bad = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(after_bad.mod_states["overtime"], "installed");
+        assert_eq!(after_bad.mod_states["roller-carnival"], "installed");
+
+        // Switch from both loader mods -> Broadcast 8P Freecam (PCK patcher).
+        switch_from_zip(
+            &config_dir,
+            &game_root,
+            &b_zip,
+            &staging_dir.join("broadcast"),
+            &broadcast,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let v_broadcast = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v_broadcast.mod_states["broadcast-8p-freecam"], "installed");
+        assert_eq!(v_broadcast.mod_states["overtime"], "modConflict");
+        assert_eq!(v_broadcast.mod_states["roller-carnival"], "modConflict");
+        assert_eq!(v_broadcast.mod_states["binary1936-8p"], "modConflict");
+        assert!(pck_loader::read_managed_marker(&pck_dir).unwrap().is_none());
+        assert!(!pck_dir.join("mods").exists());
+
+        // Switch from Broadcast 8P Freecam -> Binary1936 8P (PCK -> PCK).
+        switch_from_zip(
+            &config_dir,
+            &game_root,
+            &p_zip,
+            &staging_dir.join("b8p"),
+            &b8p,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let v_b8p = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v_b8p.mod_states["binary1936-8p"], "installed");
+        assert_eq!(v_b8p.mod_states["broadcast-8p-freecam"], "modConflict");
+        assert!(!pck_dir.join("Machine Party.pck.broadcast_backup").exists());
+
+        // Switch from Binary1936 8P -> Overtime MPML (PCK -> loader).
+        switch_from_zip(
+            &config_dir,
+            &game_root,
+            &ot_zip,
+            &staging_dir.join("ot2"),
+            &overtime,
+            &mods,
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let v_ot = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(v_ot.mod_states["overtime"], "installed");
+        assert_eq!(v_ot.mod_states["roller-carnival"], "vanilla");
+        assert_eq!(v_ot.mod_states["broadcast-8p-freecam"], "modConflict");
+
+        // Unmanaged loader folder blocks switching with loaderConflict.
+        write_atomic(&pck_dir.join("mods/manual_mod/main.gd"), b"extends Node\n").unwrap();
+        let v_unmanaged = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
+        assert_eq!(
+            v_unmanaged.mod_states["broadcast-8p-freecam"],
+            "loaderConflict"
+        );
+        assert_eq!(
+            switch_from_zip(
+                &config_dir,
+                &game_root,
+                &b_zip,
+                &staging_dir.join("broadcast2"),
+                &broadcast,
+                &mods,
+                &runner,
+                &UnlockedCheck,
+            )
+            .unwrap_err(),
+            "loaderConflict"
         );
 
         fs::remove_dir_all(root).unwrap();

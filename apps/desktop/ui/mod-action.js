@@ -6,6 +6,7 @@ export function modAction({managed, verified, game, scan, disk}) {
   if (disk === "installed") return "uninstall";
   if (disk === "manualInstall") return "adoptManual";
   if (disk === "identifyPending") return "identify";
+  if (disk === "modConflict") return "switch";
   if (disk === "vanilla") return "install";
   return "review";
 }

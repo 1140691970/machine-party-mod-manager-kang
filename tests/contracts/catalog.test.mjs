@@ -63,10 +63,16 @@ test("every catalog mod declares a valid Windows adapter profile", () => {
     }
   }
   const overtime = catalog.mods.find(mod => mod.id === "overtime");
-  assert.equal(overtime.adapter.kind, "upstream-cli");
-  assert.equal(overtime.adapter.exclusive, "pck");
-  assert.equal(overtime.adapter.run.interpreter, "exe");
-  assert.equal(overtime.adapter.run.program, "overtime_install.exe");
+  assert.equal(overtime.package.assetId, "594522622");
+  assert.equal(overtime.package.filename, "Machine-Party-Overtime-1.7-MPML.zip");
+  assert.equal(overtime.adapter.kind, "loader-files");
+  assert.equal(overtime.adapter.exclusive, "loader");
+  assert.equal(overtime.adapter.autoLoader, true);
+
+  const plus = catalog.mods.find(mod => mod.id === "machineparty-plus");
+  assert.equal(plus.adapter.kind, "loader-files");
+  assert.equal(plus.adapter.exclusive, "loader");
+  assert.equal(plus.adapter.autoLoader, true);
 
   const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
   assert.equal(roller.package.filename, "roller-carnival-0.1.0.zip");

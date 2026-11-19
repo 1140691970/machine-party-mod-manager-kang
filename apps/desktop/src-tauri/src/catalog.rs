@@ -247,24 +247,32 @@ mod tests {
         assert_eq!(mod_entry.repo, "DarkJadeStone/MachineParty-Overtime");
         assert_eq!(mod_entry.version.as_deref(), Some("v1.7"));
         let pkg = mod_entry.package.as_ref().expect("package present");
-        assert_eq!(pkg.asset_id, "594522625");
-        assert_eq!(pkg.size, 854_623);
+        assert_eq!(pkg.asset_id, "594522622");
+        assert_eq!(pkg.filename, "Machine-Party-Overtime-1.7-MPML.zip");
+        assert_eq!(pkg.size, 830_277);
         let adapter = mod_entry.adapter.as_ref().expect("adapter present");
-        assert_eq!(adapter.kind, "upstream-cli");
-        assert_eq!(adapter.exclusive, "pck");
-        assert!(adapter.upstream_uninstall);
-        assert_eq!(adapter.run.program, "overtime_install.exe");
-        assert!(adapter.forbidden_args.contains(&"--force".to_string()));
+        assert_eq!(adapter.kind, "loader-files");
+        assert_eq!(adapter.exclusive, "loader");
+        assert!(adapter.auto_loader);
+        assert!(!adapter.upstream_uninstall);
         assert!(parse_entry(BUNDLED, "missing").is_err());
 
         let plus = entry("machineparty-plus").expect("plus entry present");
-        assert_eq!(plus.adapter.as_ref().unwrap().kind, "loader-files");
-        assert_eq!(plus.adapter.as_ref().unwrap().exclusive, "loader");
+        let plus_adapter = plus.adapter.as_ref().unwrap();
+        assert_eq!(plus_adapter.kind, "loader-files");
+        assert_eq!(plus_adapter.exclusive, "loader");
+        assert!(plus_adapter.auto_loader);
 
         let broadcast = entry("broadcast-8p-freecam").expect("broadcast entry present");
-        assert_eq!(
-            broadcast.adapter.as_ref().unwrap().run.interpreter,
-            "powershell"
+        let broadcast_adapter = broadcast.adapter.as_ref().unwrap();
+        assert_eq!(broadcast_adapter.kind, "upstream-cli");
+        assert_eq!(broadcast_adapter.exclusive, "pck");
+        assert!(!broadcast_adapter.auto_loader);
+        assert_eq!(broadcast_adapter.run.interpreter, "powershell");
+        assert!(
+            broadcast_adapter
+                .forbidden_args
+                .contains(&"--force".to_string())
         );
 
         let b8p = entry("binary1936-8p").expect("binary1936-8p entry present");
@@ -290,7 +298,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&mod_entry).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/overtime/v1.7/594522625"
+            "https://machineparty.ailaogong.men/v1/downloads/overtime/v1.7/594522622"
         );
         assert_eq!(
             download_url(&roller).unwrap(),

@@ -44,6 +44,10 @@ The two other candidates have package sizes of 94,946 bytes for [MachineParty+ v
 
 Licences must be cleared package by package before launch. Overtime's MIT licence covers only the author's original work; the patch keeps game script context. MachineParty+'s MPML loader needs separate testing and separate confirmation of what may be distributed. When a licence is unclear, offer only the author link or a tested direct download. [Overtime licence](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE) · [MachineParty+ installation requirements](https://github.com/Ghostx10742/MachineParty-Plus#installation)
 
+### Production package update, 2026-11-19
+
+Starting with catalog revision `2026-11-19.8`, `Overtime v1.7` ships the official MPML Loader package (`Machine-Party-Overtime-1.7-MPML.zip`, asset ID `594522622`, `830,277` bytes, SHA-256 `49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e`) so it coexists with `MachineParty+` and `Roller Carnival` via the manager's built-in `autoLoader`. The Worker serves it from `/v1/downloads/overtime/v1.7/594522622` backed by R2 key `packages/sha256/49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e.zip`.
+
 ## Who can publish
 
 1. The community recommends mods through the repository's issue form; after the maintainer selects assets, automation opens a draft PR. Contributors familiar with the data format can open a PR directly. Full steps are in the [inclusion guide](mods.md). Catalog data lives in `catalog/`; the catalog Worker is planned under `services/` beside the existing `services/update-worker`. PR CI checks format, duplicate IDs, versions and asset data and builds a previewable snapshot. Merging only updates the repository.

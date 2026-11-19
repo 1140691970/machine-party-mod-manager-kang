@@ -581,7 +581,7 @@ pub fn ensure_loader_installed(
         return Ok(None);
     }
     let pck_path = pck_dir.join(&baseline.file);
-    let current = file_fingerprint(&pck_path)?;
+    let mut current = file_fingerprint(&pck_path)?;
     if let Some(marker) = read_managed_marker(pck_dir)? {
         if current.size != marker.patched_size
             || !current.sha256.eq_ignore_ascii_case(&marker.patched_sha256)
@@ -592,10 +592,11 @@ pub fn ensure_loader_installed(
         let Some(got_boot) = check.read_file(BOOTSTRAP_RES)? else {
             return Err("gameUpdatedOrModified".into());
         };
-        if got_boot != BOOTSTRAP_SRC.as_bytes() {
-            return Err("gameUpdatedOrModified".into());
+        if got_boot == BOOTSTRAP_SRC.as_bytes() {
+            return Ok(Some(marker));
         }
-        return Ok(Some(marker));
+        // Upgrade an older manager-owned bootstrap cleanly before re-applying.
+        current = restore_managed_loader(pck_dir, backup_pck)?;
     }
 
     if current.size != baseline.size || !current.sha256.eq_ignore_ascii_case(&baseline.sha256) {
@@ -944,6 +945,63 @@ mod tests {
             None
         );
         assert!(!backup_pck.exists());
+    }
+
+    #[test]
+    fn ensure_loader_upgrades_older_managed_bootstrap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pck_dir = tmp.path().join("Machine Party_Windows");
+        fs::create_dir_all(&pck_dir).unwrap();
+        let pck_path = pck_dir.join("Machine Party.pck");
+        let vanilla_bytes = build_synthetic_pck_v3(false, true);
+        fs::write(&pck_path, &vanilla_bytes).unwrap();
+        let vanilla_fp = file_fingerprint(&pck_path).unwrap();
+        let baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: vanilla_fp.size,
+            sha256: vanilla_fp.sha256.clone(),
+        };
+        let backup_pck = tmp.path().join("backup.pck");
+
+        // Simulate an older manager-owned patch whose bootstrap differs from BOOTSTRAP_SRC.
+        let mut old_pck = PckArchive::open(&pck_path).unwrap();
+        let vanilla_dir_offset = old_pck.dir_offset;
+        let dir_field = old_pck.dir_field;
+        let dir_field_base = old_pck.dir_field_base;
+        let old_boot = b"extends Node\n# old bootstrap\n".to_vec();
+        old_pck.put(BOOTSTRAP_RES, old_boot);
+        old_pck.append_patch_v3().unwrap();
+        let old_patched = file_fingerprint(&pck_path).unwrap();
+        let old_marker = ManagedLoaderState {
+            managed_by: MANAGED_BY.into(),
+            loader_version: "2".into(),
+            vanilla_dir_offset,
+            vanilla_size: vanilla_fp.size,
+            vanilla_sha256: vanilla_fp.sha256.clone(),
+            dir_field,
+            dir_field_base,
+            patched_size: old_patched.size,
+            patched_sha256: old_patched.sha256.clone(),
+        };
+        installer::write_atomic(
+            &sidecar_path(&pck_dir),
+            &serde_json::to_vec_pretty(&old_marker).unwrap(),
+        )
+        .unwrap();
+
+        let upgraded = ensure_loader_installed(&pck_dir, &backup_pck, &baseline)
+            .unwrap()
+            .expect("upgraded loader marker created");
+        assert_eq!(upgraded.loader_version, LOADER_VERSION);
+        assert_eq!(upgraded.vanilla_sha256, vanilla_fp.sha256);
+
+        let parsed = PckArchive::open(&pck_path).unwrap();
+        assert_eq!(
+            parsed.read_file(BOOTSTRAP_RES).unwrap().as_deref(),
+            Some(BOOTSTRAP_SRC.as_bytes())
+        );
+        let restored = restore_managed_loader(&pck_dir, &backup_pck).unwrap();
+        assert_eq!(restored, vanilla_fp);
     }
 
     #[test]

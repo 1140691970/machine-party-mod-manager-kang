@@ -29,6 +29,23 @@ function project(mod) {
   return button(mod.repo.split("/")[0], () => openProject(mod.repo), "link", "external");
 }
 
+function conflictingMods(mod) {
+  const adapter = mod.adapter || pinnedOf(mod)?.adapter;
+  if (!adapter) return [];
+  return state.mods.filter(other => {
+    if (other.id === mod.id) return false;
+    const isInstalled = state.modStates[other.id] === "installed" || state.inventory[other.repo] !== undefined;
+    if (!isInstalled) return false;
+    const otherAdapter = other.adapter || pinnedOf(other)?.adapter;
+    return adapter.exclusive === "pck" || !otherAdapter || otherAdapter.exclusive !== adapter.exclusive;
+  });
+}
+
+function conflictNames(mod) {
+  const sep = state.locale === "en" ? ", " : "、";
+  return conflictingMods(mod).map(nameOf).join(sep);
+}
+
 function details(mod) {
   const local = state.inventory[mod.repo];
   const status = versionState(local, mod.version, mod.verified);
@@ -57,7 +74,12 @@ function details(mod) {
   const repair = state.lastScan?.repair?.[mod.id];
   if (repair) parts.push(element("p", t("backup") + " · " + repair[0], "file-detail"));
   if (repair?.[1]) parts.push(element("p", t(repair[1]) || repair[1]));
-  if (["restoreResidue", "identifyPending", "loaderConflict", "modConflict"].includes(modState)) parts.push(element("p", t(modState)));
+  if (modState === "modConflict") {
+    const names = conflictNames(mod);
+    parts.push(element("p", names ? t("modConflictWith").replace("{mods}", names) : t("modConflict")));
+  } else if (["restoreResidue", "identifyPending", "loaderConflict"].includes(modState)) {
+    parts.push(element("p", t(modState)));
+  }
   if (cached(mod)) parts.push(button(t("clearCache"), async () => {
     await clearPackage(mod);
     delete state.packages[mod.id];
@@ -112,8 +134,13 @@ async function installDialog(mod, action) {
   const target = state.pckDir;
   const title = key => t(key) + " · " + nameOf(mod) + " " + mod.version;
   const steps = element("ol", "", "install-steps");
-  const lastStep = action === "identify" ? "identify" : action === "adoptManual" ? "adoptManual" : "installStep";
+  const lastStep = action === "identify" ? "identify"
+    : action === "adoptManual" ? "adoptManual"
+    : action === "switch" ? "switchStep"
+    : "installStep";
   const stepKeys = ["downloadStep", "verifyStep", lastStep];
+  const names = action === "switch" ? conflictNames(mod) : "";
+  const notice = names ? element("p", t("switchNotice").replace("{mods}", names)) : null;
   const rows = stepKeys.map(key => {
     const row = element("li");
     const status = element("span");
@@ -139,7 +166,7 @@ async function installDialog(mod, action) {
     render();
   };
   dialog.addEventListener("close", onClose);
-  show(title(action), steps, location, bar.el);
+  show(title(action), ...(notice ? [notice] : []), steps, location, bar.el);
   state.busyMod = mod.id;
   render();
   try {

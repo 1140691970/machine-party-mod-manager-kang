@@ -8,10 +8,10 @@
 
 上游模組皆以未經修改的原版壓縮包發布，安裝方式各有不同：
 
-1. Overtime v1.7：`.NET` 主控台程式（`overtime_install.exe` 搭配 `overtime_payload.zip`），向 `Machine Party.pck` 追加腳本並改寫索引，同時寫入幾 KB 的差量還原紀錄（`overtime_restore.dat`）。
+1. Overtime v1.7（MPML 套件 `Machine-Party-Overtime-1.7-MPML.zip`）：MPML API v2 載入器套件（`mod.json`、`main.gd`、`vanilla_md5.json`、`overtime_overlay.zip`），解壓至 `mods/overtime/`，搭配內建 `autoLoader`（`autoload/ModLoader` 在 `_init()` 階段先於遊戲單例執行 `_discover_and_init_mods()`），可與 `MachineParty+`、`滾筒嘉年華` 共存。
 2. Binary1936 八人模組 v1.5：Python 補丁腳本（`install.py`，Windows 包內附 `python/python.exe`），重寫整個 `Machine Party.pck` 且不保留備份。
 3. Broadcast 8P Freecam v0.91：PowerShell 補丁腳本（`patcher.ps1`），重寫 `Machine Party.pck` 並保存整包備份（`Machine Party.pck.broadcast_backup`）。
-4. MachineParty+ v2.1.0：載入器模組包（`mod.json`、`main.gd`、腳本與翻譯），放入 MPML 的 `mods/` 目錄。
+4. MachineParty+ v2.1.0 與滾筒嘉年華 v0.1.0：放入 `mods/<id>/` 目錄的載入器模組套件，皆啟用 `autoLoader: true`。
 
 若為每個模組在 Rust 中硬編碼安裝流程，後續收錄成本會越來越高；但若直接執行線上目錄隨附的可執行適配腳本，會帶來遠端程式碼執行風險，也違反 [ADR-005](ADR-005-install-transactions.md)。此外，Steam 上的 Machine Party 僅支援 Windows，在 macOS 上需要分層的模擬策略提前驗證核心邏輯。
 
@@ -26,28 +26,26 @@
 - **遊戲目錄解析**：將已保存的 Steam 遊戲根目錄（作為 `installations.json` 的鍵，例如 `.../party project`）對應到實際存放 `Machine Party.pck` 的內層目錄（例如 `Machine Party_Windows`）。
 - **進程與檔案鎖檢查**：寫入前確認遊戲未執行，並取得獨占檔案鎖。
 - **暫存下載與完整校驗**：在 Rust 端從既有 Worker 網域（`https://machineparty.ailaogong.men/v1/downloads/{id}/{version}/{assetId}`）下載到暫存區，對照目錄核對外層 ZIP 位元組數與 SHA-256，原樣解壓後核對內部校驗清單（`SHA256SUMS.txt` 及／或 preflight 命令）。
-- **寫入前基線與交易日誌**：為 `Machine Party.pck` 及宣告的 `touches` 檔案計算安裝前 `size` 與 `sha256` 指紋；檢查 `exclusive` 互斥群組（所有直接改包模組共用 `"exclusive": "pck"`，並與 MPML 互斥）；寫入 `pending` 交易日誌；寫入後執行讀回自檢（並檢查遊戲目錄內沒有未宣告檔案遭到改動）；提交 `committed`／`rolled_back` 狀態並在啟動時對帳。
+- **寫入前基線、衝突隔離與一鍵切換**：為 `Machine Party.pck` 及宣告的 `touches` 檔案計算安裝前 `size` 與 `sha256` 指紋；檢查 `exclusive` 互斥群組（`loader` 模組可在 `mods/<id>/` 下共存，直接改包模組共用 `"exclusive": "pck"` 且與所有 `pck` 及載入器模式互斥）；將僅由管理器受管安裝引發的 `modConflict`（支援一鍵呼叫 `switch_from_zip`：先預檢目標套件，再解除安裝現有互斥模組、校驗 PCK 還原為原版後安裝新模組）與外部 `MachinePartyModLoader.exe` 或 `mods/` 中未受管目錄引發的 `loaderConflict` 明確區分；寫入 `pending` 交易日誌；寫入後執行讀回自檢（並檢查遊戲目錄內沒有未宣告檔案遭到改動）；提交 `committed`／`rolled_back` 狀態並在啟動時對帳。
 
 適配器工廠依 Rust 內建適配器種類派發：
 
 - `upstream-cli`：在已校驗的解壓目錄內，使用白名單允許的直譯器（`exe`、`bundled-python`、`powershell`）執行相對路徑程式或腳本；使用固定的動作參數範本（`preflight`、`status`、`install`、`uninstall`）、僅限引擎提供的佔位符（`{gameDir}`）；`SystemRunner` 寫入單行 `y\n` 確認後即關閉 `stdin`（無需 `--force` 即可通過 Binary1936 `install.py` 等單次目錄確認提示，同時 EOF 會中止非預期警告提示）；強制非互動參數（如 `--no-pause`）；禁用參數守衛（始終拒絕 `--force`）；`run_status_cmd` 在因非零結束代碼報錯前先比對狀態正則（例如 `install.py --verify` 在未修補 `NOT PATCHED` 時回傳結束代碼 `1`）；整包備份卸載時一併清理 `touches` 中宣告的附屬檔案（如 `Machine Party.pck.broadcast_backup`）。
-- `loader-files`：將宣告的模組檔案（來自已校驗的 Worker/R2 下載套件）複製到 `mods/<id>` 等載入器目錄中，在交易紀錄保存逐檔 SHA-256 `owned_files` 指紋，卸載時若發現檔案遭竄改則拒絕操作，同時保留 `mods/` 下的其他同級模組目錄，並檢查與 `pck` 直接改包模組及 MPML 載入器標記之間的互斥衝突。啟用 `"autoLoader": true` 時，`pck_loader.rs`（`ensure_loader_installed` / `restore_managed_loader`）會在 `_mpm_loader` 下備份原版 PCK，修補 `res://project.binary` 並內嵌 `assets/mpm_bootstrap.gd`（狀態寫入 `Machine Party.pck.modloader.json`），並在卸載最後一個託管載入器模組時自動還原原版 PCK。
+- `loader-files`：自動扁平化單層目錄封裝的壓縮檔（如 `Machine-Party-Overtime-1.7-MPML.zip` 內的 `overtime/` 子目錄），將宣告的模組檔案（來自已校驗的 Worker/R2 下載套件）複製到 `mods/<id>`，在交易紀錄保存逐檔 SHA-256 `owned_files` 指紋，卸載時若發現檔案遭竄改則拒絕操作，同時保留 `mods/` 下的其他同級模組目錄，並檢查與 `pck` 直接改包模組及外部 MPML 載入器標記之間的互斥衝突。啟用 `"autoLoader": true` 時，`pck_loader.rs`（`ensure_loader_installed` / `restore_managed_loader`）會在 `_mpm_loader` 下備份原版 PCK，修補 `res://project.binary` 並內嵌 `assets/mpm_bootstrap.gd`（遇到舊版管理器引導腳本時會自動還原並無縫升級，狀態寫入 `Machine Party.pck.modloader.json`），並在卸載最後一個託管載入器模組時自動還原原版 PCK。由於 `autoLoader` 會改動 `project.binary` 與 GDPC 索引（導致直接改包器的原版 SHA-256 校驗失敗），而直接改包會改變 `.gdc` 雜湊並重建 PCK（導致 MPML 模組的 `vanilla_md5.json` 校驗失敗並抹除 `autoload/ModLoader`），兩種載入方式在底層無法共存，需透過一鍵切換安全過渡。
 
 日後新增模組只要符合既有適配器種類，只需在 `catalog/mods.json` 中補上宣告式 `adapter` 設定並通過實機驗收即可，無需修改程式碼；新增適配器種類則需要 Rust 實作與新的 ADR。
 
 ```json
 "adapter": {
-  "kind": "upstream-cli",
+  "kind": "loader-files",
   "platforms": ["windows"],
   "target": "pckDir",
-  "touches": ["Machine Party.pck", "overtime_restore.dat"],
-  "exclusive": "pck",
+  "touches": ["mods"],
+  "exclusive": "loader",
+  "autoLoader": true,
   "baseline": {"file": "Machine Party.pck", "size": 634798100, "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"},
-  "verifyFiles": "SHA256SUMS.txt",
-  "run": {"interpreter": "exe", "program": "overtime_install.exe", "common": ["--game", "{gameDir}", "--lang", "en", "--no-pause"]},
-  "actions": {"preflight": ["--verify-package"], "status": ["--status"], "install": [], "uninstall": ["--uninstall"]},
-  "status": {"installed": "^State:\\s+Overtime overtime-1\\.7 installed", "vanilla": "^State:\\s+vanilla", "older": "^State:\\s+Overtime .* installed \\(this program"},
-  "forbiddenArgs": ["--force"]
+  "requiredFiles": ["BUILDINFO.json", "main.gd", "mod.json", "overtime_overlay.zip", "vanilla_md5.json"],
+  "upstreamUninstall": false
 }
 ```
 

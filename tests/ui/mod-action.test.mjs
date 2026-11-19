@@ -12,6 +12,8 @@ test("an offline uninstall and restart retain the download and never offer adopt
     assert.equal(modAction({...copy, disk}), "review");
   assert.equal(modAction({...copy, disk:"identifyPending"}), "identify");
   assert.equal(modAction({...copy, disk:"manualInstall"}), "adoptManual");
+  assert.equal(modAction({...copy, disk:"modConflict"}), "switch");
+  assert.equal(modAction({...copy, disk:"loaderConflict"}), "review");
 });
 test("cache availability never turns the install button into a download button", () => {
   assert.equal(modAction({...copy, cached:false}), "install");

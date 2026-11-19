@@ -8,10 +8,10 @@ Date: 2026-11-18 (updated 2026-11-19). Status: proposed; both `upstream-cli` (`e
 
 Upstream mod packages are distributed as unmodified original archives that install through different mechanisms:
 
-1. Overtime v1.7: a `.NET` console executable (`overtime_install.exe` with `overtime_payload.zip`) that appends patched scripts to `Machine Party.pck`, rewrites its index, and writes a few-KB delta restore record (`overtime_restore.dat`).
+1. Overtime v1.7 (MPML package `Machine-Party-Overtime-1.7-MPML.zip`): an MPML API v2 loader package (`mod.json`, `main.gd`, `vanilla_md5.json`, `overtime_overlay.zip`) extracted to `mods/overtime/`, enabling coexistence with other loader mods (`MachineParty+`, `Roller Carnival`) via the built-in `autoLoader` (`autoload/ModLoader` running `_discover_and_init_mods()` in `_init()` before game singletons load).
 2. Binary1936 eight-player v1.5: a Python patcher (`install.py`, bundled with `python/python.exe` for Windows) that rebuilds `Machine Party.pck` without keeping any backup.
 3. Broadcast 8P Freecam v0.91: a PowerShell patcher (`patcher.ps1`) that rebuilds `Machine Party.pck` and creates a full-file backup (`Machine Party.pck.broadcast_backup`).
-4. MachineParty+ v2.1.0: a loader mod archive (`mod.json`, `main.gd`, scripts and translations) placed into MPML's `mods/` directory.
+4. MachineParty+ v2.1.0 & Roller Carnival v0.1.0: loader mod archives placed into `mods/<id>/` and powered by `autoLoader: true`.
 
 Hard-coding imperative Rust install flows for every mod makes onboarding new mods expensive. Conversely, executing arbitrary adapter scripts fetched from the online catalog would introduce a remote code execution risk and violate [ADR-005](ADR-005-install-transactions.md). Furthermore, Machine Party on Steam is Windows-only, so development on macOS needs structured simulation tiers before physical Windows verification.
 
@@ -26,28 +26,26 @@ A Tauri-free Rust transaction engine owns all cross-mod safety guarantees:
 - **Game layout resolution**: maps the saved Steam game root (used as the key in `installations.json`, such as `.../party project`) to the inner directory that actually holds `Machine Party.pck` (such as `Machine Party_Windows`).
 - **Process and file locks**: confirms the game is not running and acquires an exclusive file lock before any write.
 - **Staging and integrity**: downloads packages in Rust from the existing Worker origin (`https://machineparty.ailaogong.men/v1/downloads/{id}/{version}/{assetId}`) into staging, verifies outer ZIP byte size and SHA-256 against the catalog entry, extracts without modifying upstream files, and checks inner manifests (`SHA256SUMS.txt` and/or preflight command).
-- **Pre-install checks and journaling**: computes baseline `size` and `sha256` fingerprints for `Machine Party.pck` and declared `touches` files, enforces mutual exclusion across `exclusive` groups (all direct PCK patchers share `"exclusive": "pck"` and conflict with MPML), writes a `pending` transaction journal, performs post-write read-back verification (also checking that no undeclared files in the game directory changed), commits `committed` / `rolled_back`, and reconciles state on startup.
+- **Pre-install checks, conflict isolation and one-click switching**: computes baseline `size` and `sha256` fingerprints for `Machine Party.pck` and declared `touches` files; enforces mutual exclusion across `exclusive` groups (`loader` mods coexist with one another under `mods/<id>/`, while direct PCK patchers share `"exclusive": "pck"` and conflict with both other `pck` patchers and loader mode); distinguishes manager-owned `modConflict` (eligible for one-click `switch_from_zip`, which stages the target package first, uninstalls conflicting manager-installed mods, verifies vanilla PCK restoration, and installs the target mod) from `loaderConflict` (external `MachinePartyModLoader.exe` or unmanaged folders in `mods/`); writes a `pending` transaction journal, performs post-write read-back verification (also checking that no undeclared files in the game directory changed), commits `committed` / `rolled_back`, and reconciles state on startup.
 
 The adapter factory dispatches on built-in Rust adapter kinds:
 
 - `upstream-cli`: runs an allowlisted interpreter (`exe`, `bundled-python`, `powershell`) against a relative binary or script inside the verified package directory, using fixed action argument lists (`preflight`, `status`, `install`, `uninstall`), engine-supplied placeholders only (`{gameDir}`), `SystemRunner` writing a single `y\n` confirmation line then closing `stdin` (satisfying single directory-confirmation prompts such as Binary1936 `install.py` without `--force`, while EOF aborts unexpected prompts), non-interactive flags (such as `--no-pause`), a forbidden-argument guard (`--force` is always rejected), regex/exit-code matchers (`run_status_cmd` evaluates `installed`/`vanilla`/`older` regexes before rejecting non-zero exit codes such as `install.py --verify` returning `1` on `NOT PATCHED`), and cleanup of declared `touches` sidecars (such as `Machine Party.pck.broadcast_backup`) on full-backup uninstall.
-- `loader-files`: copies declared mod files from a verified Worker/R2 ZIP package into a loader directory such as `mods/<id>`, records per-file SHA-256 `owned_files` fingerprints in the transaction record, refuses uninstallation if files were tampered with, preserves sibling mod folders under `mods/`, and enforces mutual exclusion against `pck` patchers and MPML loader markers. When `autoLoader: true` is set, `pck_loader.rs` (`ensure_loader_installed` / `restore_managed_loader`) backs up the vanilla PCK under `_mpm_loader`, patches `res://project.binary` and embeds `assets/mpm_bootstrap.gd` (recorded in `Machine Party.pck.modloader.json`), and automatically restores the vanilla PCK on uninstall once no other managed loader mods remain.
+- `loader-files`: normalizes optional single-subfolder archive layouts (such as `overtime/` inside `Machine-Party-Overtime-1.7-MPML.zip`), copies declared mod files from a verified Worker/R2 ZIP package into `mods/<id>`, records per-file SHA-256 `owned_files` fingerprints in the transaction record, refuses uninstallation if files were tampered with, preserves sibling mod folders under `mods/`, and enforces mutual exclusion against `pck` patchers and external MPML markers. When `autoLoader: true` is set, `pck_loader.rs` (`ensure_loader_installed` / `restore_managed_loader`) backs up the vanilla PCK under `_mpm_loader`, patches `res://project.binary` and embeds `assets/mpm_bootstrap.gd` (upgrading older manager-owned bootstraps seamlessly and recording state in `Machine Party.pck.modloader.json`), and automatically restores the vanilla PCK on uninstall once no other managed loader mods remain. Because `autoLoader` alters `project.binary` and the GDPC index (breaking PCK patcher vanilla SHA-256 checks) while direct PCK patchers alter `.gdc` hashes and rebuild `Machine Party.pck` (breaking MPML `vanilla_md5.json` checks and stripping `autoload/ModLoader`), the two loading modes remain strictly mutually exclusive and are bridged by one-click switching.
 
 Onboarding a future mod that fits an existing adapter kind requires only a declarative `adapter` profile in `catalog/mods.json` and physical acceptance; introducing a new adapter kind requires Rust implementation and an ADR.
 
 ```json
 "adapter": {
-  "kind": "upstream-cli",
+  "kind": "loader-files",
   "platforms": ["windows"],
   "target": "pckDir",
-  "touches": ["Machine Party.pck", "overtime_restore.dat"],
-  "exclusive": "pck",
+  "touches": ["mods"],
+  "exclusive": "loader",
+  "autoLoader": true,
   "baseline": {"file": "Machine Party.pck", "size": 634798100, "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"},
-  "verifyFiles": "SHA256SUMS.txt",
-  "run": {"interpreter": "exe", "program": "overtime_install.exe", "common": ["--game", "{gameDir}", "--lang", "en", "--no-pause"]},
-  "actions": {"preflight": ["--verify-package"], "status": ["--status"], "install": [], "uninstall": ["--uninstall"]},
-  "status": {"installed": "^State:\\s+Overtime overtime-1\\.7 installed", "vanilla": "^State:\\s+vanilla", "older": "^State:\\s+Overtime .* installed \\(this program"},
-  "forbiddenArgs": ["--force"]
+  "requiredFiles": ["BUILDINFO.json", "main.gd", "mod.json", "overtime_overlay.zip", "vanilla_md5.json"],
+  "upstreamUninstall": false
 }
 ```
 

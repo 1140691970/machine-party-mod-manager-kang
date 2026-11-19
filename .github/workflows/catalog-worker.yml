@@ -34,6 +34,19 @@ jobs:
             fi
           done
 
+          while read -r repo version filename sha size; do
+            pkg_key="packages/sha256/$sha.zip"
+            if ! r2 head-object --bucket "$BUCKET" --key "$pkg_key" >/dev/null 2>&1; then
+              dl="$RUNNER_TEMP/$sha.zip"
+              curl --fail --silent --show-error --retry 3 -L "https://github.com/$repo/releases/download/$version/$filename" -o "$dl"
+              actual_size=$(wc -c < "$dl" | tr -d ' ')
+              actual_sha=$(sha256sum "$dl" | awk '{print $1}')
+              test "$actual_size" = "$size"
+              test "$actual_sha" = "$sha"
+              r2 put-object --bucket "$BUCKET" --key "$pkg_key" --body "$dl" --content-type application/zip --if-none-match '*'
+            fi
+          done < <(jq -r '.mods[] | select(.package.mirrorApproved == true) | "\(.repo) \(.version) \(.package.filename) \(.package.sha256) \(.package.size)"' catalog/mods.json)
+
           while read -r sha size; do
             actual=$(r2 head-object --bucket "$BUCKET" --key "packages/sha256/$sha.zip" --query ContentLength --output text)
             test "$actual" = "$size"

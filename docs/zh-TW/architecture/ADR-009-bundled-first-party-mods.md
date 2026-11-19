@@ -34,7 +34,9 @@
 
 - `catalog/mods.json` 維持 `schema: 1`；省略 `autoLoader` 時預設為 `false`。
 - `installations.json`、`game-path.json`、Tauri IPC 命令名稱及現有第三方 `upstream-cli` / `loader-files` 模組皆完全相容。
-- 與玩家既有的 `MachinePartyModLoader.exe` 和平共存，並與 `overtime` 等直接修補 PCK 的模組嚴格互斥（`loaderConflict` / `modConflict`）。
+- 與玩家既有的 `MachinePartyModLoader.exe` 和平共存，並支援所有 `loader-files` 模組（`Overtime` MPML 版、`MachineParty+`、`滾筒嘉年華`）共用同一套內建載入器；在與 `Broadcast 8P Freecam`、`Binary1936 八人模組` 等直接改包模組互斥時，嚴格區分可一鍵切換的 `modConflict` 與外部檔案引發的 `loaderConflict`。
+- `mpm_bootstrap.gd` 在 `_init()` 階段初始化模組（確保早於 `NetworkManager` 等後續 autoload 載入），並在 `_ready()` 中掛載子節點及回呼 `_mod_ready`；`ensure_loader_installed` 可在偵測到舊版管理器引導腳本時自動還原並升級。
+- 兩種載入方式無法在同一份 `Machine Party.pck` 上同時執行：`autoLoader` 會改動 `project.binary` 與 GDPC 索引（導致直接改包器報 `baselineMismatch`），而直接改包會修改 `.gdc` 指紋並重建 PCK（導致 MPML `vanilla_md5.json` 門禁失敗並抹除 `autoload/ModLoader`）。
 
 ## 證據
 

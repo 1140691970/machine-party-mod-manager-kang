@@ -44,6 +44,10 @@ Windows App 經 HTTPS 向自有網域的 Worker 請求 `GET /v1/catalog.json`。
 
 上線前需逐包核清授權。Overtime 的 MIT 範圍只涵蓋作者原創部分，補丁中保留遊戲腳本上下文；MachineParty+ 的 MPML 載入器須另測、另行確認可分發範圍。授權未明時僅提供作者入口或經驗收的直連。[Overtime 授權](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE) · [MachineParty+ 安裝需求](https://github.com/Ghostx10742/MachineParty-Plus#installation)
 
+### 2026-11-19 正式套件遷移
+
+自目錄修訂號 `2026-11-19.8` 起，`Overtime v1.7` 改為分發官方 MPML 載入器套件（`Machine-Party-Overtime-1.7-MPML.zip`，資產 ID `594522622`，`830,277` bytes，SHA-256 `49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e`），配合管理器內建 `autoLoader` 與 `MachineParty+`、`滾筒嘉年華` 共存。Worker 下載路徑為 `/v1/downloads/overtime/v1.7/594522622`，對應 R2 物件鍵 `packages/sha256/49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e.zip`。
+
 ## 誰能發布
 
 1. 社群透過同倉庫 Issue 表單推薦模組，維護者選定資產後由流程產生草案 PR；熟悉資料格式的貢獻者也可直接提 PR。完整步驟見[收錄操作手冊](mods.md)。收錄資料位於 `catalog/`，目錄 Worker 擬置於 `services/`，與現有的 `services/update-worker` 並列。PR CI 檢查格式、重複 ID、版本與資產資料，並建立可預覽快照。合併只更新倉庫。

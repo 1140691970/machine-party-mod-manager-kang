@@ -34,7 +34,9 @@ First-party gameplay mods authored inside this repository (starting with `mods/r
 
 - `catalog/mods.json` stays `schema: 1`; `autoLoader` defaults to `false` when omitted.
 - `installations.json`, `game-path.json`, Tauri IPC command names, and existing `upstream-cli` / `loader-files` third-party mods remain unchanged.
-- Coexists safely with external `MachinePartyModLoader.exe` and enforces mutual exclusion (`loaderConflict` / `modConflict`) with direct PCK patchers such as `overtime`.
+- Coexists safely with external `MachinePartyModLoader.exe` and allows all `loader-files` mods (`Overtime` MPML, `MachineParty+`, `Roller Carnival`) to share one managed loader, while strictly distinguishing manager-owned `modConflict` (switchable in one click) from external `loaderConflict` against direct PCK patchers such as `Broadcast 8P Freecam` and `Binary1936 8P`.
+- `mpm_bootstrap.gd` initializes mods in `_init()` (before subsequent autoloads such as `NetworkManager` are cached) and adds mod nodes + runs `_mod_ready` in `_ready()`, while `ensure_loader_installed` transparently upgrades older manager-owned bootstraps.
+- Both loading mechanisms cannot run simultaneously on one `Machine Party.pck`: `autoLoader` alters `project.binary` and the GDPC index (triggering `baselineMismatch` in PCK patchers), whereas PCK patchers alter `.gdc` hashes and rebuild the PCK (breaking MPML `vanilla_md5.json` gates and stripping `autoload/ModLoader`).
 
 ## Evidence
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.7",
+  "revision": "2026-11-19.8",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -10,45 +10,35 @@
       "image": "overtime",
       "version": "v1.7",
       "package": {
-        "assetId": "594522625",
-        "filename": "Machine-Party-Overtime-1.7-CLI.zip",
-        "size": 854623,
-        "sha256": "f98b51526c9ba38167adc0578f24d2d998f6d2f4df51e6146580df27b589245c",
+        "assetId": "594522622",
+        "filename": "Machine-Party-Overtime-1.7-MPML.zip",
+        "size": 830277,
+        "sha256": "49b160b611aad49dde65355246112f3f1921b66cb9b0dedf882801082a76ae8e",
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
       "windowsPreview": "0.1.2-6",
       "adapter": {
-        "kind": "upstream-cli",
+        "kind": "loader-files",
         "platforms": ["windows"],
         "target": "pckDir",
-        "touches": ["Machine Party.pck", "overtime_restore.dat"],
-        "exclusive": "pck",
+        "touches": ["mods"],
+        "exclusive": "loader",
+        "autoLoader": true,
         "baseline": {
           "file": "Machine Party.pck",
           "size": 634798100,
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
-        "requiredFiles": ["overtime_payload.zip"],
-        "verifyFiles": "SHA256SUMS.txt",
-        "run": {
-          "interpreter": "exe",
-          "program": "overtime_install.exe",
-          "common": ["--game", "{gameDir}", "--lang", "en", "--no-pause"]
-        },
-        "actions": {
-          "preflight": ["--verify-package"],
-          "status": ["--status"],
-          "install": [],
-          "uninstall": ["--uninstall"]
-        },
-        "status": {
-          "installed": "^State:\\s+Overtime overtime-1\\.7 installed",
-          "vanilla": "^State:\\s+vanilla",
-          "older": "^State:\\s+Overtime .* installed \\(this program"
-        },
-        "forbiddenArgs": ["--force"]
+        "requiredFiles": [
+          "BUILDINFO.json",
+          "main.gd",
+          "mod.json",
+          "overtime_overlay.zip",
+          "vanilla_md5.json"
+        ],
+        "upstreamUninstall": false
       },
       "verified": false,
       "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
@@ -58,9 +48,9 @@
         "en": "Play online or locally with up to eight players."
       },
       "detail": {
-        "zh-CN": "直接修改游戏数据包，与 MPML 方式互斥。联机玩家需使用相同游戏与模组版本。",
-        "zh-TW": "直接修改遊戲資料包，與 MPML 方式互斥。連線玩家需使用相同遊戲與模組版本。",
-        "en": "Patches the game data directly and conflicts with MPML mode. Players need matching game and mod versions."
+        "zh-CN": "采用 MPML 加载器套件并由管理器自动配置内置加载器，可与 MachineParty+、滚筒嘉年华等加载器模组共存，与直接修改 PCK 的补丁模组互斥。联机玩家需使用相同游戏与模组版本。",
+        "zh-TW": "採用 MPML 載入器套件並由管理器自動設定內建載入器，可與 MachineParty+、滾筒嘉年華等載入器模組共存，與直接修改 PCK 的補丁模組互斥。連線玩家需使用相同遊戲與模組版本。",
+        "en": "Uses the MPML loader package with the manager's built-in auto-loader; coexists with loader mods such as MachineParty+ and Roller Carnival, and conflicts with direct PCK patch mods. Players need matching game and mod versions."
       },
       "aliases": ["加班", "八人", "八人联机", "八人聯機", "8p", "本機"]
     },
@@ -86,6 +76,7 @@
         "target": "pckDir",
         "touches": ["mods"],
         "exclusive": "loader",
+        "autoLoader": true,
         "baseline": {
           "file": "Machine Party.pck",
           "size": 634798100,
@@ -102,9 +93,9 @@
         "en": "Public lobbies, voice chat and text chat."
       },
       "detail": {
-        "zh-CN": "需要 MPML 加载器；语音聊天需要双方安装模组。",
-        "zh-TW": "需要 MPML 載入器；語音聊天需要雙方安裝模組。",
-        "en": "Requires the MPML loader. Both players need the mod for voice chat."
+        "zh-CN": "通过加载器运行（管理器会自动配置内置加载器），可与 Overtime、滚筒嘉年华等加载器模组共存；语音聊天需要双方安装模组。",
+        "zh-TW": "透過載入器執行（管理器會自動設定內建載入器），可與 Overtime、滾筒嘉年華等載入器模組共存；語音聊天需要雙方安裝模組。",
+        "en": "Runs through the mod loader (configured automatically by the manager) and coexists with loader mods such as Overtime and Roller Carnival. Both players need the mod for voice chat."
       },
       "aliases": ["plus", "mpml"]
     },

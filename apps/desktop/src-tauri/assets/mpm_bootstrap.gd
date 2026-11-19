@@ -46,10 +46,19 @@ var _watching: bool = false
 var _log_lines: PackedStringArray = PackedStringArray()
 
 
-func _ready() -> void:
+func _init() -> void:
 	mods_root = _resolve_mods_root()
 	note("Built-in MPM loader v%s (API v%d) scanning %s" % [LOADER_VERSION, API_VERSION, mods_root])
 	_discover_and_init_mods()
+
+
+func _ready() -> void:
+	name = "ModLoader"
+	for meta in mods:
+		var mod_node = meta.get("node")
+		if mod_node is Node and is_instance_valid(mod_node) and (mod_node as Node).get_parent() == null:
+			add_child(mod_node as Node)
+	_ensure_tree_watcher()
 	call_deferred("_on_tree_ready")
 
 
@@ -173,7 +182,6 @@ func _activate_mod(meta: Dictionary) -> bool:
 	meta["node"] = mod_node
 	_by_id[mod_id] = meta
 	mods.append(meta)
-	add_child(mod_node)
 
 	if mod_node.has_method("_mod_init"):
 		mod_node.call("_mod_init", self)
@@ -182,6 +190,7 @@ func _activate_mod(meta: Dictionary) -> bool:
 
 
 func _on_tree_ready() -> void:
+	_ensure_tree_watcher()
 	_flush_pending_autoloads()
 	for meta in mods:
 		var mod_node = meta.get("node")
@@ -351,10 +360,12 @@ func on_node_added(cb: Callable) -> void:
 
 func on_main_menu(cb: Callable) -> void:
 	on_scene_script("res://scenes/main_menu/main_menu.gd", cb)
+	on_scene_script("res://scenes/main_menu/scripts/main_menu.gd", cb)
 
 
 func on_lobby(cb: Callable) -> void:
 	on_scene_script("res://scenes/main_menu/main_menu.gd", cb)
+	on_scene_script("res://scenes/main_menu/scripts/main_menu.gd", cb)
 	on_scene_script("res://scenes/lobby/scripts/lobby_scene.gd", cb)
 
 
