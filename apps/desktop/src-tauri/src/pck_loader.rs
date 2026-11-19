@@ -524,28 +524,40 @@ pub fn external_loader_present(pck_dir: &Path) -> Result<bool, String> {
     {
         return Ok(true);
     }
-    let sc = sidecar_path(pck_dir);
-    if !sc.try_exists().map_err(|_| "fileReadError")? {
-        return Ok(false);
-    }
-    let bytes = fs::read(&sc).map_err(|_| "fileReadError")?;
-    let parsed: Result<ManagedLoaderState, _> = serde_json::from_slice(&bytes);
-    Ok(!matches!(parsed, Ok(state) if state.managed_by == MANAGED_BY))
+    Ok(matches!(
+        read_loader_sidecar(pck_dir)?,
+        LoaderSidecar::External
+    ))
 }
 
-/// Returns our manager's recorded loader state when `Machine Party.pck.modloader.json` is manager-owned.
-pub fn read_managed_marker(pck_dir: &Path) -> Result<Option<ManagedLoaderState>, String> {
-    let sc = sidecar_path(pck_dir);
-    if !sc.try_exists().map_err(|_| "fileReadError")? {
-        return Ok(None);
+enum LoaderSidecar {
+    Missing,
+    External,
+    Managed(Box<LoaderMarker>),
+}
+
+fn read_loader_sidecar(pck_dir: &Path) -> Result<LoaderSidecar, String> {
+    let bytes = match fs::read(sidecar_path(pck_dir)) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(LoaderSidecar::Missing),
+        Err(_) => return Err("fileReadError".into()),
+    };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return Ok(LoaderSidecar::External);
+    };
+    if value.get("managed_by").and_then(|v| v.as_str()) != Some(MANAGED_BY) {
+        return Ok(LoaderSidecar::External);
     }
-    let bytes = fs::read(&sc).map_err(|_| "fileReadError")?;
-    let Ok(marker) = serde_json::from_slice::<LoaderMarker>(&bytes) else {
+    serde_json::from_value(value)
+        .map(LoaderSidecar::Managed)
+        .map_err(|_| "restoreCorrupt".into())
+}
+
+/// Returns our manager's recorded loader state when the sidecar is manager-owned.
+pub fn read_managed_marker(pck_dir: &Path) -> Result<Option<ManagedLoaderState>, String> {
+    let LoaderSidecar::Managed(marker) = read_loader_sidecar(pck_dir)? else {
         return Ok(None);
     };
-    if marker.active.managed_by != MANAGED_BY {
-        return Ok(None);
-    }
     if let Some(previous) = marker.previous {
         let disk = file_fingerprint(&pck_dir.join("Machine Party.pck"))?;
         if previous.managed_by == MANAGED_BY
@@ -728,30 +740,61 @@ pub fn restore_managed_loader(
     let pck_path = pck_dir.join("Machine Party.pck");
     let current = file_fingerprint(&pck_path)?;
 
-    if current.size == state.vanilla_size
-        && current.sha256.eq_ignore_ascii_case(&state.vanilla_sha256)
-    {
-        fs::remove_file(sidecar_path(pck_dir)).map_err(|_| "fileWriteError")?;
-        return Ok(current);
-    }
+    prepare_managed_restore(pck_dir, backup_pck, state, current)?.apply()
+}
 
-    if current.size != state.patched_size
-        || !current.sha256.eq_ignore_ascii_case(&state.patched_sha256)
-    {
-        return Err("gameUpdatedOrModified".into());
-    }
+pub(super) struct PreparedRestore {
+    pck_dir: PathBuf,
+    marker: ManagedLoaderState,
+    original: FileFingerprint,
+    pub(super) restored: FileFingerprint,
+    candidate: Option<tempfile::TempPath>,
+}
 
-    let candidate = stage_pck(&pck_path, &current)?;
-    let restored = restore_candidate(&candidate, backup_pck, &state)?;
-    if file_fingerprint(&pck_path)? != current {
-        return Err("gameUpdatedOrModified".into());
+pub(super) fn prepare_managed_restore(
+    pck_dir: &Path,
+    backup_pck: &Path,
+    marker: ManagedLoaderState,
+    current: FileFingerprint,
+) -> Result<PreparedRestore, String> {
+    let (candidate, restored) = if current.size == marker.vanilla_size
+        && current.sha256.eq_ignore_ascii_case(&marker.vanilla_sha256)
+    {
+        (None, current.clone())
+    } else {
+        if current.size != marker.patched_size
+            || !current.sha256.eq_ignore_ascii_case(&marker.patched_sha256)
+        {
+            return Err("gameUpdatedOrModified".into());
+        }
+        let candidate = stage_pck(&pck_dir.join("Machine Party.pck"), &current)?;
+        let restored = restore_candidate(&candidate, backup_pck, &marker)?;
+        (Some(candidate), restored)
+    };
+    Ok(PreparedRestore {
+        pck_dir: pck_dir.to_owned(),
+        marker,
+        original: current,
+        restored,
+        candidate,
+    })
+}
+
+impl PreparedRestore {
+    pub(super) fn apply(self) -> Result<FileFingerprint, String> {
+        let pck = self.pck_dir.join("Machine Party.pck");
+        if external_loader_present(&self.pck_dir)?
+            || read_managed_marker(&self.pck_dir)?.as_ref() != Some(&self.marker)
+            || file_fingerprint(&pck)? != self.original
+        {
+            return Err("gameUpdatedOrModified".into());
+        }
+        if let Some(candidate) = self.candidate {
+            candidate.persist(&pck).map_err(|_| "fileWriteError")?;
+        }
+        fs::remove_file(sidecar_path(&self.pck_dir)).map_err(|_| "fileWriteError")?;
+        Ok(self.restored)
     }
-    candidate.persist(&pck_path).map_err(|_| "fileWriteError")?;
-    let sc = sidecar_path(pck_dir);
-    if sc.exists() {
-        fs::remove_file(&sc).map_err(|_| "fileWriteError")?;
-    }
-    Ok(restored)
 }
 
 fn restore_candidate(
@@ -948,6 +991,23 @@ mod tests {
             assert_eq!(fs::read(&pck_path).unwrap(), vanilla_bytes);
             assert!(!sidecar_path(&pck_dir).exists());
         }
+    }
+
+    #[test]
+    fn malformed_manager_record_is_not_treated_as_an_external_loader() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path();
+        let record = sidecar_path(dir);
+        fs::write(
+            &record,
+            br#"{"managed_by":"machine-party-mod-manager","patched_size":"broken"}"#,
+        )
+        .unwrap();
+        assert_eq!(external_loader_present(dir).unwrap_err(), "restoreCorrupt");
+        assert_eq!(read_managed_marker(dir).unwrap_err(), "restoreCorrupt");
+        fs::write(&record, br#"{"managed_by":"another-loader"}"#).unwrap();
+        assert!(external_loader_present(dir).unwrap());
+        assert!(read_managed_marker(dir).unwrap().is_none());
     }
 
     #[test]

@@ -12,4 +12,6 @@ Older clients receive their compatible catalog and download URLs. Existing Overt
 
 Installing, upgrading or removing the built-in loader prepares and verifies a temporary PCK on the game drive before replacing the live file. Allow space for an extra PCK (about 606 MiB for v2.1.2) in addition to backups. During a loader upgrade the manager records both loader fingerprints so it can identify the active version after an interruption.
 
+When removing the last managed mod, the manager verifies the restored PCK before deleting mod files and records its fingerprint for interrupted cleanup. A remaining mod directory or directory link keeps the shared loader installed.
+
 Release-fixture checks compare 70 compiled Overtime scripts and the resource trees of 65 Broadcast and 56 Binary1936 files. Steam multiplayer acceptance remains pending.
