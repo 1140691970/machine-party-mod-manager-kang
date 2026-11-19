@@ -1,10 +1,5 @@
 extends SceneTree
 
-class Handler:
-	extends Node
-	@export var rounds: int = 1
-	var listed := false
-
 class Loader:
 	extends RefCounted
 	var available := false
@@ -12,7 +7,10 @@ class Loader:
 	func dir_of(_id): return ProjectSettings.globalize_path("res://")
 	func compile(path):
 		if path.ends_with("official_minigame.gd"):
-			return Handler if available else null
+			if not available: return null
+			var wrapper := GDScript.new()
+			wrapper.source_code = FileAccess.get_file_as_string(path)
+			return wrapper if wrapper.reload() == OK else null
 		return load("res://" + path.get_file())
 	func override_script_rel(_id, path, _rel):
 		if path.ends_with("playlist_handler.gd"):

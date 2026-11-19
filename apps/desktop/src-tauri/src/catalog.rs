@@ -574,7 +574,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.3/1009"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.3/1011"
         );
     }
 }

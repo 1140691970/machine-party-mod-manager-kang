@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.23-mpml1",
+  "revision": "2026-11-19.24-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -223,10 +223,10 @@
       "image": "roller-carnival",
       "version": "v0.1.3",
       "package": {
-        "assetId": "1009",
+        "assetId": "1011",
         "filename": "roller-carnival-0.1.3.zip",
-        "size": 102598,
-        "sha256": "9cddd37c2fd830f2cfdb8e7ecdb292afc290cb2c0839676dea25390f1c016bc4",
+        "size": 102604,
+        "sha256": "3c94a40e9f62b11026679381edac885cec4d7032a37a1fd217d009099981f7d5",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],

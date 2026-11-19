@@ -50,7 +50,7 @@ func initialize(current_round: int, rounds: int, _scores: Dictionary = {}):
 	round_number = current_round
 	total_rounds = rounds
 	var roster := []
-	var ids := PlayerManager.player_presences.keys()
+	var ids: Array = PlayerManager.player_presences.keys()
 	ids.sort()
 	for id in ids:
 		roster.append({"id": roster.size(), "network_id": id,
