@@ -90,13 +90,24 @@ pub fn app_version(app: AppHandle) -> String {
 }
 
 #[tauri::command]
-pub fn catalog() -> serde_json::Value {
+pub fn catalog(app: AppHandle) -> Result<serde_json::Value, String> {
     let mut snapshot = catalog::bundled();
     if cfg!(windows) {
         snapshot["previewMod"] = catalog::preview_entry(env!("CARGO_PKG_VERSION")).into();
         snapshot["previewMods"] = catalog::preview_entries(env!("CARGO_PKG_VERSION")).into();
     }
-    snapshot
+    let retained = catalog::receipts::load(&config_dir(&app)?, catalog_key()?)?;
+    let entries = retained
+        .iter()
+        .map(|raw| serde_json::from_value(raw.clone()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "catalogInvalid")?;
+    *app.state::<UpdateCatalog>()
+        .retained
+        .lock()
+        .map_err(|_| "catalogUnavailable")? = entries;
+    snapshot["removalMods"] = retained.into();
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -154,7 +165,19 @@ fn trusted(id: &str, version: &str) -> Result<catalog::ModEntry, String> {
 }
 
 #[derive(Default)]
-pub struct UpdateCatalog(Mutex<Vec<catalog::ModEntry>>);
+pub struct UpdateCatalog {
+    active: Mutex<Vec<catalog::ModEntry>>,
+    retained: Mutex<Vec<catalog::ModEntry>>,
+}
+
+fn catalog_key() -> Result<&'static str, String> {
+    static CONFIG: std::sync::LazyLock<serde_json::Value> = std::sync::LazyLock::new(|| {
+        serde_json::from_str(include_str!("../tauri.conf.json")).expect("valid app config")
+    });
+    CONFIG["plugins"]["updater"]["pubkey"]
+        .as_str()
+        .ok_or("catalogInvalid".into())
+}
 
 #[tauri::command]
 pub fn authorize_mod_updates(
@@ -163,27 +186,46 @@ pub fn authorize_mod_updates(
     signature: String,
 ) -> Result<Vec<catalog::ModEntry>, String> {
     let state = app.state::<UpdateCatalog>();
-    let mut entries = state.0.lock().map_err(|_| "catalogUnavailable")?;
-    entries.clear();
+    let mut entries = state.active.lock().map_err(|_| "catalogUnavailable")?;
     if signature.is_empty() {
+        entries.clear();
         return Ok(Vec::new());
     }
-    let cfg: serde_json::Value =
-        serde_json::from_str(include_str!("../tauri.conf.json")).map_err(|_| "catalogInvalid")?;
-    *entries = catalog::signed_updates(
+    let mut approved = catalog::signed_updates(
         &document,
         &signature,
-        cfg["plugins"]["updater"]["pubkey"]
-            .as_str()
-            .ok_or("catalogInvalid")?,
+        catalog_key()?,
         cfg!(windows) && env!("CARGO_PKG_VERSION").contains('-'),
     )?;
-    entries.retain(|item| {
+    approved.retain(|item| {
         item.adapter
             .as_ref()
             .is_some_and(|a| installer::check_platform_supported(a).is_ok())
     });
+    let mut retained = state.retained.lock().map_err(|_| "catalogUnavailable")?;
+    for item in &approved {
+        if catalog::entry(&item.id).is_none() && !retained.iter().any(|old| old.id == item.id) {
+            catalog::receipts::save(&config_dir(&app)?, &item.id, &document, &signature)?;
+            retained.push(item.clone());
+        }
+    }
+    *entries = approved;
     Ok(entries.clone())
+}
+
+fn active_entries(app: &AppHandle) -> Result<Vec<catalog::ModEntry>, String> {
+    let mut list = catalog::all_entries();
+    let state = app.state::<UpdateCatalog>();
+    let active = state.active.lock().map_err(|_| "catalogUnavailable")?;
+    let retained = state.retained.lock().map_err(|_| "catalogUnavailable")?;
+    for item in retained.iter().chain(active.iter()) {
+        if let Some(old) = list.iter_mut().find(|old| old.id == item.id) {
+            *old = item.clone();
+        } else {
+            list.push(item.clone());
+        }
+    }
+    Ok(list)
 }
 
 fn package_entry(
@@ -192,28 +234,23 @@ fn package_entry(
     version: &str,
     sha256: Option<&str>,
 ) -> Result<catalog::ModEntry, String> {
-    if let Ok(item) = trusted(id, version) {
-        if sha256.is_none_or(|s| item.package.as_ref().is_some_and(|pkg| pkg.sha256 == s)) {
-            return Ok(item);
-        }
+    let state = app.state::<UpdateCatalog>();
+    let active = state.active.lock().map_err(|_| "catalogUnavailable")?;
+    if let Some(item) = active.iter().find(|item| {
+        item.id == id
+            && item.version.as_deref() == Some(version)
+            && item
+                .package
+                .as_ref()
+                .is_some_and(|pkg| Some(pkg.sha256.as_str()) == sha256)
+    }) {
+        return Ok(item.clone());
+    }
+    let item = trusted(id, version).map_err(|_| "releaseChanged")?;
+    if sha256.is_some_and(|hash| !item.package.as_ref().is_some_and(|pkg| pkg.sha256 == hash)) {
         return Err("releaseChanged".into());
     }
-    let state = app.state::<UpdateCatalog>();
-    state
-        .0
-        .lock()
-        .map_err(|_| "catalogUnavailable")?
-        .iter()
-        .find(|item| {
-            item.id == id
-                && item.version.as_deref() == Some(version)
-                && item
-                    .package
-                    .as_ref()
-                    .is_some_and(|pkg| Some(pkg.sha256.as_str()) == sha256)
-        })
-        .cloned()
-        .ok_or("releaseChanged".into())
+    Ok(item)
 }
 
 #[tauri::command]
@@ -230,7 +267,7 @@ pub async fn update_mod(
     if !authorized_mod(&item)
         && !app
             .state::<UpdateCatalog>()
-            .0
+            .active
             .lock()
             .map_err(|_| "catalogUnavailable")?
             .contains(&item)
@@ -239,7 +276,7 @@ pub async fn update_mod(
     }
     installer::check_platform_supported(item.adapter.as_ref().ok_or("unsupportedAdapter")?)?;
     let dir = config_dir(&app)?;
-    let list = catalog::all_entries();
+    let list = active_entries(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
         let _pkg = lock_file(&dir, &format!("package-{}", item.id))?;
@@ -333,7 +370,7 @@ pub async fn cached_packages(
     let dir = config_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let mut found = std::collections::BTreeMap::new();
-        for item in catalog::all_entries() {
+        for item in active_entries(&app)? {
             if let Some(pkg) = &item.package
                 && packages::verified(&dir, &item).is_ok()
             {
@@ -370,9 +407,9 @@ pub async fn validate_game_mods(
     force: Option<bool>,
 ) -> Result<installer::CopyValidation, String> {
     let dir = config_dir(&app)?;
+    let list = active_entries(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
-        let list = catalog::all_entries();
         installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         installer::scan_copy(&dir, &path, &list, force.unwrap_or(false))
     })
@@ -394,13 +431,21 @@ pub async fn install_mod(
     path: PathBuf,
     id: String,
     version: String,
+    sha256: Option<String>,
     adopt: Option<bool>,
     removals: Option<Vec<String>>,
     expected_dir: PathBuf,
     progress: Channel<u64>,
 ) -> Result<installer::CopyValidation, String> {
-    let mod_entry = trusted(&id, &version)?;
-    if !authorized_mod(&mod_entry) {
+    let mod_entry = package_entry(&app, &id, &version, sha256.as_deref())?;
+    if !authorized_mod(&mod_entry)
+        && !app
+            .state::<UpdateCatalog>()
+            .active
+            .lock()
+            .map_err(|_| "catalogUnavailable")?
+            .contains(&mod_entry)
+    {
         return Err("installPending".into());
     }
     if catalog::project_url(&mod_entry.repo).is_none() {
@@ -413,7 +458,7 @@ pub async fn install_mod(
     installer::check_platform_supported(&adapter)?;
 
     let dir = config_dir(&app)?;
-    let list = catalog::all_entries();
+    let list = active_entries(&app)?;
 
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
@@ -505,16 +550,26 @@ pub async fn uninstall_mod(
     path: PathBuf,
     id: String,
     version: String,
+    sha256: Option<String>,
     expected_dir: PathBuf,
 ) -> Result<installer::CopyValidation, String> {
-    let mod_entry = trusted(&id, &version)?;
+    let mod_entry = package_entry(&app, &id, &version, sha256.as_deref()).or_else(|error| {
+        app.state::<UpdateCatalog>()
+            .retained
+            .lock()
+            .map_err(|_| "catalogUnavailable")?
+            .iter()
+            .find(|item| item.id == id)
+            .cloned()
+            .ok_or(error)
+    })?;
     let adapter = mod_entry
         .adapter
         .as_ref()
         .ok_or_else(|| "unsupportedAdapter".to_string())?;
     installer::check_platform_supported(adapter)?;
     let dir = config_dir(&app)?;
-    let list = catalog::all_entries();
+    let list = active_entries(&app)?;
 
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;

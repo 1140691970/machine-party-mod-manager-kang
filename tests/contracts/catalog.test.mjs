@@ -53,7 +53,7 @@ test("the installed page lists only mods recorded for the selected copy", () => 
 test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(catalog.repo, "JamesGZM/machine-party-mod-manager");
   for (const mod of catalog.mods) {
-    assert.equal(mod.windowsPreview, "0.1.2-10", mod.id);
+    assert.equal(mod.windowsPreview, "0.1.2-11", mod.id);
     assert.deepEqual(mod.adapter.platforms, ["windows"], mod.id);
     assert.equal(mod.adapter.target, "pckDir", mod.id);
     assert.ok(mod.adapter.exclusive, mod.id);
@@ -109,7 +109,7 @@ test("every mod under mods/ has matching manifest, README and deterministic ZIP 
 });
 
 test("the preview displays exactly the remotely supplied catalog rows and metadata", () => {
-  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-10");
+  const preview = catalog.mods.find(mod => mod.windowsPreview === "0.1.2-11");
   const live = {...preview, name:{...preview.name,en:"Updated online"}};
   assert.equal(sortMods({mods:[live]})[0], live);
   assert.deepEqual(sortMods({mods:[]}), []);

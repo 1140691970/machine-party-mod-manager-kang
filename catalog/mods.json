@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-19.21-mpml1",
+  "revision": "2026-11-19.22-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -18,7 +18,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -76,7 +76,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -119,7 +119,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -173,7 +173,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -230,7 +230,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -292,7 +292,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -356,7 +356,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-10",
+      "windowsPreview": "0.1.2-11",
       "adapter": {
         "kind": "loader-files",
         "platforms": [

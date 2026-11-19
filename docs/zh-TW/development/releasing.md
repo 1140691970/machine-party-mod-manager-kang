@@ -2,6 +2,8 @@
 
 [English](../../en/development/releasing.md) · [简体中文](../../zh-CN/development/releasing.md) · **繁體中文**
 
+下一次建置的 Windows 安裝程式會跟隨 Windows 顯示語言，支援英文、簡體中文和繁體中文，其他語言使用英文。手動升級既有的 NSIS 安裝時，選擇保留舊版的選項（英文為 “Do not uninstall”）即可覆蓋安裝。
+
 Windows x64 與 Apple Silicon Mac 客戶端啟動時靜默從 `https://machineparty.ailaogong.men/v1/app-updates/stable/latest.json` 檢查更新。發現較新版本時，設定頁會顯示紅點，並對每個新版本自動彈出一次非強制更新彈窗（若目前已有彈窗則順延排隊），且在清單包含 `notes` 時顯示更新說明；玩家也可隨時在設定頁點擊版本號手動檢查或重開更新提示。客戶端驗證下載套件的簽章與版本。Windows 執行 NSIS 安裝程式，Mac 取代目前的應用程式套件並重新啟動管理器。網路異常時仍可瀏覽本機目錄。設計取捨見 [ADR-003](../architecture/ADR-003-desktop-updates.md)。
 
 ## 維護者發布步驟

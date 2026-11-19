@@ -23,3 +23,10 @@ test("installed clients keep the signed stable update channel", () => {
 test("the bundled frontend directory exists", async () => {
   await access(new URL("../../apps/desktop/src-tauri/" + tauri.build.frontendDist + "/index.html", import.meta.url));
 });
+
+test("the Windows installer follows the system language with English as fallback", async () => {
+  const config = JSON.parse(await read("apps/desktop/src-tauri/tauri.windows.conf.json"));
+  const nsis = config.bundle.windows.nsis;
+  assert.deepEqual(nsis.languages, ["English", "SimpChinese", "TradChinese"]);
+  assert.equal(nsis.displayLanguageSelector, false);
+});

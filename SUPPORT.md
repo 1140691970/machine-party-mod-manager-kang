@@ -9,7 +9,7 @@
 
 ## Updating one installed mod
 
-Close the game, open **Installed**, and select **Update to** on the mod you want to update. The dialog shows the installed and target versions. If a package fails verification, the previous version stays installed. After an interrupted replacement, close the game and reopen the manager to recover the recorded version. The mod’s details also offer **Uninstall**.
+Close the game, open **Installed**, and select **Check mod updates**. For an available update, select **Update to**, review the installed version, target version and game copy, then select **Confirm update** to begin. If a package fails verification, the previous version stays installed. After an interrupted replacement, close the game and reopen the manager to recover the recorded version. The mod’s details also offer **Uninstall**.
 
 ![Updating one installed mod](docs/images/screenshot-mod-update.png)
 

@@ -2,6 +2,8 @@
 
 **English** · [简体中文](../../zh-CN/development/releasing.md) · [繁體中文](../../zh-TW/development/releasing.md)
 
+The next Windows installer uses the Windows display language for English, Simplified Chinese and Traditional Chinese, with English as the fallback. When manually upgrading an existing NSIS installation, choose “Do not uninstall” to install over it.
+
 Windows x64 and Apple Silicon Mac clients check `https://machineparty.ailaogong.men/v1/app-updates/stable/latest.json` silently at startup. When a newer version exists, Settings displays a red indicator dot and opens a non-forcing update dialog once per version (queuing behind any active dialog) showing the manifest's release `notes` when present; players can also reopen the prompt or trigger a manual check via the version button in Settings. The client verifies the package signature and version. Windows runs the NSIS installer; the Mac replaces the app bundle and restarts the manager. The local catalog stays browsable when the network fails. Design trade-offs are in [ADR-003](../architecture/ADR-003-desktop-updates.md).
 
 ## Maintainer release steps

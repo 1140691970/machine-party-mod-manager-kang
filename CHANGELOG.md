@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-11 — 2026-11-19
+
+- Install Standalone HD and compatible new first-party mods from the signed catalog.
+- In Installed, check for mod updates, review the target version and game copy, and confirm before downloading. The Windows installer supports English, Simplified Chinese and Traditional Chinese.
+
 ## 0.1.2-10 — 2026-11-19
 
 - Open **Installed** and select **Update to** on a managed mod. The manager verifies the new package and restores the old version if replacement fails before commit. Other installed mods keep their versions.

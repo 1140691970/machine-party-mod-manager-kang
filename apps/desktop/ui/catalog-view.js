@@ -1,5 +1,5 @@
 import { downloadUrl } from "./online-catalog.js";
-import { installationProblem, modAction, uninstallEntry } from "./mod-action.js";
+import { installationProblem, catalogAction, uninstallEntry } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
 import { inventoryKey, installedRows, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
@@ -20,7 +20,9 @@ const support = mod => {
 };
 const trustedPackage = mod => isDesktop && Boolean(mod.package?.mirrorApproved) && Boolean(pinnedOf(mod));
 
-const approvedUpdate = mod => isDesktop && (state.updateTargets.some(item => matchesMod(item, mod))
+const signedPackage = mod => isDesktop && state.updateTargets.some(item => matchesMod(item, mod));
+const removalEntry = mod => uninstallEntry(mod.id, state.modStates[mod.id], [...state.pinned, ...state.removalMods, ...state.updateTargets]);
+const approvedUpdate = mod => isDesktop && (signedPackage(mod)
   || (trustedPackage(mod) && (pinnedOf(mod).verified || isPreview(mod))));
 
 const statusTone = {
@@ -68,8 +70,10 @@ function details(mod) {
     else if (status === "waiting" || status === "newer")
       parts.push(element("p", t(status === "waiting" ? "hold" : "noDowngrade")));
   }
-  if (modState === "installed" && currentAction(mod) === "updateMod") parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
-  if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id] && uninstallEntry(mod.id, modState, state.pinned)) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
+  if (modState === "installed" && currentAction(mod) === "updateMod") {
+    parts.push(primaryAction(mod), button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
+  }
+  if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id] && removalEntry(mod)) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
   if (modState === "legacyInstalled" && trustedPackage(mod) && (mod.verified || isPreview(mod))) parts.push(button(t("migrateLoader"), () => startInstall(mod, "switch"), "primary"));
   if (modState === "manualInstall") parts.push(element("p", t("manualDetected")));
   else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
@@ -139,6 +143,22 @@ function startInstall(mod, action) {
   return withGameCopy(() => {
     const migrate = action === "switch" && state.modStates[mod.id] === "legacyInstalled";
     if (!state.pckDir || (!migrate && currentAction(mod) !== action)) return details(mod);
+    if (action === "updateMod") {
+      const path = state.game;
+      const dir = state.pckDir;
+      const from = state.inventory[inventoryKey(mod)];
+      return show(t("updateMod") + " · " + nameOf(mod),
+        element("p", from + " → " + mod.version),
+        element("p", state.lastScan?.pckPath || dir, "file-detail"),
+        button(t("cancelModUpdate"), closeDialog),
+        button(t("confirmModUpdate"), () => {
+          const latest = state.mods.find(item => item.id === mod.id);
+          if (state.game !== path || state.pckDir !== dir || !latest || !matchesMod(latest, mod)
+              || state.inventory[inventoryKey(mod)] !== from || currentAction(latest) !== action)
+            return show(t("releaseChanged"), button(t("close"), closeDialog));
+          return installDialog(latest, action);
+        }, "primary"));
+    }
     if (action === "switch") {
       const removals = conflictingMods(mod);
       if (!removals.length) return details(mod);
@@ -271,20 +291,19 @@ async function installDialog(mod, action, removals = []) {
 }
 
 function currentAction(mod) {
-  const disk = state.modStates[mod.id];
-  const installed = state.game && uninstallEntry(mod.id, disk, state.pinned);
-  const entry = installed || mod;
-  const update = disk === "installed" && approvedUpdate(mod) && versionState(state.inventory[inventoryKey(mod)], mod.version, true) === "available";
-  return modAction({managed:update || trustedPackage(entry), verified:update || Boolean(installed) || pinnedOf(entry)?.verified || isPreview(entry),
-    game:state.game, scan:state.scan, disk, update});
+  return catalogAction({
+    disk:state.modStates[mod.id], scan:state.scan, game:state.game,
+    installed:removalEntry(mod), approved:approvedUpdate(mod), bundled:trustedPackage(mod),
+    local:state.inventory[inventoryKey(mod)], version:mod.version
+  });
 }
 
 function uninstallDialog(cardMod) {
-  const mod = uninstallEntry(cardMod.id, state.modStates[cardMod.id], state.pinned);
+  const mod = removalEntry(cardMod);
   if (!mod) return details(cardMod);
   const path = state.game;
   const target = state.pckDir;
-  const name = nameOf(mod);
+  const name = nameOf(cardMod);
   const installedVersion = state.inventory[inventoryKey(mod)];
   const title = key => t(key) + " · " + name + (installedVersion ? " " + installedVersion : "");
   const steps = element("ol", "", "install-steps");
@@ -338,7 +357,7 @@ function uninstallDialog(cardMod) {
   show(title("uninstall"), steps, location, button(t("uninstall"), run, "primary"));
 }
 
-function primaryAction(mod, name) {
+function primaryAction(mod) {
   const action = currentAction(mod);
   const label = action === "updateMod" ? t("updateModTo").replace("{version}", mod.version) : t(action === "review" ? "viewReason" : action);
   const el = button(label, () => {
@@ -381,7 +400,7 @@ function card(mod, index) {
   }
 
   const footer = element("div", "", "card-actions");
-  footer.append(primaryAction(mod, name));
+  footer.append(primaryAction(mod));
   item.append(cover(mod, name, status), body, footer);
   return item;
 }
@@ -389,7 +408,7 @@ function card(mod, index) {
 export function renderModList(content) {
   if (state.scan === "failed") content.append(button(t("retryCheck"), () => syncGameMods(true), "secondary", "refresh"));
   const cards = state.page === "installed"
-    ? installedRows(state.inventory, state.mods, state.pinned).map(({repo, version, mod}, index) => {
+    ? installedRows(state.inventory, state.mods, [...state.removalMods, ...state.pinned]).map(({repo, version, mod}, index) => {
       if (mod) return card(mod, index);
       const row = element("article", "", "card");
       const body = element("div", "", "card-body");

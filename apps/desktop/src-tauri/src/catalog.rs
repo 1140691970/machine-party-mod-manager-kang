@@ -1,3 +1,4 @@
+pub mod receipts;
 use serde::{Deserialize, Serialize};
 
 const BUNDLED: &str = include_str!("../../../../catalog/mods.json");
@@ -284,6 +285,19 @@ pub fn signed_updates(
     approved_updates(document, preview)
 }
 
+// A signed first-party entry can reuse an existing native loader profile.
+// Only its package file list varies. Paths, baseline and installer behavior stay pinned.
+fn compatible_native(remote: &ModEntry, template: &ModEntry) -> bool {
+    let (Some(profile), Some(mut known)) = (&remote.adapter, template.adapter.clone()) else {
+        return false;
+    };
+    known.required_files.clone_from(&profile.required_files);
+    known.kind == "loader-files"
+        && known.source_rule.is_none()
+        && known == *profile
+        && crate::installer::validate_adapter(profile).is_ok()
+}
+
 fn approved_updates(document: &str, preview: bool) -> Result<Vec<ModEntry>, String> {
     let data: serde_json::Value = serde_json::from_str(document).map_err(|_| "catalogInvalid")?;
     if data["schema"].as_u64() != Some(1) {
@@ -291,26 +305,45 @@ fn approved_updates(document: &str, preview: bool) -> Result<Vec<ModEntry>, Stri
     }
     let mut approved = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
+    let known = all_entries();
+    let project = bundled()["repo"].as_str().unwrap_or("").to_owned();
     for raw in data["mods"].as_array().ok_or("catalogInvalid")? {
         let id = raw["id"].as_str().ok_or("catalogInvalid")?;
         if !seen.insert(id) {
             return Err("catalogInvalid".into());
         }
-        let Some(mut local) = entry(id) else { continue };
         let remote: ModEntry = serde_json::from_value(raw.clone()).map_err(|_| "catalogInvalid")?;
-        let Some(pkg) = remote.package else { continue };
+        let Some(pkg) = remote.package.as_ref() else {
+            continue;
+        };
         let version = remote.version.as_deref().unwrap_or("");
-        // A signed promotion can approve the exact ZIP already known to a stable client.
-        let same_release =
-            local.version.as_deref() == Some(version) && local.package.as_ref() == Some(&pkg);
+        let existing = known.iter().find(|local| local.id == id);
+        if let Some(local) = existing {
+            let same = local.version == remote.version && local.package == remote.package;
+            if (!same && !newer(version, local.version.as_deref().unwrap_or("")))
+                || local.repo != remote.repo
+                || local.inventory_key() != remote.inventory_key()
+                || local.legacy_inventory_repos != remote.legacy_inventory_repos
+                || !compatible_native(&remote, local)
+            {
+                continue;
+            }
+        } else if !remote.inventory_by_id
+            || !remote.legacy_inventory_repos.is_empty()
+            || remote.repo != project
+            || !crate::installer::is_safe_filename(id)
+            || id.len() > 80
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            || !known
+                .iter()
+                .any(|local| local.repo == remote.repo && compatible_native(&remote, local))
+        {
+            continue;
+        }
         if !(remote.verified || preview && raw["updateChannel"] == "preview")
-            || (!same_release && !newer(version, local.version.as_deref().unwrap_or("")))
-            || local.repo != remote.repo
-            || local.adapter != remote.adapter
-            || !local
-                .adapter
-                .as_ref()
-                .is_some_and(|a| a.kind == "loader-files" && a.source_rule.is_none())
+            || numeric_version(version).is_none()
             || !pkg.mirror_approved
             || pkg.size == 0
             || !crate::installer::is_hex_sha256(&pkg.sha256)
@@ -325,9 +358,7 @@ fn approved_updates(document: &str, preview: bool) -> Result<Vec<ModEntry>, Stri
         {
             continue;
         }
-        local.version = remote.version;
-        local.package = Some(pkg);
-        approved.push(local);
+        approved.push(remote);
     }
     Ok(approved)
 }
@@ -397,8 +428,46 @@ mod tests {
     }
 
     #[test]
+    fn preview_accepts_new_first_party_native_mods_and_changed_package_file_lists() {
+        let snapshot = bundled();
+        let mut item = snapshot["mods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == "standalone-hd")
+            .unwrap()
+            .clone();
+        let accepts = |m: &serde_json::Value, preview| {
+            let doc = serde_json::json!({"schema":1,"mods":[m]}).to_string();
+            approved_updates(&doc, preview).unwrap().len() == 1
+        };
+        item["version"] = "v0.2.0".into();
+        item["adapter"]["requiredFiles"] = serde_json::json!(["mod.json", "main.gd", "extra.gd"]);
+        assert!(accepts(&item, true));
+        item["id"] = "new-native-hd".into();
+        assert!(accepts(&item, true));
+        assert!(!accepts(&item, false));
+        let mut stable = item.clone();
+        stable["verified"] = true.into();
+        assert!(accepts(&stable, false));
+        for (field, value) in [
+            ("/repo", "another/author"),
+            ("/id", "../escape"),
+            ("/adapter/target", "elsewhere"),
+            ("/adapter/baseline/file", "another.pck"),
+            ("/adapter/requiredFiles/0", "../file"),
+            ("/version", "../0.2"),
+            ("/package/filename", "../zip"),
+        ] {
+            let mut invalid = item.clone();
+            *invalid.pointer_mut(field).unwrap() = value.into();
+            assert!(!accepts(&invalid, true), "{field}");
+        }
+    }
+
+    #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-10").len(), 7);
+        assert_eq!(preview_entries("0.1.2-11").len(), 7);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -409,10 +478,10 @@ mod tests {
             "standalone-hd",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-10"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-11"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-10"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-11"), "{id}");
         }
     }
 

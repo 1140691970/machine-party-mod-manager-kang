@@ -4333,6 +4333,64 @@ print("Patched")
     }
 
     #[test]
+    #[ignore = "requires the released Standalone HD ZIP in MPM_SOURCE_FIXTURES"]
+    fn released_hd_installs_from_vanilla_and_restores_the_copy() {
+        let fixtures = PathBuf::from(std::env::var_os("MPM_SOURCE_FIXTURES").unwrap());
+        let root = tempfile::tempdir().unwrap();
+        let config = root.path().join("config");
+        let game = root.path().join("test copy");
+        let dir = game.join("Machine Party_Windows");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("Machine Party.exe"), b"MZ fixture").unwrap();
+        let pck = dir.join("Machine Party.pck");
+        let mut hd = crate::catalog::entry("standalone-hd").unwrap();
+        if let Some(original) = std::env::var_os("MPM_L3_VANILLA_PCK") {
+            std::io::copy(
+                &mut fs::File::open(original).unwrap(),
+                &mut fs::File::create(&pck).unwrap(),
+            )
+            .unwrap();
+        } else {
+            fs::write(&pck, pck_loader::build_synthetic_pck_v3(false, true)).unwrap();
+            let fp = file_fingerprint(&pck).unwrap();
+            let base = &mut hd.adapter.as_mut().unwrap().baseline;
+            base.size = fp.size;
+            base.sha256 = fp.sha256;
+        }
+        let original = file_fingerprint(&pck).unwrap();
+        let list = std::slice::from_ref(&hd);
+        let zip = fixtures.join(&hd.package.as_ref().unwrap().filename);
+        assert_eq!(
+            validate_game_mods(&config, &game, list).unwrap().mod_states[&hd.id],
+            "vanilla"
+        );
+        install_from_zip(
+            &config,
+            &game,
+            &zip,
+            &config.join("stage"),
+            &hd,
+            list,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let scan = validate_game_mods(&config, &game, list).unwrap();
+        assert_eq!(scan.mod_states[&hd.id], "installed");
+        assert_eq!(
+            scan.installed[hd.inventory_key()],
+            hd.version.as_deref().unwrap()
+        );
+        assert!(dir.join("mods/standalone-hd/main.gd").is_file());
+        uninstall_mod(&config, &game, &hd, &SystemRunner, &UnlockedCheck).unwrap();
+        assert_eq!(file_fingerprint(&pck).unwrap(), original);
+        assert_eq!(
+            validate_game_mods(&config, &game, list).unwrap().mod_states[&hd.id],
+            "vanilla"
+        );
+    }
+
+    #[test]
     fn l1_zip_loader_mod_auto_installs_and_restores_loader_on_last_uninstall() {
         let root = test_root("l1-zip-auto-loader");
         let pck_bytes = pck_loader::build_synthetic_pck_v3(false, true);

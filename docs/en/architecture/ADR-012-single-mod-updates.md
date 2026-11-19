@@ -9,3 +9,5 @@ The catalog deployment signs the exact UTF-8 catalog bytes prefixed with `machin
 An uninstall followed by an install could remove the shared loader or leave the old mod unavailable after a failed download. A single update instead stages the verified replacement on the game volume, checks the existing files, records both sets of fingerprints, and renames only the chosen mod directory. The saved transaction is the commit point. Recovery restores the old directory before that point and retains the verified new directory after it. If unknown changes or a running game prevent recovery, the manager retains the recovery record for the next scan.
 
 The release-fixture test upgrades Roller Carnival v0.1.0 to v0.1.1 beside Lobby Bots v0.1.4 on a synthetic game copy. It checks rollback and restart recovery, sibling files and records, the shared loader and PCK fingerprints, and offline uninstall. Windows Steam gameplay acceptance is pending.
+
+[ADR-013 · Installing native mods from the signed catalog](ADR-013-signed-native-installs.md)

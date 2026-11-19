@@ -3,6 +3,8 @@
   "bundle": {
     "windows": {
       "nsis": {
+        "languages": ["English", "SimpChinese", "TradChinese"],
+        "displayLanguageSelector": false,
         "installerHooks": "windows-installer.nsh"
       }
     }

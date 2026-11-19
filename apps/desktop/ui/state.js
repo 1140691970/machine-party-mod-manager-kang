@@ -16,6 +16,7 @@ export const state = {
   scan: "checking",
   packages: {},
   pinned: [],
+  removalMods: [],
   updateTargets: [],
   scanError: "",
   appVersion: "",

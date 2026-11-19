@@ -67,3 +67,5 @@ Use the author's published resources and keep conversion rules versioned with th
 - [ADR-010 · Independent install keys for mods sharing a repository](ADR-010-shared-repository-mods.md)
 - [ADR-011 · Prepare MPML before installation](ADR-011-prepare-mpml.md)
 - [ADR-012 · Updating one installed mod](ADR-012-single-mod-updates.md)
+
+- [ADR-013 · Installing native mods from the signed catalog](ADR-013-signed-native-installs.md)

@@ -21,7 +21,7 @@ export function applyValidation(validation, path) {
 export function syncGameMods(force = false) {
   const path = state.game;
   if (!path) return;
-  if (active?.path === path) return active.promise;
+  if (active?.path === path && active.targets === state.updateTargets) return active.promise;
   const token = ++generation;
   state.scan = "checking";
   state.scanError = "";
@@ -45,7 +45,7 @@ export function syncGameMods(force = false) {
       if (generation === token) active = null;
     }
   })();
-  active = {path, promise};
+  active = {path, targets:state.updateTargets, promise};
   return promise;
 }
 

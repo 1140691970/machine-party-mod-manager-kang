@@ -55,7 +55,12 @@ function render() {
   shownPage = state.page;
   if (state.page === "settings") renderSettings(content, applyLocale);
   else {
-    if (catalogStatus && state.page === "catalog") {
+    if (state.page === "installed" && !catalogStatus) {
+      const check = button(t("checkModUpdates"), refreshCatalog, "secondary", "refresh");
+      check.disabled = Boolean(state.busyMod) || state.scan === "checking";
+      content.append(check);
+    }
+    if (catalogStatus) {
       const status = element("section", "", "list-status" + (state.mods.length ? " compact" : ""));
       status.setAttribute("role", "status");
       status.append(icon(catalogStatus === "catalogLoading" ? "refresh" : "catalog"), element("p", [t(catalogStatus), t(catalogError) || catalogError].filter(Boolean).join(" · ")));
@@ -74,14 +79,17 @@ state.appVersion = await appVersion();
 const cached = cachedCatalog(localStorage);
 const bundled = isDesktop ? await bundledCatalog() : {mods: []};
 state.pinned = bundled.mods;
+state.removalMods = bundled.removalMods ?? [];
 state.previewMod = bundled.previewMod ?? null;
 state.previewMods = bundled.previewMods ?? (bundled.previewMod ? [bundled.previewMod] : []);
 state.appRepo = bundled.repo || state.appRepo;
 state.mods = cached ? sortMods(cached, state.pinned) : [];
 
 async function authorize(document, signature) {
-  state.updateTargets = [];
   state.updateTargets = await authorizeUpdates(document, signature);
+  const known = new Set([...state.pinned, ...state.removalMods].map(mod => mod.id));
+  const approved = new Set(state.updateTargets.map(mod => mod.id));
+  state.removalMods.push(...JSON.parse(document).mods.filter(mod => approved.has(mod.id) && !known.has(mod.id)));
 }
 if (isDesktop) {
   try { await restoreCatalogProof(localStorage, authorize); } catch { /* Refresh online. */ }
@@ -94,6 +102,7 @@ async function refreshCatalog() {
   try {
     state.mods = sortMods(await loadCatalog(localStorage, fetch, isDesktop ? authorize : undefined), state.pinned);
     catalogStatus = "";
+    if (isDesktop && state.game) void syncGameMods();
   } catch (error) {
     catalogError = error.message || String(error);
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";

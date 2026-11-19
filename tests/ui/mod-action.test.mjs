@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {installationProblem, modAction, uninstallEntry} from "../../apps/desktop/ui/mod-action.js";
+import {catalogAction, installationProblem, modAction, uninstallEntry} from "../../apps/desktop/ui/mod-action.js";
 
 const copy = {managed:true, verified:true, cached:true, game:"Steam copy", scan:"ready", disk:"vanilla"};
 test("an offline uninstall and restart retain the download and never offer adoption", () => {
@@ -53,4 +53,14 @@ test("a single mod can update only from a confirmed managed installation", () =>
     assert.notEqual(modAction({...copy, disk, update:true}), "updateMod");
   for (const changes of [{scan:"failed"}, {scan:"checking"}, {game:""}, {verified:false}])
     assert.notEqual(modAction({...copy, disk:"installed", update:true, ...changes}), "updateMod");
+});
+
+test("an online-only approved mod can be installed, updated and removed after retirement", () => {
+  const row = {disk:"vanilla", game:"copy", scan:"ready", bundled:false, approved:true, version:"v2"};
+  assert.equal(catalogAction(row), "install");
+  assert.equal(catalogAction({...row, disk:"installed", installed:true, local:"v1"}), "updateMod");
+  assert.equal(catalogAction({...row, disk:"installed", installed:true, local:"v2"}), "uninstall");
+  assert.equal(catalogAction({...row, disk:"installed", installed:true, local:"v1", approved:false}), "uninstall");
+  assert.equal(catalogAction({...row, approved:false}), "review");
+  assert.equal(catalogAction({...row, disk:"needsRepair", local:"v1"}), "review");
 });
