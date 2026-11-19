@@ -2366,7 +2366,8 @@ print("Done")
         let zip_bytes = make_fake_package_zip(cli_script.as_bytes(), b"SYNTHETIC_PAYLOAD");
         let zip_path = root.join("ot-l2.zip");
         fs::write(&zip_path, &zip_bytes).unwrap();
-        let mod_entry = synthetic_overtime_entry(&baseline, &zip_bytes, true);
+        let mut mod_entry = synthetic_overtime_entry(&baseline, &zip_bytes, true);
+        mod_entry.adapter.as_mut().unwrap().run.interpreter = "bundled-python".into();
         let config_dir = root.join("config");
         let staging_dir = root.join("staging");
 
