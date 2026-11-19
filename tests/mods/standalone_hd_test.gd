@@ -18,6 +18,14 @@ func _run() -> void:
 		loader.broadcast_id = "broadcast-8p-freecam"
 	elif args.has("--test-legacy-broadcast"):
 		loader.broadcast_id = "broadcast-8p"
+	if root.mode == Window.MODE_WINDOWED:
+		root.size = Vector2i(913, 607)
+	root.content_scale_size = Vector2i(960, 540)
+	var mode := root.mode
+	if args.has("--test-fullscreen") and not check(mode in [Window.MODE_FULLSCREEN, Window.MODE_EXCLUSIVE_FULLSCREEN], "Test starts in fullscreen"):
+		return
+	var size_px := root.size
+	var position_px := root.position
 	var base := root.content_scale_size
 	var original_cap := Engine.max_fps
 	var lobby := Node3D.new()
@@ -43,11 +51,14 @@ func _run() -> void:
 		if not check(effect.visible and Engine.max_fps == original_cap, "Broadcast owns display settings"):
 			return
 	else:
-		var size_px := Vector2i(2560, 1440) if args.has("--party-hd-1440") else Vector2i(1920, 1080)
 		var fps := 120 if args.has("--party-hd-120") else 60
 		if not check(Engine.max_fps == fps and not effect.visible, "FPS and existing filters"):
 			return
-		if not check(root.content_scale_size == (size_px if args.has("--party-hd-internal") else base), "Internal resolution is opt-in"):
+		if not check(root.content_scale_size == base and root.mode == mode and root.size == size_px and root.position == position_px, "Window and UI geometry must be preserved"):
+			return
+		var height := root.get_texture().get_height()
+		var target := 1440 if args.has("--party-hd-1440") else 1080
+		if height > 0 and not check(is_equal_approx(root.scaling_3d_scale, clampf(float(target) / height, 1, 2)), "Only 3D render scale changes"):
 			return
 		var next_filter := ColorRect.new()
 		next_filter.name = "Vignette"

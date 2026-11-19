@@ -12,12 +12,9 @@ func _mod_ready(loader) -> void:
 
 func _apply(args: PackedStringArray) -> void:
 	var window := get_tree().root
-	var size_px := Vector2i(2560, 1440) if args.has("--party-hd-1440") else Vector2i(1920, 1080)
-	window.mode = Window.MODE_WINDOWED
-	if args.has("--party-hd-internal"):
-		window.content_scale_size = size_px
-	window.size = size_px
-	window.move_to_center()
+	var target_height := 1440 if args.has("--party-hd-1440") else 1080
+	window.size_changed.connect(_scale_3d.bind(window, target_height))
+	_scale_3d(window, target_height)
 	Engine.max_fps = 120 if args.has("--party-hd-120") else 60
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 
@@ -29,6 +26,13 @@ func _apply(args: PackedStringArray) -> void:
 	refresh.timeout.connect(_filter_branch.bind(window))
 	add_child(refresh)
 	refresh.start()
+
+# In viewport stretch mode the 3D target is based on the viewport texture,
+# not the size of the desktop window. Keep the 2D canvas at the game resolution.
+func _scale_3d(window: Window, target_height: int) -> void:
+	var height := window.get_texture().get_height()
+	if height > 0:
+		window.scaling_3d_scale = clampf(float(target_height) / height, 1.0, 2.0)
 
 func _on_node_added(node: Node) -> void:
 	_hide_filter(node)

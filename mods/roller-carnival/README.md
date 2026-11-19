@@ -5,7 +5,7 @@
 ![滾筒嘉年華小遊戲圖示](../../apps/desktop/ui/images/roller-carnival.png)
 
 - **模組 ID**：`roller-carnival`
-- **版本**：`0.1.2`（目錄清單對應 `v0.1.2`）
+- **版本**：`0.1.3`（目錄清單對應 `v0.1.3`）
 - **授權**：`GPL-3.0-only`
 - **目標遊戲版本**：Steam Windows `v2.1.2`
 - **開發與打包規範**：[自研模組開發、測試、接入與打包規範](../../docs/zh-TW/development/mod-development.md) · [ADR-009](../../docs/zh-TW/architecture/ADR-009-bundled-first-party-mods.md)
@@ -42,7 +42,7 @@
 
 ## 檔案結構（打入 R2 ZIP vs. 本機開發檔案）
 
-依 [`scripts/pack-mod.mjs`](../../scripts/pack-mod.mjs) 規則，僅以下**執行期檔案**會被封裝為確定性 `roller-carnival-0.1.2.zip` 並隨目錄 Worker 與 R2 分發：
+依 [`scripts/pack-mod.mjs`](../../scripts/pack-mod.mjs) 規則，僅以下**執行期檔案**會被封裝為確定性 `roller-carnival-0.1.3.zip` 並隨目錄 Worker 與 R2 分發：
 
 | 檔案 | 打入 R2 ZIP | 職責 |
 | --- | --- | --- |
@@ -81,7 +81,7 @@ npm run check:architecture && npm test && npm run lint:rust && npm run test:rust
 
 ## 安裝、共存與驗證狀態
 
-- **R2 鏡像分發與自動載入器**：桌面端透過目錄 Worker 從 R2 下載並校驗 `roller-carnival-0.1.2.zip` 的 SHA-256；首次安裝且偵測不到外部載入器時，管理器會透過潔淨室 `pck_loader.rs` + `mpm_bootstrap.gd` 自動設定載入環境；解除安裝最後一個受管模組時會無損截斷還原原版 `Machine Party.pck`。
+- **R2 鏡像分發與自動載入器**：桌面端透過目錄 Worker 從 R2 下載並校驗 `roller-carnival-0.1.3.zip` 的 SHA-256；首次安裝且偵測不到外部載入器時，管理器會透過潔淨室 `pck_loader.rs` + `mpm_bootstrap.gd` 自動設定載入環境；解除安裝最後一個受管模組時會無損截斷還原原版 `Machine Party.pck`。
 - **外部載入器與互斥**：若玩家遊戲目錄已有 `MachinePartyModLoader.exe`，會保留原有載入器僅放入 `mods/roller-carnival/`；與 `overtime` 等直接修補 PCK 檔案的模組保持互斥保護。
 - **目前驗證狀態**：
   - ✅ macOS Godot 4.5.2 語法檢查與 `--self-test` 通過、`scripts/pack-mod.mjs` 確定性 ZIP 與 Rust L1/L3 原版 Steam v2.1.2 `Machine Party.pck` 寫入/無損還原模擬測試通過。

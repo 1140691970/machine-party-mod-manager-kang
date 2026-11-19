@@ -79,7 +79,7 @@ test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(plus.adapter.autoLoader, true);
 
   const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
-  assert.equal(roller.package.filename, "roller-carnival-0.1.2.zip");
+  assert.equal(roller.package.filename, "roller-carnival-0.1.3.zip");
   assert.equal(roller.package.mirrorApproved, true);
   assert.equal(roller.adapter.kind, "loader-files");
   assert.equal(roller.adapter.autoLoader, true);
