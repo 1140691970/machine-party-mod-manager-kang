@@ -4,8 +4,12 @@
 
 ## Before asking
 
-- Read the [README](README.md) for downloads and current status. Mod installation is not available yet; install buttons only explain what is pending.
+- Check the [README](README.md) for downloads and the mod installation features available in the Windows preview.
 - Check [existing issues](https://github.com/JamesGZM/machine-party-mod-manager/issues), including closed ones.
+
+## Removing an MPML mod
+
+Open **Installed** and choose **Uninstall**. The dialog shows the version installed in that game copy. If you reinstalled a clean copy of the same supported game build in the same folder and a previous MPML installation shows **Repair needed**, open **View details** and choose **Uninstall** to clear its record. Once verification completes, you can install the mod again.
 
 ## Where to ask
 

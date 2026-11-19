@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {installationProblem, modAction} from "../../apps/desktop/ui/mod-action.js";
+import {installationProblem, modAction, uninstallEntry} from "../../apps/desktop/ui/mod-action.js";
 
 const copy = {managed:true, verified:true, cached:true, game:"Steam copy", scan:"ready", disk:"vanilla"};
 test("an offline uninstall and restart retain the download and never offer adoption", () => {
@@ -31,4 +31,17 @@ test("installation succeeds only for the verified disk state and recorded releas
   assert.equal(check("vanilla", "v2"), "statusUnavailable");
   assert.equal(check("needsRepair", "v2"), "needsRepair");
   assert.equal(check("gameUpdatedOrModified", "v2"), "gameUpdatedOrModified");
+});
+
+test("an installed mod uses the bundled uninstall entry after the online release changes", () => {
+  const local = {id:"mod", repo:"same/project", version:"v1", adapter:{}, package:{sha256:"old"}};
+  const sibling = {...local, id:"sibling"};
+  const pinned = [sibling, local];
+  for (const remote of [{...local, version:"v2"}, {...local, package:{sha256:"new"}}]) {
+    for (const disk of ["installed", "legacyInstalled", "needsRepair"])
+      assert.equal(uninstallEntry(remote.id, disk, pinned), local);
+    for (const disk of ["vanilla", "modConflict", "manualInstall", "gameUpdatedOrModified"])
+      assert.equal(uninstallEntry(remote.id, disk, pinned), undefined);
+  }
+  assert.equal(uninstallEntry("unlisted", "installed", pinned), undefined);
 });

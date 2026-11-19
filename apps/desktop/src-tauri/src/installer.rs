@@ -5029,6 +5029,60 @@ print("Patched")
     }
 
     #[test]
+    fn clean_game_reinstall_allows_clearing_a_committed_mpml_record_and_reinstalling() {
+        let root = tempfile::tempdir().unwrap();
+        let vanilla = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game, dir, baseline) = setup_synthetic_game(root.path(), &vanilla);
+        let config = root.path().join("config");
+        let bytes = build_test_zip(&[
+            (
+                "mod.json",
+                br#"{"id":"machineparty_plus","entry":"main.gd"}"#,
+                true,
+            ),
+            ("main.gd", b"extends Node", true),
+        ]);
+        let item = make_loader_entry_from_catalog("machineparty-plus", &bytes, &baseline);
+        let mods = std::slice::from_ref(&item);
+        let archive = root.path().join("release.zip");
+        fs::write(&archive, bytes).unwrap();
+        let install = || {
+            install_from_zip(
+                &config,
+                &game,
+                &archive,
+                &root.path().join("stage"),
+                &item,
+                mods,
+                &SystemRunner,
+                &UnlockedCheck,
+            )
+            .unwrap()
+        };
+        install();
+        fs::remove_dir_all(dir.join("mods")).unwrap();
+        fs::remove_file(dir.join(pck_loader::LOADER_SIDECAR)).unwrap();
+        fs::write(dir.join("Machine Party.pck"), vanilla).unwrap();
+        let scan = validate_game_mods(&config, &game, mods).unwrap();
+        assert_eq!(scan.mod_states[&item.id], "needsRepair");
+        assert!(scan.repair.contains_key(&item.id));
+        assert_eq!(
+            uninstall_mod(&config, &game, &item, &SystemRunner, &UnlockedCheck).unwrap(),
+            baseline
+        );
+        assert!(
+            inventory::installed_versions(&config, &game)
+                .unwrap()
+                .is_empty()
+        );
+        install();
+        assert_eq!(
+            validate_game_mods(&config, &game, mods).unwrap().mod_states[&item.id],
+            "installed"
+        );
+    }
+
+    #[test]
     fn missing_loader_files_and_interrupted_cleanup_keep_the_transaction_recoverable() {
         let root = tempfile::tempdir().unwrap();
         let vanilla = pck_loader::build_synthetic_pck_v3(false, true);

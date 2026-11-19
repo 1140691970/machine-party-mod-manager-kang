@@ -1,5 +1,5 @@
 import { downloadUrl } from "./online-catalog.js";
-import { installationProblem, modAction } from "./mod-action.js";
+import { installationProblem, modAction, uninstallEntry } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod } from "./bridge.js";
 import { inventoryKey, installedRows, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
@@ -61,8 +61,8 @@ function details(mod) {
     if (status === "waiting" || status === "newer")
       parts.push(element("p", t(status === "waiting" ? "hold" : "noDowngrade")));
   }
-  if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id]) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
-  if (modState === "legacyInstalled") parts.push(button(t("migrateLoader"), () => startInstall(mod, "switch"), "primary"));
+  if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id] && uninstallEntry(mod.id, modState, state.pinned)) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
+  if (modState === "legacyInstalled" && trustedPackage(mod) && (mod.verified || isPreview(mod))) parts.push(button(t("migrateLoader"), () => startInstall(mod, "switch"), "primary"));
   if (modState === "manualInstall") parts.push(element("p", t("manualDetected")));
   else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
     parts.push(element("p", t(modState), "error"));
@@ -252,15 +252,20 @@ async function installDialog(mod, action, removals = []) {
 }
 
 function currentAction(mod) {
-  return modAction({managed:trustedPackage(mod), verified:mod.verified || isPreview(mod),
-    game:state.game, scan:state.scan, disk:state.modStates[mod.id]});
+  const disk = state.modStates[mod.id];
+  const entry = (state.game && uninstallEntry(mod.id, disk, state.pinned)) || mod;
+  return modAction({managed:trustedPackage(entry), verified:entry.verified || isPreview(entry),
+    game:state.game, scan:state.scan, disk});
 }
 
-function uninstallDialog(mod) {
+function uninstallDialog(cardMod) {
+  const mod = uninstallEntry(cardMod.id, state.modStates[cardMod.id], state.pinned);
+  if (!mod) return details(cardMod);
   const path = state.game;
   const target = state.pckDir;
   const name = nameOf(mod);
-  const title = key => t(key) + " · " + name + (mod.version ? " " + mod.version : "");
+  const installedVersion = state.inventory[inventoryKey(mod)];
+  const title = key => t(key) + " · " + name + (installedVersion ? " " + installedVersion : "");
   const steps = element("ol", "", "install-steps");
   const row = element("li");
   const status = element("span");
