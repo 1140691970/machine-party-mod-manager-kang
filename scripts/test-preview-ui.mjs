@@ -1,4 +1,5 @@
 // Runs against the installed Windows app in a disposable Actions user profile.
+import {execFileSync} from "node:child_process";
 import assert from "node:assert/strict";
 import {mkdir, writeFile} from "node:fs/promises";
 import path from "node:path";
@@ -21,11 +22,24 @@ try {
   await shot("catalog");
   assert.equal(await app.evaluate('document.querySelector("article .card-actions button").textContent'), "安裝");
   await app.evaluate('document.querySelector("article .card-actions button").click()');
-  await until(() => app.evaluate('document.querySelector("dialog .install-steps")?.innerText.includes("校驗套件")'), "Install dialog");
-
-  await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("已快取")'), "Verified Windows ZIP download");
-  await until(() => app.evaluate('document.querySelector("dialog[open] .dialog-actions button")?.textContent.includes("選擇遊戲目錄")'), "Verified package awaits game selection");
-  await shot("install-steps");
+  // Close the real Windows folder picker, then verify cancellation caused no package work.
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `
+    Add-Type -AssemblyName UIAutomationClient
+    $desktop = [System.Windows.Automation.AutomationElement]::RootElement
+    $name = [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::NameProperty, '選擇遊戲目錄')
+    for ($i = 0; $i -lt 60; $i++) {
+      $picker = $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $name)
+      if ($picker) {
+        $picker.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+        exit 0
+      }
+      Start-Sleep -Milliseconds 300
+    }
+    throw 'Native game folder picker did not open on Install'
+  `]);
+  assert.equal(await app.evaluate('!!document.querySelector("dialog[open] .install-steps")'), false);
+  assert.deepEqual(await app.evaluate('window.__TAURI__.core.invoke("cached_packages")'), {});
   const copy = JSON.stringify(process.env.PREVIEW_FIXTURE);
   await app.evaluate(`window.__TAURI__.core.invoke("save_game",{path:${copy}})`);
   // Capture the prior record as soon as it renders, before waiting for disk verification.

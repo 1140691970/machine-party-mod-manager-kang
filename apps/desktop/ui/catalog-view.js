@@ -3,7 +3,7 @@ import { modAction } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod } from "./bridge.js";
 import { visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
-import { applyValidation, pickGame, syncGameMods } from "./game-folder.js";
+import { applyValidation, syncGameMods, withGameCopy } from "./game-folder.js";
 import { render, state, t } from "./state.js";
 import { versionState } from "./versions.js";
 
@@ -96,6 +96,13 @@ function cover(mod, name, status) {
   return box;
 }
 
+function startInstall(mod, action) {
+  return withGameCopy(() => {
+    if (!state.pckDir || currentAction(mod) !== action) return details(mod);
+    return installDialog(mod, action);
+  });
+}
+
 async function installDialog(mod, action) {
   if (state.busyMod) return;
   const path = state.game;
@@ -116,12 +123,9 @@ async function installDialog(mod, action) {
   const dialog = $("dialog");
   const close = $("#close");
   let stage = 0;
-  let dismissed = false;
-  const dismiss = () => { dismissed = true; };
   const preventCancel = event => event.preventDefault();
-  const ownsDialog = () => !dismissed && dialog.open && steps.isConnected;
+  const ownsDialog = () => dialog.open && steps.isConnected;
   show(title, steps, location, bar.el);
-  dialog.addEventListener("close", dismiss, {once:true});
   state.busyMod = mod.id;
   render();
   try {
@@ -141,18 +145,6 @@ async function installDialog(mod, action) {
     rows[stage].textContent = t("done");
     if (!ownsDialog()) return;
     stage = 2;
-    if (!path) {
-      rows[stage].textContent = t("unset");
-      show(title, steps, button(t("choose"), () => pickGame(() => {
-        const next = currentAction(mod);
-        if (["install", "identify", "adoptManual"].includes(next)) {
-          if (next === "adoptManual") return details(mod);
-          return installDialog(mod, next);
-        }
-        return details(mod);
-      }), "primary", "folder"));
-      return;
-    }
     if (path !== state.game || target !== state.pckDir) throw "statusUnavailable";
     rows[stage].textContent = t("working");
     close.disabled = true;
@@ -162,7 +154,7 @@ async function installDialog(mod, action) {
       if (state.scan !== "ready") throw state.scanError || "statusUnavailable";
       rows[stage].textContent = t("disk_" + state.modStates[mod.id]);
       if (state.modStates[mod.id] === "manualInstall") {
-        show(title, steps, location, button(t("adoptManual"), () => installDialog(mod, "adoptManual"), "primary"));
+        show(title, steps, location, button(t("adoptManual"), () => startInstall(mod, "adoptManual"), "primary"));
         return;
       }
     } else {
@@ -179,7 +171,7 @@ async function installDialog(mod, action) {
       const message = element("p", [t(key) || key, ...detail].join(" · "), "error");
       const retry = ["downloadFailed", "packageCorrupt", "downloadFirst", "gameRunning", "gamePermissionDenied", "diskSpace"].includes(key);
       if (retry) {
-        retryButton = button(t("retry"), () => installDialog(mod, action), "primary");
+        retryButton = button(t("retry"), () => startInstall(mod, action), "primary");
         retryButton.disabled = true;
       }
       show(title, steps, location, message, ...(retryButton ? [retryButton] : []));
@@ -189,7 +181,6 @@ async function installDialog(mod, action) {
   } finally {
     close.disabled = false;
     dialog.removeEventListener("cancel", preventCancel);
-    dialog.removeEventListener("close", dismiss);
     state.busyMod = "";
     render();
   }
@@ -205,7 +196,7 @@ function primaryAction(mod, name) {
   const el = button(t(action === "review" ? "viewReason" : action), () => {
     if (action === "review") return details(mod);
     if (action === "retryCheck") return syncGameMods(true);
-    if (action !== "uninstall") return installDialog(mod, action);
+    if (action !== "uninstall") return startInstall(mod, action);
     const path = state.game;
     const target = state.pckDir;
     show(t(action) + " · " + name, element("p", state.lastScan?.pckPath || target, "file-detail"), button(t(action), async () => {
