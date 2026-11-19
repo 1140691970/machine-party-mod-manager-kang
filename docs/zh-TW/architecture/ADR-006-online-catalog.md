@@ -4,7 +4,7 @@
 
 目錄需要獨立於桌面版本更新。
 
-客戶端啟動時讀取 Worker 快照，快取通過驗證的資料供離線瀏覽。每個版本透過 Release 資產 ID 對應 R2 鍵 `packages/sha256/<sha256>.zip`。僅開放允許鏡像的套件。
+客戶端啟動時讀取 Worker 快照，快取通過驗證的資料供離線瀏覽。每個版本透過 Release 資產 ID 對應 R2 鍵 `packages/sha256/<sha256>.zip`。僅開放允許鏡像的套件。 Worker 從 R2 的 `catalog/revisions/<revision>.json` 讀取已發布目錄。部署流程先讀回核對，再切換 Worker 的目錄修訂號。
 
 隨包提供列表需要為每次目錄更新發布桌面版本。直接列出儲存桶會暴露暫存檔案。
 

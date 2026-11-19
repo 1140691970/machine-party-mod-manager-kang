@@ -11,6 +11,7 @@ import { onRender, state, t } from "./state.js";
 import { cachedCatalog, loadCatalog } from "./online-catalog.js";
 
 let catalogStatus = "catalogLoading";
+let catalogError = "";
 let shownPage = "";
 
 function applyLocale() {
@@ -52,7 +53,7 @@ function render() {
     if (catalogStatus && state.page === "catalog") {
       const status = element("section", "", "list-status" + (state.mods.length ? " compact" : ""));
       status.setAttribute("role", "status");
-      status.append(icon(catalogStatus === "catalogLoading" ? "refresh" : "catalog"), element("p", t(catalogStatus)));
+      status.append(icon(catalogStatus === "catalogLoading" ? "refresh" : "catalog"), element("p", [t(catalogStatus), t(catalogError) || catalogError].filter(Boolean).join(" · ")));
       if (catalogStatus !== "catalogLoading") status.append(button(t("retryCatalog"), refreshCatalog, "link", "refresh"));
       content.append(status);
     }
@@ -70,11 +71,13 @@ state.mods = cached ? sortMods(cached) : [];
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
+  catalogError = "";
   render();
   try {
     state.mods = sortMods(await loadCatalog(localStorage));
     catalogStatus = "";
-  } catch {
+  } catch (error) {
+    catalogError = error.message;
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";
   }
   render();

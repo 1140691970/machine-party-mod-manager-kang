@@ -4,7 +4,7 @@
 
 目录需要独立于桌面版本更新。
 
-客户端启动时读取 Worker 快照，缓存通过校验的数据供离线浏览。每个版本通过 Release 资产 ID 对应 R2 键 `packages/sha256/<sha256>.zip`。仅开放允许镜像的安装包。
+客户端启动时读取 Worker 快照，缓存通过校验的数据供离线浏览。每个版本通过 Release 资产 ID 对应 R2 键 `packages/sha256/<sha256>.zip`。仅开放允许镜像的安装包。 Worker 从 R2 的 `catalog/revisions/<revision>.json` 读取已发布目录。部署流程先读回核对，再切换 Worker 的目录修订号。
 
 随包提供列表需要为每次目录更新发布桌面版本。直接列出存储桶会暴露暂存文件。
 

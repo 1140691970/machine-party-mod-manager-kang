@@ -1,7 +1,7 @@
 import snapshot from "../../catalog/mods.json" with {type: "json"};
 
 const headers = {"Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache"};
-const catalog = JSON.stringify(snapshot);
+const catalogKey = "catalog/revisions/" + snapshot.revision + ".json";
 const etag = '"' + snapshot.revision + '"';
 const packages = new Map(snapshot.mods.filter(mod => mod.package).map(mod =>
   [`/v1/downloads/${mod.id}/${mod.version}/${mod.package.assetId}`, mod]));
@@ -16,7 +16,9 @@ export default {
       const metadata = {...headers, ETag: etag, "Content-Type": "application/json; charset=utf-8"};
       if (request.headers.get("If-None-Match") === etag)
         return new Response(null, {status: 304, headers: metadata});
-      return new Response(head ? null : catalog, {headers: metadata});
+      const object = head ? await env.PACKAGES.head(catalogKey) : await env.PACKAGES.get(catalogKey);
+      if (!object) return new Response(null, {status:503, headers});
+      return new Response(head ? null : object.body, {headers:metadata});
     }
     const mod = packages.get(path);
     if (!mod) return new Response(null, {status: 404, headers});

@@ -69,12 +69,26 @@ export function cachedCatalog(storage) {
 }
 
 export async function loadCatalog(storage, request = fetch) {
-  const response = await request(origin + "/v1/catalog.json", {
-    cache: "no-cache", credentials: "omit", signal: AbortSignal.timeout(5000)
-  });
-  if (!response.ok) throw Error("catalogUnavailable");
-  const catalog = await response.json();
-  if (!validCatalog(catalog)) throw Error("catalogUnavailable");
+  let catalog;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await request(origin + "/v1/catalog.json", {
+        cache: "no-cache", credentials: "omit", signal: AbortSignal.timeout(15000)
+      });
+      if (!response.ok) throw Error("HTTP " + response.status);
+      catalog = await response.json();
+      if (!validCatalog(catalog)) throw Error("catalogInvalid");
+      break;
+    } catch (error) {
+      const timedOut = ["TimeoutError", "AbortError"].includes(error.name);
+      const network = error instanceof TypeError;
+      if (attempt === 0 && (timedOut || network || /^HTTP 5/.test(error.message))) continue;
+      if (timedOut) throw Error("catalogTimeout");
+      if (network) throw Error("catalogConnection");
+      if (error instanceof SyntaxError) throw Error("catalogInvalid");
+      throw error;
+    }
+  }
   try { storage.setItem(cacheKey, JSON.stringify(catalog)); } catch { /* Storage may be full. */ }
   return catalog;
 }

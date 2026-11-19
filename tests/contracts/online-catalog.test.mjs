@@ -5,7 +5,11 @@ import worker from "../../services/catalog-worker/catalog.mjs";
 import snapshot from "../../catalog/mods.json" with {type: "json"};
 import {cachedCatalog, downloadUrl, loadCatalog, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
 
-const serve = (url, env, init) => worker.fetch(new Request(url, init), env);
+const catalogStore = {PACKAGES:{get:async key => {
+  assert.equal(key, "catalog/revisions/" + snapshot.revision + ".json");
+  return {body:JSON.stringify(snapshot)};
+}}};
+const serve = (url, env = catalogStore, init) => worker.fetch(new Request(url, init), env);
 const catalogUrl = "https://machineparty.ailaogong.men/v1/catalog.json";
 
 test("the client loads the Worker snapshot and retains it across failed refreshes", async () => {
@@ -45,7 +49,7 @@ test("each download resolves only its approved version and R2 key", async () => 
 });
 
 test("the public gateway forwards catalog requests to the catalog service", async () => {
-  const env = {CATALOG: {fetch: request => worker.fetch(request, {})}};
+  const env = {CATALOG: {fetch: request => worker.fetch(request, catalogStore)}};
   const response = await gateway.fetch(new Request(catalogUrl), env);
   assert.deepEqual(await response.json(), snapshot);
   for (const mod of snapshot.mods) {
@@ -95,4 +99,19 @@ test("a second approved GET uses the edge copy and HEAD does not prime an empty 
     if (original === undefined) delete globalThis.caches;
     else globalThis.caches = original;
   }
+});
+
+test("a slow or interrupted catalog request retries the same Worker endpoint", async () => {
+  const urls = [];
+  const data = await loadCatalog({}, async url => {
+    urls.push(url);
+    if (urls.length === 1) throw new DOMException("timeout", "TimeoutError");
+    return Response.json(snapshot);
+  });
+  assert.deepEqual(data, snapshot);
+  assert.deepEqual(urls,[catalogUrl,catalogUrl]);
+  await assert.rejects(loadCatalog({},()=>new Response(null,{status:403})),/HTTP 403/);
+  await assert.rejects(loadCatalog({},()=>{throw TypeError("fetch failed");}),/catalogConnection/);
+  const absent = await serve(catalogUrl,{PACKAGES:{get:async()=>null}});
+  assert.equal(absent.status,503);
 });
