@@ -62,21 +62,22 @@ async function loadGame(path) {
   await syncGameMods();
 }
 
-async function selectPath(path) {
+async function selectPath(path, selected) {
   await saveGame(path);
   closeDialog();
   await loadGame(path);
+  if (selected) return selected();
 }
 
-export async function pickGame() {
+export async function pickGame(selected) {
   const request = ++selection;
   const path = await chooseGame(t("choose"));
   if (!path || request !== selection) return;
   const copies = await gameCopies(path);
   if (request !== selection) return;
-  if (copies.length <= 1) return selectPath(path);
+  if (copies.length <= 1) return selectPath(path, selected);
   show(t("choose"), element("p", t("multiple")),
-    ...copies.map(copy => button(copy, () => selectPath(copy), "secondary", "folder")));
+    ...copies.map(copy => button(copy, () => selectPath(copy, selected), "secondary", "folder")));
 }
 
 export async function detectGame(rescan = false) {

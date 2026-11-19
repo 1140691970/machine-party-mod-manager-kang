@@ -22,6 +22,7 @@ fn main() {
             commands::validate_game_mods,
             commands::game_copies,
             commands::download_mod,
+            commands::verify_package,
             commands::cached_packages,
             commands::clear_package,
             commands::install_mod,

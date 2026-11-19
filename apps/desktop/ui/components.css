@@ -270,3 +270,22 @@
 }
 
 .file-detail { overflow-wrap: anywhere; }
+
+.install-steps {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  width: 100%;
+  list-style: none;
+}
+.install-steps li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.install-steps li span:last-child {
+  color: var(--accent);
+  font-size: var(--text-sm);
+}

@@ -19,9 +19,13 @@ try {
   await until(() => app.evaluate('document.documentElement.lang === "zh-TW" && !!document.querySelector("article")'), "Traditional Chinese UI");
   await app.evaluate('document.querySelector("dialog").close()');
   await shot("catalog");
-  const download = `document.querySelector("article .card-actions button").click()`;
-  await app.evaluate(download);
+  assert.equal(await app.evaluate('document.querySelector("article .card-actions button").textContent'), "安裝");
+  await app.evaluate('document.querySelector("article .card-actions button").click()');
+  await until(() => app.evaluate('document.querySelector("dialog .install-steps")?.innerText.includes("校驗套件")'), "Install dialog");
+
   await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("已快取")'), "Verified Windows ZIP download");
+  await until(() => app.evaluate('document.querySelector("dialog[open] .dialog-actions button")?.textContent.includes("選擇遊戲目錄")'), "Verified package awaits game selection");
+  await shot("install-steps");
   const copy = JSON.stringify(process.env.PREVIEW_FIXTURE);
   await app.evaluate(`window.__TAURI__.core.invoke("save_game",{path:${copy}})`);
   // Capture the prior record as soon as it renders, before waiting for disk verification.

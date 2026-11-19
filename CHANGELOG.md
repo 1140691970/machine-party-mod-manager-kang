@@ -6,7 +6,7 @@ Notable changes for players and contributors. Versions follow the desktop app ve
 
 ## 0.1.2-2 — 2026-11-19
 
-The Windows preview supports Overtime v1.7 on the pinned v2.1.2 game build. Download it once, then install or uninstall offline. Close the game before modifying a copy. Other catalog entries list compatibility as unconfirmed until a supported build is documented.
+The Windows preview supports Overtime v1.7 on the pinned v2.1.2 game build. Choose Install once. The dialog downloads the package if needed, verifies it and installs it. Cached packages can be installed offline. Close the game before modifying a copy. Other catalog entries list compatibility as unconfirmed until a supported build is documented.
 
 ## 0.1.2-1 — 2026-11-19
 

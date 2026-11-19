@@ -172,6 +172,18 @@ pub async fn download_mod(
 }
 
 #[tauri::command]
+pub async fn verify_package(app: AppHandle, id: String, version: String) -> Result<(), String> {
+    let item = trusted(&id, &version)?;
+    let dir = config_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, &format!("package-{}", item.id))?;
+        packages::verified(&dir, &item).map(|_| ())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub async fn cached_packages(
     app: AppHandle,
 ) -> Result<std::collections::BTreeMap<String, String>, String> {

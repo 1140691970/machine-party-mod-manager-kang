@@ -20,6 +20,7 @@ export const cachedPackages = () => invoke("cached_packages");
 
 const release = mod => ({id: mod.id, version: mod.version});
 
+export const verifyPackage = mod => invoke("verify_package", release(mod));
 export const clearPackage = mod => invoke("clear_package", release(mod));
 
 export function downloadMod(mod, onProgress) {

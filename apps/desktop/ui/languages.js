@@ -6,6 +6,14 @@ export function systemLocale(language) {
 // Simplified Chinese, Traditional Chinese, English
 export const messages = {
   download:["下载","下載","Download"],
+  downloadStep:["下载套件","下載套件","Download package"],
+  verifyStep:["校验套件","校驗套件","Verify package"],
+  installStep:["安装到游戏","安裝到遊戲","Install to game"],
+  identify:["辨识安装状态","辨識安裝狀態","Identify installation"],
+  usingCache:["使用缓存","使用快取","Using cache"],
+  working:["进行中…","進行中…","In progress…"],
+  done:["完成","完成","Done"],
+  retry:["重试","重試","Retry"],
   downloadFirst:["请先下载此版本。","請先下載此版本。","Download this version first."],
   cached:["已缓存","已快取","Cached"],
   backup:["备份","備份","Backup"],
