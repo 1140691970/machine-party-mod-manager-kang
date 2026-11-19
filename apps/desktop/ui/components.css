@@ -216,6 +216,11 @@
   margin-top: var(--space-2);
 }
 
+.install-steps ~ .dialog-actions:has(> .btn-primary:only-child) {
+  align-self: stretch;
+  display: grid;
+}
+
 /* Progress */
 .progress {
   width: 100%;
