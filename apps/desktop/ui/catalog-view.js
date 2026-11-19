@@ -43,7 +43,7 @@ function details(mod) {
     parts.push(element("p", t(modState), "error"));
   if (state.scan === "failed") parts.push(element("p", t(state.scanError) || t("statusUnavailable"), "error"));
   if (!mod.verified && mod !== state.previewMod) parts.push(element("p", t("installPending")));
-  if (state.pckDir) parts.push(element("p", state.pckDir));
+  if (state.lastScan?.pckPath) parts.push(element("p", state.lastScan.pckPath, "file-detail"));
   if (state.lastScan?.pckSha256 === mod.adapter?.baseline?.sha256 && mod.adapter && mod.supportedGameVersions?.length === 1)
     parts.push(element("p", t("detectedVersion") + " · " + mod.supportedGameVersions[0]));
   if (state.lastScan?.pckSha256) parts.push(element("p", "SHA-256 · " + state.lastScan.pckSha256, "file-detail"));
@@ -134,7 +134,7 @@ function primaryAction(mod, name, local) {
     if (action === "download") return perform(mod, action, "");
     const path = state.game;
     const target = state.pckDir;
-    show(t(action) + " · " + name, element("p", target), button(t(action), () => perform(mod, action, path, target), "primary"));
+    show(t(action) + " · " + name, element("p", state.lastScan?.pckPath || target, "file-detail"), button(t(action), () => perform(mod, action, path, target), "primary"));
   }, ["review", "uninstall", "checking"].includes(action) ? "secondary" : "primary");
   el.disabled = Boolean(state.busyMod) || action === "checking";
   el.classList.add("btn-block");

@@ -218,6 +218,7 @@ pub struct ModInspection {
 #[serde(rename_all = "camelCase")]
 pub struct CopyValidation {
     pub pck_dir: PathBuf,
+    pub pck_path: PathBuf,
     pub pck_size: u64,
     pub pck_sha256: String,
     pub repair: BTreeMap<String, (PathBuf, Option<String>)>,
@@ -1428,7 +1429,11 @@ pub fn adopt_manual_install(
     if file_fingerprint(&pck_path)? != post_pck {
         return Err("gameUpdatedOrModified".into());
     }
-    copy_atomic(&trial_pck, &backup_dir.join(&adapter.baseline.file))?;
+    let full_backup = backup_dir.join(&adapter.baseline.file);
+    copy_atomic(&trial_pck, &full_backup)?;
+    if file_fingerprint(&full_backup)? != original {
+        return Err("fileWriteError".into());
+    }
     mirror_delta_backup(
         adapter,
         package_dir,
@@ -1706,6 +1711,7 @@ pub fn validate_game_mods(
         mod_states.insert(item.id.clone(), state.to_owned());
     }
     Ok(CopyValidation {
+        pck_path: pck_dir.join("Machine Party.pck"),
         pck_dir,
         pck_size: current_pck.size,
         pck_sha256: current_pck.sha256,

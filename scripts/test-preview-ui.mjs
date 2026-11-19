@@ -12,6 +12,7 @@ const shot = async name => {
   await writeFile(path.join(output, name + ".png"), Buffer.from(data, "base64"));
 };
 try {
+  await app.command("Page.enable");
   await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("Overtime")'), "Catalog cards");
   await app.evaluate('document.querySelector("dialog")?.close(); localStorage.setItem("language","zh-TW")');
   await app.command("Page.reload");
@@ -42,4 +43,11 @@ try {
   const hash = await app.evaluate('window.__TAURI__.core.invoke("validate_game_mods",{path:localStorage.getItem("game-path")}).then(x=>x.pckSha256)');
   assert.match(hash,/^[0-9a-f]{64}$/);
   console.log("Verified native Windows catalog, restart checks and narrow layout");
+} catch (error) {
+  console.error("WebView state:", await app.evaluate(`({
+    game:localStorage.getItem("game-path"), language:document.documentElement.lang,
+    firstCard:document.querySelector("article")?.innerText, dialog:document.querySelector("dialog[open]")?.innerText
+  })`));
+  await shot("failed");
+  throw error;
 } finally { app.close(); }

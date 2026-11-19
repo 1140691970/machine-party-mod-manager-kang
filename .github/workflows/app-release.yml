@@ -70,16 +70,33 @@ jobs:
           Remove-Item target/release/bundle/nsis/*-setup.exe
           npx --yes --package @tauri-apps/cli@2.12.5 tauri build --config acceptance.json --bundles nsis -- --locked
           Copy-Item (Get-ChildItem target/release/bundle/nsis/*-setup.exe).FullName (Join-Path $dist bootstrap.exe)
-      - name: Verify clean install and upgrade from the Chinese directory
-        if: runner.environment == 'github-hosted'
-        timeout-minutes: 8
-        shell: pwsh
-        run: ./scripts/test-windows-install.ps1 -Installer (Resolve-Path dist/setup.exe)
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-installers
           path: dist/
           retention-days: 14
+  windows-acceptance:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: desktop-installers
+          path: dist
+      - name: Verify clean install, migration and native WebView
+        shell: pwsh
+        run: ./scripts/test-windows-install.ps1 -Installer (Resolve-Path dist/setup.exe)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-ui
+          path: dist/windows-ui/
+          if-no-files-found: warn
   build-mac:
     if: github.ref == 'refs/heads/main' && inputs.build_run == ''
     runs-on: macos-15
@@ -126,8 +143,8 @@ jobs:
           run-id: ${{ inputs.build_run }}
       - run: ./scripts/test-upgrade.ps1
   release:
-    needs: [build, build-mac]
-    if: always() && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.build-mac.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
+    needs: [build, build-mac, windows-acceptance]
+    if: always() && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.build-mac.result == 'success' && needs.windows-acceptance.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
     runs-on: windows-2022
     environment: production
     permissions:
