@@ -3,7 +3,7 @@ import { appVersion, isDesktop, setAppTitle } from "./bridge.js";
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
-import { detectGame, pickGame } from "./game-folder.js";
+import { detectGame, pickGame, syncGameMods } from "./game-folder.js";
 import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
@@ -72,6 +72,7 @@ async function refreshCatalog() {
     catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";
   }
   render();
+  if (isDesktop && state.game) void syncGameMods();
 }
 
 hydrateIcons();

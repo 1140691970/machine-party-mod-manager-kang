@@ -3,6 +3,38 @@ const cacheKey = "online-catalog-v1";
 const languages = ["zh-CN", "zh-TW", "en"];
 const slug = /^[a-z0-9-]+$/;
 const version = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const sha256Hex = /^[a-f0-9]{64}$/;
+const safeFilename = name => typeof name === "string" && name.length > 0 && !name.includes("..") && !/[\\/]/.test(name);
+const stringArray = value => Array.isArray(value) && value.every(item => typeof item === "string");
+
+function validAdapter(adapter) {
+  if (!adapter || typeof adapter !== "object") return false;
+  if (!["upstream-cli", "loader-files"].includes(adapter.kind)) return false;
+  if (!Array.isArray(adapter.platforms) || !adapter.platforms.length
+    || !adapter.platforms.every(p => p === "windows")) return false;
+  if (adapter.target !== "pckDir") return false;
+  if (!Array.isArray(adapter.touches) || !adapter.touches.length || !adapter.touches.every(safeFilename)) return false;
+  if (typeof adapter.exclusive !== "string" || !adapter.exclusive.length) return false;
+  const base = adapter.baseline;
+  if (!base || !safeFilename(base.file) || !Number.isSafeInteger(base.size) || base.size <= 0
+    || typeof base.sha256 !== "string" || !sha256Hex.test(base.sha256)) return false;
+  if (adapter.verifyFiles !== undefined && !safeFilename(adapter.verifyFiles)) return false;
+  if (adapter.upstreamUninstall !== undefined && typeof adapter.upstreamUninstall !== "boolean") return false;
+  if (adapter.kind === "loader-files") return true;
+  const run = adapter.run;
+  const actions = adapter.actions;
+  const status = adapter.status;
+  if (!run || !["exe", "bundled-python", "powershell"].includes(run.interpreter)
+    || !safeFilename(run.program) || !stringArray(run.common)) return false;
+  if (!actions || !["preflight", "status", "install", "uninstall"].every(k => stringArray(actions[k]))) return false;
+  if (!status || typeof status.installed !== "string" || !status.installed.length
+    || typeof status.vanilla !== "string" || !status.vanilla.length
+    || (status.older !== undefined && (typeof status.older !== "string" || !status.older.length))) return false;
+  if (!Array.isArray(adapter.forbiddenArgs) || !adapter.forbiddenArgs.includes("--force")
+    || !adapter.forbiddenArgs.every(arg => typeof arg === "string" && arg.length > 0)) return false;
+  const allArgs = [...run.common, ...actions.preflight, ...actions.status, ...actions.install, ...actions.uninstall];
+  return allArgs.every(arg => !adapter.forbiddenArgs.includes(arg));
+}
 
 function validEntry(mod) {
   if (!mod || typeof mod !== "object") return false;
@@ -16,9 +48,10 @@ function validEntry(mod) {
     && ["name", "summary", "detail"].every(key => languages.every(lang =>
       typeof mod[key]?.[lang] === "string" && mod[key][lang].length))
     && (pkg === undefined || (pkg && mod.version && typeof pkg.assetId === "string"
-      && /^\d+$/.test(pkg.assetId) && typeof pkg.sha256 === "string" && /^[a-f0-9]{64}$/.test(pkg.sha256)
+      && /^\d+$/.test(pkg.assetId) && typeof pkg.sha256 === "string" && sha256Hex.test(pkg.sha256)
       && Number.isSafeInteger(pkg.size) && pkg.size > 0 && typeof pkg.mirrorApproved === "boolean"
-      && typeof pkg.filename === "string" && /^[\w.-]+\.zip$/i.test(pkg.filename)));
+      && typeof pkg.filename === "string" && /^[\w.-]+\.zip$/i.test(pkg.filename)))
+    && (mod.adapter === undefined || (Boolean(pkg) && validAdapter(mod.adapter)));
 }
 
 export function validCatalog(data) {

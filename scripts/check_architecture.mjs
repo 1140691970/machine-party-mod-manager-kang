@@ -8,7 +8,7 @@ const excluded = new Set(["node_modules", "target", "gen", "dist", "icons", "ima
 const roots = ["apps", "services", "scripts", "tests"];
 const ui = "apps/desktop/ui/";
 const rustSrc = "apps/desktop/src-tauri/src/";
-const tauriFree = ["catalog.rs", "game.rs", "inventory.rs", "preferences.rs"].map(name => rustSrc + name);
+const tauriFree = ["catalog.rs", "game.rs", "installer.rs", "inventory.rs", "preferences.rs"].map(name => rustSrc + name);
 
 export function checkSource(file, source) {
   const errors = [];

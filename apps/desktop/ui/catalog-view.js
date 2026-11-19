@@ -1,8 +1,9 @@
 import { downloadUrl } from "./online-catalog.js";
-import { openProject } from "./bridge.js";
+import { installMod, isDesktop, openProject, uninstallMod } from "./bridge.js";
 import { visibleMods } from "./catalog.js";
-import { $, button, element, show, tag } from "./dom.js";
-import { state, t } from "./state.js";
+import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
+import { applyValidation, pickGame } from "./game-folder.js";
+import { render, state, t } from "./state.js";
 import { versionState } from "./versions.js";
 
 const nameOf = mod => mod.name[state.locale];
@@ -19,6 +20,7 @@ function project(mod) {
 function details(mod) {
   const local = state.inventory[mod.repo];
   const status = versionState(local, mod.version, mod.verified);
+  const modState = state.modStates[mod.id];
   const parts = [
     element("p", mod.detail[state.locale]),
     element("p", t("release") + " · " + (mod.version || t("unlisted")))
@@ -28,6 +30,9 @@ function details(mod) {
     if (status === "waiting" || status === "newer")
       parts.push(element("p", t(status === "waiting" ? "hold" : "noDowngrade")));
   }
+  if (modState === "manualInstall") parts.push(element("p", t("manualDetected")));
+  else if (modState === "gameUpdatedOrModified" || modState === "needsRepair")
+    parts.push(element("p", t(modState), "error"));
   if (mod.package) {
     parts.push(element("p", mod.package.filename));
     const link = element("a", t(mod.package.mirrorApproved ? "downloadPackage" : "authorRelease"), "btn btn-link");
@@ -66,17 +71,61 @@ function cover(mod, name, status) {
   return box;
 }
 
+async function runInstall(mod, name, action) {
+  if (state.busyMod || state.installing) return;
+  state.busyMod = mod.id;
+  render();
+  const statusEl = element("p", t("installingMod"));
+  const bar = progress();
+  show(t(action) + " · " + name, statusEl, bar.el);
+  try {
+    const validation = await installMod(state.game, mod, state.mods, pct => {
+      statusEl.textContent = t("installingMod") + " · " + pct + "%";
+      bar.set(pct);
+    });
+    applyValidation(validation);
+    closeDialog();
+  } finally {
+    state.busyMod = "";
+    render();
+  }
+}
+
+async function runUninstall(mod, name) {
+  if (state.busyMod || state.installing) return;
+  state.busyMod = mod.id;
+  render();
+  show(t("uninstall") + " · " + name, element("p", t("uninstallingMod")));
+  try {
+    applyValidation(await uninstallMod(state.game, mod, state.mods));
+    closeDialog();
+  } finally {
+    state.busyMod = "";
+    render();
+  }
+}
+
 function primaryAction(mod, name, local, status) {
+  const modState = state.modStates[mod.id];
   let action = "install";
-  if (status === "review") action = "review";
+  if (status === "review" || modState === "gameUpdatedOrModified" || modState === "needsRepair")
+    action = "review";
   else if (status === "available" || status === "waiting") action = "update";
   else if (local !== undefined) action = "uninstall";
+  else if (modState === "manualInstall" && mod.verified) action = "adoptManual";
   const el = button(t(action), () => {
     if (action === "review") return details(mod);
-    const note = action === "update" && status === "waiting" ? "hold"
-      : action === "install" && !mod.verified ? "installPending" : "enginePending";
-    show(t(action) + " · " + name, element("p", t(note)));
+    if (action === "update" && status === "waiting")
+      return show(t(action) + " · " + name, element("p", t("hold")));
+    if ((action === "install" || action === "adoptManual") && !mod.verified)
+      return show(t(action) + " · " + name, element("p", t("installPending")));
+    if (!isDesktop || !mod.adapter)
+      return show(t(action) + " · " + name, element("p", t("enginePending")));
+    if (!state.game) return pickGame();
+    if (action === "uninstall") return runUninstall(mod, name);
+    return runInstall(mod, name, action);
   }, action === "uninstall" || action === "review" ? "secondary" : "primary");
+  el.disabled = Boolean(state.busyMod);
   el.classList.add("btn-block");
   return el;
 }

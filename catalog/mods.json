@@ -16,6 +16,36 @@
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
+      "adapter": {
+        "kind": "upstream-cli",
+        "platforms": ["windows"],
+        "target": "pckDir",
+        "touches": ["Machine Party.pck", "overtime_restore.dat"],
+        "exclusive": "pck",
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "verifyFiles": "SHA256SUMS.txt",
+        "run": {
+          "interpreter": "exe",
+          "program": "overtime_install.exe",
+          "common": ["--game", "{gameDir}", "--lang", "en", "--no-pause"]
+        },
+        "actions": {
+          "preflight": ["--verify-package"],
+          "status": ["--status"],
+          "install": [],
+          "uninstall": ["--uninstall"]
+        },
+        "status": {
+          "installed": "^State:\\s+Overtime overtime-1\\.7 installed",
+          "vanilla": "^State:\\s+vanilla",
+          "older": "^State:\\s+Overtime .* installed \\(this program"
+        },
+        "forbiddenArgs": ["--force"]
+      },
       "verified": false,
       "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
       "summary": {

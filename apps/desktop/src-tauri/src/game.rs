@@ -11,16 +11,25 @@ fn game_files(dir: &Path) -> bool {
         .all(|name| dir.join(name).is_file())
 }
 
+/// Returns the directory directly containing `Machine Party.exe` and `Machine Party.pck`.
+pub fn resolve_pck_dir(dir: &Path) -> Option<PathBuf> {
+    if game_files(dir) {
+        return Some(dir.to_path_buf());
+    }
+    let mut subdirs: Vec<PathBuf> = fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
+        .collect();
+    subdirs.sort();
+    subdirs.into_iter().find(|sub| game_files(sub))
+}
+
 /// A game copy may keep its files directly in the folder or in one version subfolder.
 pub fn is_game_root(dir: &Path) -> bool {
-    game_files(dir)
-        || fs::read_dir(dir)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .any(|entry| {
-                entry.file_type().is_ok_and(|kind| kind.is_dir()) && game_files(&entry.path())
-            })
+    resolve_pck_dir(dir).is_some()
 }
 
 pub fn steam_installations() -> Vec<PathBuf> {
@@ -51,6 +60,20 @@ mod tests {
         assert!(!is_game_root(&root));
         fs::write(child.join("Machine Party.pck"), []).unwrap();
         assert!(is_game_root(&root) && is_game_root(&child));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn resolves_pck_dir_for_root_and_nested_layout() {
+        let root = std::env::temp_dir().join(format!("mpm-pck-dir-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let nested = root.join("Machine Party_Windows");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(nested.join("Machine Party.exe"), []).unwrap();
+        assert_eq!(resolve_pck_dir(&root), None);
+        fs::write(nested.join("Machine Party.pck"), []).unwrap();
+        assert_eq!(resolve_pck_dir(&root), Some(nested.clone()));
+        assert_eq!(resolve_pck_dir(&nested), Some(nested));
         fs::remove_dir_all(root).unwrap();
     }
 }

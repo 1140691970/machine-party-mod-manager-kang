@@ -44,3 +44,16 @@ test("the installed page lists only mods recorded for the selected copy", () => 
   const shown = visibleMods(mods, {page: "installed", query: "ignored", inventory});
   assert.deepEqual(shown.map(mod => mod.id), ["machineparty-plus"]);
 });
+
+test("overtime declares a valid upstream-cli adapter profile", () => {
+  const overtime = catalog.mods.find(mod => mod.id === "overtime");
+  assert.equal(overtime.adapter.kind, "upstream-cli");
+  assert.deepEqual(overtime.adapter.platforms, ["windows"]);
+  assert.equal(overtime.adapter.target, "pckDir");
+  assert.equal(overtime.adapter.exclusive, "pck");
+  assert.equal(overtime.adapter.run.interpreter, "exe");
+  assert.equal(overtime.adapter.run.program, "overtime_install.exe");
+  assert.ok(overtime.adapter.forbiddenArgs.includes("--force"));
+  assert.ok(!overtime.adapter.run.common.includes("--force"));
+  assert.ok(!overtime.adapter.actions.install.includes("--force"));
+});

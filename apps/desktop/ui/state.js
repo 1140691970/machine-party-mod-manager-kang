@@ -6,13 +6,16 @@ export const state = {
   locale: locales.includes(savedLocale) ? savedLocale : systemLocale(navigator.language),
   page: "catalog",
   mods: [],
-  game: "",
+  game: localStorage.getItem("game-path") || "",
+  pckDir: "",
   inventory: {},
+  modStates: {},
   inventoryFailed: false,
   appVersion: "",
   release: undefined,
   checking: false,
   installing: false,
+  busyMod: "",
   checkResult: ""
 };
 

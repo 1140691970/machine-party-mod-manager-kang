@@ -3,6 +3,7 @@ mod app_updates;
 mod catalog;
 mod commands;
 mod game;
+mod installer;
 mod inventory;
 mod preferences;
 
@@ -17,6 +18,9 @@ fn main() {
             app_updates::check_app_update,
             app_updates::install_app_update,
             commands::installed_versions,
+            commands::validate_game_mods,
+            commands::install_mod,
+            commands::uninstall_mod,
             commands::set_app_title,
             commands::find_games,
             commands::choose_game,
