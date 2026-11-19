@@ -6,7 +6,7 @@
 
 ### 为 Machine Party 打造的一键模组管理器。
 
-在同一个窗口浏览 [Machine Party](https://store.steampowered.com/app/4108000/Machine_Party/) 的精选社区模组与内置玩法模组，按游戏副本对比版本，并在校验与备份保护下完成安装与还原。
+在同一个窗口浏览 [Machine Party](https://store.steampowered.com/app/4108000/Machine_Party/) 的精选收录模组，按游戏副本对比版本，并在校验与备份保护下完成安装与还原。
 
 <p align="center">
   <a href="https://github.com/JamesGZM/machine-party-mod-manager/actions/workflows/check.yml"><img src="https://img.shields.io/github/actions/workflow/status/JamesGZM/machine-party-mod-manager/check.yml?branch=main&amp;style=flat-square&amp;label=checks" height="24" alt="源码检查状态"></a>
@@ -27,16 +27,16 @@
 </div>
 
 <p align="center">
-  <img src="../images/screenshot-catalog.png" width="100%" alt="Machine Party 模组管理器目录界面，展示五个 v2.1.2 测试版条目">
+  <img src="../images/screenshot-catalog.zh-CN.png" width="100%" alt="Machine Party 模组管理器目录界面，展示五个 v2.1.2 测试版条目">
 </p>
 
-<p align="center"><sub>桌面端目录界面，展示包含内置模组《滚筒嘉年华》在内的全部五个 <code>v2.1.2</code> Windows 测试版条目。</sub></p>
+<p align="center"><sub>桌面端目录界面，展示全部五个 <code>v2.1.2</code> Windows 测试版条目。</sub></p>
 
 ## 一目了然
 
-| 精选收录与内置模组 | 校验备份，安全还原 | 镜像加速与签名更新 |
+| 精选收录模组 | 校验备份，安全还原 | 镜像加速与签名更新 |
 | --- | --- | --- |
-| 支持简体中文、繁体中文与英文别名搜索、联机说明与作者主页入口，并内置自研模组《滚筒嘉年华》。 | 修改文件前先检查游戏进程、基线指纹与互斥冲突；按游戏副本保留可校验备份，支持离线卸载还原。 | 目录同步与已授权安装包优先经项目 Cloudflare Worker 获取，不依赖访问 GitHub；应用更新带签名校验与更新说明。 |
+| 支持简体中文、繁体中文与英文别名搜索、联机说明与作者主页入口，覆盖目录内全部模组。 | 修改文件前先检查游戏进程、基线指纹与互斥冲突；按游戏副本保留可校验备份，支持离线卸载还原。 | 目录同步与已授权安装包优先经项目 Cloudflare Worker 获取，不依赖访问 GitHub；应用更新带签名校验与更新说明。 |
 
 Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文 / English 三语界面
 
@@ -46,7 +46,7 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 | 平台 | 架构 | 下载 | 说明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-3（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-3/setup.exe) | NSIS 安装包，支持签名应用内更新 |
+| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-6（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-6/setup.exe) | NSIS 安装包，支持签名应用内更新 |
 | macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 浏览目录与接收应用更新（游戏仅限 Windows） |
 
 Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档并将 `.app` 移入可写的应用程序目录。
@@ -64,7 +64,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 
 | 设置页 | 应用内更新提示 |
 | --- | --- |
-| ![设置页](../images/screenshot-settings.png) | ![应用内更新提示](../images/screenshot-update.png) |
+| ![设置页](../images/screenshot-settings.zh-CN.png) | ![应用内更新提示](../images/screenshot-update.zh-CN.png) |
 
 ## 已收录模组
 
@@ -74,7 +74,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公开房间、语音与文字聊天 | 加载器模组（`loader-files`，Windows 测试版） |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | 8 人团播、四队轮换与导播自由镜头 | PowerShell 补丁（`upstream-cli`，Windows 测试版） |
 | [八人联机模组](https://github.com/Binary1936/machine-party-8p) | `v1.5` | 将在线游戏扩展至 8 人 | 内置 Python 补丁（`upstream-cli`，Windows 测试版） |
-| [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | 机械狂欢躲避小游戏 | 加载器模组（`loader-files` + `autoLoader`，R2 ZIP，Windows 测试版） |
+| [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | 机械狂欢躲避小游戏 | 加载器模组（`loader-files`，Windows 测试版） |
 
 验收清单、上游授权边界与互斥组规则详见[候选模组与收录规范](../zh-CN/catalog/mods.md)。
 
@@ -89,6 +89,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | [产品需求](../zh-CN/requirements.md) | 玩家流程、目录顺序、搜索及验收条件 |
 | [现行架构](../zh-CN/architecture/README.md) | 组件、Steam 检测、目录、安装与 ADR |
 | [开发指南](../zh-CN/development/README.md) | 环境、目录结构、命令与验证 |
+| [模组开发与打包规范](../zh-CN/development/mod-development.md) | 模组开发、测试、目录接入与确定性 R2 打包规范 |
 | [发布流程](../zh-CN/development/releasing.md) | 签名桌面更新、更新说明与发布工作流 |
 | [候选模组与收录规范](../zh-CN/catalog/mods.md) | 游戏基线、候选清单、授权与验收单 |
 | [正式目录交付方案](../zh-CN/catalog/delivery.md) | Worker 目录、所有者批准发布与中国大陆验收（规划中） |

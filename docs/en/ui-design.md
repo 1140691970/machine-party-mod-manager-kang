@@ -44,7 +44,7 @@ Taken from the game's wine-red overalls and brass machinery: deep wine backgroun
 | Local newer | "Local version is newer", existing install kept | "Uninstall" |
 | Either version unknown or not comparable, or records unreadable | "Check versions", never replaced automatically | "Check versions" (opens details) |
 
-On Windows preview, all five `v2.1.2` catalog entries run real step-by-step install and uninstall dialogs (download, reuse cache, or stage bundled first-party mods with `"bundled": true` directly from the app without downloading; then verify, back up, apply or restore, read-back verify, retry on failure, and report mutual-exclusion conflicts). On macOS or for unverified versions, actions explain the status without modifying game files.
+On Windows preview, all five `v2.1.2` catalog entries run real step-by-step install and uninstall dialogs (download from the Worker/R2 mirror or reuse cache; then verify SHA-256, back up, apply or restore, read-back verify, retry on failure, and report mutual-exclusion conflicts). On macOS or for unverified versions, actions explain the status without modifying game files.
 
 ## Details dialog
 

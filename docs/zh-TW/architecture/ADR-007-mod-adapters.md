@@ -2,7 +2,7 @@
 
 [English](../../en/architecture/ADR-007-mod-adapters.md) · [简体中文](../../zh-CN/architecture/ADR-007-mod-adapters.md) · **繁體中文**
 
-日期：2026-11-18（2026-11-19 更新）。狀態：提議；`upstream-cli`（`exe`、`bundled-python`、`powershell`）與 `loader-files`（支援可選的內建 `bundled` 釋放與 `autoLoader` PCK 載入器自動設定）皆已在 `installer.rs` 實作，並在 `catalog/mods.json` 為全部五個 `v2.1.2` Windows 測試版模組（含內建自研模組 `滾筒嘉年華`）完成設定，待完整 Windows 實機驗收後與 [ADR-005](ADR-005-install-transactions.md) 一併定稿。
+日期：2026-11-18（2026-11-19 更新）。狀態：提議；`upstream-cli`（`exe`、`bundled-python`、`powershell`）與 `loader-files`（從 Worker/R2 安裝已校驗 ZIP 套件並支援可選 `autoLoader` PCK 載入器自動設定）皆已在 `installer.rs` 實作，並在 `catalog/mods.json` 為全部五個 `v2.1.2` Windows 測試版模組（`Overtime`、`MachineParty+`、`Broadcast 8P Freecam`、`八人連線模組` 與 `滾筒嘉年華`）完成設定，待完整 Windows 實機驗收後與 [ADR-005](ADR-005-install-transactions.md) 一併定稿。
 
 ## 問題
 

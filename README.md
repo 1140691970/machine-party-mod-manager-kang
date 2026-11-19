@@ -6,7 +6,7 @@
 
 ### One-click mod management for Machine Party.
 
-Browse hand-curated community mods and built-in add-ons for [Machine Party](https://store.steampowered.com/app/4108000/Machine_Party/), compare versions per Steam copy, and install or restore cleanly from one desktop window.
+Browse hand-curated mods for [Machine Party](https://store.steampowered.com/app/4108000/Machine_Party/), compare versions per Steam copy, and install or restore cleanly from one desktop window.
 
 <p align="center">
   <a href="https://github.com/JamesGZM/machine-party-mod-manager/actions/workflows/check.yml"><img src="https://img.shields.io/github/actions/workflow/status/JamesGZM/machine-party-mod-manager/check.yml?branch=main&amp;style=flat-square&amp;label=checks" height="24" alt="Source checks"></a>
@@ -30,13 +30,13 @@ Browse hand-curated community mods and built-in add-ons for [Machine Party](http
   <img src="docs/images/screenshot-catalog.png" width="100%" alt="Machine Party Mod Manager catalog view showing five v2.1.2 preview entries">
 </p>
 
-<p align="center"><sub>Desktop catalog UI displaying all five <code>v2.1.2</code> Windows preview entries, including built-in Roller Carnival.</sub></p>
+<p align="center"><sub>Desktop catalog UI displaying all five <code>v2.1.2</code> Windows preview entries.</sub></p>
 
 ## At a glance
 
-| Curated & built-in mods | Verified backups & restore | Mirror access & signed updates |
+| Curated mod catalog | Verified backups & restore | Mirror access & signed updates |
 | --- | --- | --- |
-| Search names, multiplayer notes and aliases in Simplified Chinese, Traditional Chinese and English, including built-in `Roller Carnival`. | Checks running processes, game fingerprints and mutual-exclusion conflicts before editing files, keeping per-copy backups for offline uninstall. | Syncs the online catalog and approved packages via the project's Cloudflare Worker without needing GitHub; silent signed app updates include release notes. |
+| Search names, multiplayer notes and aliases in Simplified Chinese, Traditional Chinese and English across all catalogued mods. | Checks running processes, game fingerprints and mutual-exclusion conflicts before editing files, keeping per-copy backups for offline uninstall. | Syncs the online catalog and approved packages via the project's Cloudflare Worker without needing GitHub; silent signed app updates include release notes. |
 
 Automatic Steam detection · Offline cache & restore · Trilingual UI (简体中文 / 繁體中文 / English)
 
@@ -46,7 +46,7 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-3 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-3/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-6 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-6/setup.exe) | NSIS installer, signed in-app updates |
 | macOS | Apple Silicon | [Stable v0.1.1 (`MachineParty-aarch64.app.tar.gz`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | Catalog browsing & signed updates |
 
 On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive and move the `.app` to a writable Applications folder.
@@ -74,7 +74,7 @@ On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive an
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Loader mod (`loader-files`, Windows preview) |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | Eight players, rotating teams and director free camera | PowerShell patcher (`upstream-cli`, Windows preview) |
 | [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | `v1.5` | Expands online play to eight players | Bundled Python patcher (`upstream-cli`, Windows preview) |
-| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | Mechanical carnival dodge minigame | Loader mod (`loader-files` + `autoLoader`, R2 ZIP, Windows preview) |
+| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.0` | Mechanical carnival dodge minigame | Loader mod (`loader-files`, Windows preview) |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 
@@ -89,6 +89,7 @@ Development target **0.1.2-6** wires Windows `v2.1.2` adapters for all five cata
 | [Product requirements](docs/en/requirements.md) | Player flows, catalog order, search and acceptance criteria |
 | [Current architecture](docs/en/architecture/README.md) | Components, Steam detection, catalog, installs and ADRs |
 | [Development guide](docs/en/development/README.md) | Setup, layout, commands and verification |
+| [Mod development specification](docs/en/development/mod-development.md) | Authoring, testing, catalog integration and deterministic R2 packaging |
 | [Releasing](docs/en/development/releasing.md) | Signed desktop updates, release notes and release workflow |
 | [Candidate mods and inclusion](docs/en/catalog/mods.md) | Game baseline, candidates, licences and the acceptance checklist |
 | [Catalog delivery](docs/en/catalog/delivery.md) | Worker catalog, owner-approved publishing and mainland China acceptance (planned) |

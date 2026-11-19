@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/architecture/ADR-007-mod-adapters.md) · [繁體中文](../../zh-TW/architecture/ADR-007-mod-adapters.md)
 
-Date: 2026-11-18 (updated 2026-11-19). Status: proposed; both `upstream-cli` (`exe`, `bundled-python`, `powershell`) and `loader-files` (with optional `bundled` staging and `autoLoader` PCK loader setup) are implemented in `installer.rs` and configured in `catalog/mods.json` for all five `v2.1.2` Windows preview mods (including built-in `Roller Carnival`), awaiting full physical Windows acceptance ([ADR-005](ADR-005-install-transactions.md)).
+Date: 2026-11-18 (updated 2026-11-19). Status: proposed; both `upstream-cli` (`exe`, `bundled-python`, `powershell`) and `loader-files` (verified Worker/R2 ZIP packages with optional `autoLoader` PCK loader setup) are implemented in `installer.rs` and configured in `catalog/mods.json` for all five `v2.1.2` Windows preview mods (`Overtime`, `MachineParty+`, `Broadcast 8P Freecam`, `Binary1936 eight-player mod`, and `Roller Carnival`), awaiting full physical Windows acceptance ([ADR-005](ADR-005-install-transactions.md)).
 
 ## Problem
 
