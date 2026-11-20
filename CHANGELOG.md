@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.3 — 2026-11-20
+
+- Adds **Bubble Blitz (`v0.1.0`)**, a new first-party 3D hybrid industrial bomb arena minigame with 3 HP, a 4-second downed state (bump rivals to finish, or auto-revive with the syringe), 4 randomized maps including industrial conveyors, vanilla explosion/prop assets, and a local CRT status bar.
+- Introduces the **Multi-Minigame Coexistence Hub** ([ADR-015](docs/en/architecture/ADR-015-multi-minigame-hub.md)) and updates **Roller Carnival** to `v0.1.6` so multiple first-party minigames can stay installed together across Default, Custom Playlist, Arcade, Local, and CRT Picker pools.
+
 ## 0.2.2 — 2026-11-20
 
 - Built-in mod loader v5 tracks deferred startup HUD layers (such as MachineParty+ voice controls) so overlapping lobby mod buttons separate reliably without moving vanilla buttons.

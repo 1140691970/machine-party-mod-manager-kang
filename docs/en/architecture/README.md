@@ -70,3 +70,4 @@ Use the author's published resources and keep conversion rules versioned with th
 
 - [ADR-013 · Installing native mods from the signed catalog](ADR-013-signed-native-installs.md)
 - [ADR-014 · Steam verification before managed mod cleanup](ADR-014-steam-restore.md)
+- [ADR-015 · Multi-Minigame Coexistence Hub](ADR-015-multi-minigame-hub.md)

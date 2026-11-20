@@ -45,7 +45,7 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.2.2 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.2/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.2.3 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.3/setup.exe) | NSIS installer, signed in-app updates |
 
 Run the Windows x64 NSIS installer.
 
@@ -80,16 +80,17 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Author CLI payload → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Native MPML |
-| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.5` | Mechanical carnival dodge minigame | Native MPML |
+| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.6` | Mechanical carnival dodge minigame | Native MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | Add or remove ready bots in online rooms. | Native MPML |
 | [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
 | [Player Spotlight](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | Local-only overhead industrial spotlight on your own character across 3D minigames | Native MPML |
+| [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.0` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 
 ## Release notes
 
-**v0.2.2** · Built-in mod loader v5 automatically separates overlapping lobby mod buttons (such as MachineParty+ voice controls and Lobby Bots) without touching vanilla buttons. Settings now displays the loader version, supports one-click **Reload loader**, and automatically upgrades outdated loaders after app updates once the game is closed. [Full changelog](CHANGELOG.md).
+**v0.2.3** · Adds **Bubble Blitz (`v0.1.0`)**, a new first-party 3D hybrid industrial bomb arena minigame across 4 randomized maps, and introduces the Multi-Minigame Coexistence Hub ([ADR-015](docs/en/architecture/ADR-015-multi-minigame-hub.md)) with **Roller Carnival `v0.1.6`** so multiple custom minigames stay installed together. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

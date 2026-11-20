@@ -70,3 +70,4 @@ Steam 上的 Machine Party（App ID 4108000）仅支持 Windows，不考虑在 m
 
 - [ADR-013 · 从签名目录安装原生模组](ADR-013-signed-native-installs.md)
 - [ADR-014 · Steam 验证成功后清理受管模组](ADR-014-steam-restore.md)
+- [ADR-015 · 多小游戏共存注册中心](ADR-015-multi-minigame-hub.md)

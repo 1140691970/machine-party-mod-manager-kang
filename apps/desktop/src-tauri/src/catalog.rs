@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-13").len(), 6);
+        assert_eq!(preview_entries("0.1.2-13").len(), 7);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -478,6 +478,7 @@ mod tests {
             "lobby-bots",
             "standalone-hd",
             "player-spotlight",
+            "bubble-blitz",
         ] {
             let mut item = entry(id).unwrap();
             assert!(matches_preview(&item, "0.1.2-13"), "{id}");
@@ -540,16 +541,26 @@ mod tests {
         assert_eq!(plus_adapter.exclusive, "loader");
         assert!(plus_adapter.auto_loader);
 
-        assert_eq!(all_entries().len(), 6);
+        assert_eq!(all_entries().len(), 7);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
         assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller
             .package
             .as_ref()
             .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.5.zip");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.6.zip");
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
+
+        let bubble = entry("bubble-blitz").expect("bubble-blitz entry present");
+        assert_eq!(bubble.repo, "JamesGZM/machine-party-mod-manager");
+        let bubble_pkg = bubble
+            .package
+            .as_ref()
+            .expect("bubble-blitz package present");
+        assert_eq!(bubble_pkg.filename, "bubble-blitz-0.1.0.zip");
+        assert!(bubble_pkg.mirror_approved);
+        assert!(bubble.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
             project_url("JamesGZM/machine-party-mod-manager").as_deref(),
             Some("https://github.com/JamesGZM/machine-party-mod-manager")
@@ -560,7 +571,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.5/1017"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.6/1018"
         );
     }
 }

@@ -4463,6 +4463,7 @@ print("Patched")
             ("roller_carnival_game.gd", b"extends Node3D\n", true),
             ("official_minigame.gd", b"extends Minigame\n", true),
             ("override_game.gd", b"extends Node\n", true),
+            ("override_local_game.gd", b"extends Node\n", true),
             ("override_playlist.gd", b"extends Node\n", true),
             ("override_picker.gd", b"extends Node\n", true),
         ]);
@@ -5107,6 +5108,7 @@ print("Patched")
             ("roller_carnival_game.gd", b"extends Node3D\n", true),
             ("official_minigame.gd", b"extends Minigame\n", true),
             ("override_game.gd", b"extends Node\n", true),
+            ("override_local_game.gd", b"extends Node\n", true),
             ("override_playlist.gd", b"extends Node\n", true),
             ("override_picker.gd", b"extends Node\n", true),
         ]);
@@ -5826,6 +5828,7 @@ print("Patched")
             ("roller_carnival_game.gd", b"extends Node3D\n", true),
             ("official_minigame.gd", b"extends Minigame\n", true),
             ("override_game.gd", b"extends Node\n", true),
+            ("override_local_game.gd", b"extends Node\n", true),
             ("override_playlist.gd", b"extends Node\n", true),
             ("override_picker.gd", b"extends Node\n", true),
         ]);

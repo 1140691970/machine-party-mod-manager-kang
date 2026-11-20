@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.6-mpml1",
+  "revision": "2026-11-20.7-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -126,18 +126,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
       "image": "roller-carnival",
-      "version": "v0.1.5",
+      "version": "v0.1.6",
       "releaseNotes": {
-        "version": "v0.1.5",
-        "zh-CN": "预热血迹贴花与喷血特效管线以消除首次受击时的卡顿，并移除内置玩家聚光灯（统一由独立的「玩家聚光灯」模组提供）。",
-        "zh-TW": "預熱血跡貼花與噴血特效管線以消除首次受擊時的卡頓，並移除內建玩家聚光燈（統一由獨立的「玩家聚光燈」模組提供）。",
-        "en": "Warms up blood decal and gore effect pipelines during the round intro to eliminate first-hit stutter, and removes the built-in player spotlight in favor of the standalone Player Spotlight mod."
+        "version": "v0.1.6",
+        "zh-CN": "接入多小游戏共存注册中心，现可与泡泡爆破（Bubble Blitz）及未来更多自研小游戏同时安装并在默认、自定义歌单、街机与本地同屏模式中共存。",
+        "zh-TW": "接入多小遊戲共存註冊中心，現可與泡泡爆破（Bubble Blitz）及未來更多自研小遊戲同時安裝並在預設、自訂歌單、街機與本機同螢幕模式中共存。",
+        "en": "Adopts the shared Multi-Minigame Coexistence Hub so Roller Carnival can stay installed alongside Bubble Blitz and future first-party minigames across Default, Custom Playlist, Arcade, and Local play."
       },
       "package": {
-        "assetId": "1017",
-        "filename": "roller-carnival-0.1.5.zip",
-        "size": 136417,
-        "sha256": "e84b7538969c67c998093c5b7e8829dde69e75630aa3a92c3f28236a1e37954e",
+        "assetId": "1018",
+        "filename": "roller-carnival-0.1.6.zip",
+        "size": 151540,
+        "sha256": "df5ee64c9862706b2909265c518aa27e920cdf373fd491177f371bae8c9638f2",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
@@ -162,6 +162,7 @@
           "roller_carnival_game.gd",
           "official_minigame.gd",
           "override_game.gd",
+          "override_local_game.gd",
           "override_playlist.gd",
           "override_picker.gd"
         ],
@@ -394,6 +395,87 @@
         "聚光燈",
         "高亮",
         "定位"
+      ]
+    },
+    {
+      "id": "bubble-blitz",
+      "category": "game",
+      "order": 9,
+      "repo": "JamesGZM/machine-party-mod-manager",
+      "inventoryById": true,
+      "image": "bubble-blitz",
+      "version": "v0.1.0",
+      "releaseNotes": {
+        "version": "v0.1.0",
+        "zh-CN": "全新 3D 泡泡堂×炸弹人结合版派对小游戏：每人 3 滴血（最后 1 血进水泡困住、撞破淘汰），4 套随机多变地图含工业传送带，支持 2–16 人动态缩放并与滚筒嘉年华共存。联机时所有玩家需安装同版模组。",
+        "zh-TW": "全新 3D 泡泡堂×炸彈人結合版派對小遊戲：每人 3 滴血（最後 1 血進水泡困住、撞破淘汰），4 套隨機多變地圖含工業傳送帶，支援 2–16 人動態縮放並與滾筒嘉年華共存。連線時所有玩家須安裝同版模組。",
+        "en": "New 3D hybrid Crazy Arcade + Bomberman party minigame: 3 HP each (final hit traps in a bubble to bump-pop), 4 randomized arena themes including industrial conveyors, 2–16 player scaling, and full coexistence with Roller Carnival. All online players need the same version."
+      },
+      "package": {
+        "assetId": "1019",
+        "filename": "bubble-blitz-0.1.0.zip",
+        "size": 158213,
+        "sha256": "544f0ddfaa54da53e93d4735100cf01a5d545e199226fe799a077054565ae627",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.1.2-13",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
+        "target": "pckDir",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "arena_meshes.gd",
+          "bubble_blitz_game.gd",
+          "config.gd",
+          "main.gd",
+          "mod.json",
+          "official_minigame.gd",
+          "override_game.gd",
+          "override_local_game.gd",
+          "override_picker.gd",
+          "override_playlist.gd"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": true,
+      "name": {
+        "zh-CN": "泡泡爆破",
+        "zh-TW": "泡泡爆破",
+        "en": "Bubble Blitz"
+      },
+      "summary": {
+        "zh-CN": "3 滴血结合版泡泡堂小游戏，4 套随机地图与传送带互坑。",
+        "zh-TW": "3 滴血結合版泡泡堂小遊戲，4 套隨機地圖與傳送帶互坑。",
+        "en": "Fast 3-HP hybrid water-bubble arena across 4 randomized maps with conveyor belts."
+      },
+      "detail": {
+        "zh-CN": "WASD 移动、空格放工业炸弹炸箱子捡道具；前 2 血受击无敌闪烁、最后 1 血归零进入 4 秒重伤濒死可被对手撞击处决；最后 25 秒外圈压板缩圈。可与滚筒嘉年华 v0.1.6 及其他加载器模组共存，联机时所有玩家需安装同版模组。",
+        "zh-TW": "WASD 移動、空白鍵放工業炸彈炸箱子撿道具；前 2 血受擊無敵閃爍、最後 1 血歸零進入 4 秒重傷瀕死可被對手撞擊處決；最後 25 秒外圈壓板縮圈。可與滾筒嘉年華 v0.1.6 及其他載入器模組共存，連線時所有玩家須安裝同版模組。",
+        "en": "Move with WASD and plant industrial bombs with Space to blast crates for gear. First two hits grant brief invulnerability; the final hit leaves you downed for 4s where rivals can bump-finish you, with crusher plates shrinking the arena in the last 25s. Coexists with Roller Carnival v0.1.6 and other loader mods; all online players need the same version."
+      },
+      "aliases": [
+        "泡泡堂",
+        "泡泡爆破",
+        "炸弹人",
+        "炸彈人",
+        "bubble",
+        "blitz",
+        "bomberman"
       ]
     }
   ]

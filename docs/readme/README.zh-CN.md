@@ -45,7 +45,7 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 | 平台 | 架构 | 下载 | 说明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.2.2（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.2/setup.exe) | NSIS 安装包，支持签名应用内更新 |
+| Windows | x64 | [正式版 v0.2.3（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.3/setup.exe) | NSIS 安装包，支持签名应用内更新 |
 
 下载并运行 Windows x64 安装程序。
 
@@ -80,16 +80,17 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | 最多 8 人在线或本地同玩 | 作者 CLI 资源清单 → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公开房间、语音与文字聊天 | 原生 MPML |
-| [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.5` | 机械狂欢躲避小游戏 | 原生 MPML |
+| [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.6` | 机械狂欢躲避小游戏 | 原生 MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可添加或移除默认就绪的测试机器人。 | 原生 MPML |
 | [独立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | 提高 3D 渲染清晰度，保留窗口模式和 HUD 布局 | 原生 MPML |
 | [玩家聚光灯](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | 在所有 3D 小游戏中只为自己点亮头顶工业聚光灯 | 原生 MPML |
+| [泡泡爆破](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.0` | 3 滴血结合版泡泡堂小游戏，4 套随机地图与传送带互坑 | 原生 MPML |
 
 验收清单、上游授权边界与互斥组规则详见[候选模组与收录规范](../zh-CN/catalog/mods.md)。
 
 ## 更新记录
 
-**v0.2.2** · 内置模组加载器升级至 v5，自动排开大厅重叠的模组按钮（如 MachineParty+ 语音按钮与房间机器人）且不影响原版按钮；设置页新增加载器版本显示与**重载加载器**按钮，应用更新后会在游戏关闭时自动升级加载器。 [完整更新记录](../zh-CN/CHANGELOG.md)。
+**v0.2.3** · 新增第一方 3D 派对小游戏 **泡泡爆破（Bubble Blitz `v0.1.0`）**（3 滴血结合版、4 套随机工业地图含传送带、复用原版爆炸特效与 3D 道具），并推出多小游戏共存注册中心（[ADR-015](../zh-CN/architecture/ADR-015-multi-minigame-hub.md)）与 **滚筒嘉年华 `v0.1.6`**，支持多款自研小游戏同时安装共存。[完整更新记录](../zh-CN/CHANGELOG.md)。
 
 ## 文档
 

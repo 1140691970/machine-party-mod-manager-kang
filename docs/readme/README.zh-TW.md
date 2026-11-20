@@ -45,7 +45,7 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 | 平台 | 架構 | 下載 | 說明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.2.2（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.2/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
+| Windows | x64 | [正式版 v0.2.3（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.3/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
 
 下載並執行 Windows x64 安裝程式。
 
@@ -80,16 +80,17 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | 最多 8 人線上或本機同玩 | 作者 CLI 資源清單 → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公開房間、語音與文字聊天 | 原生 MPML |
-| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.5` | 機械狂歡躲避小遊戲 | 原生 MPML |
+| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.6` | 機械狂歡躲避小遊戲 | 原生 MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可加入或移除預設就緒的測試機器人。 | 原生 MPML |
 | [獨立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | 提高 3D 渲染清晰度，保留視窗模式與 HUD 配置 | 原生 MPML |
 | [玩家聚光燈](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | 在所有 3D 小遊戲中只為自己點亮頭頂工業聚光燈 | 原生 MPML |
+| [泡泡爆破](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.0` | 3 滴血結合版泡泡堂小遊戲，4 套隨機地圖與傳送帶互坑 | 原生 MPML |
 
 驗收清單、上游授權邊界與互斥群組規則詳見[候選模組與收錄規範](../zh-TW/catalog/mods.md)。
 
 ## 更新紀錄
 
-**v0.2.2** · 內建模組載入器升級至 v5，自動排開大廳重疊的模組按鈕（如 MachineParty+ 語音按鈕與房間機器人）且不影響原版按鈕；設定頁新增載入器版本顯示與**重載載入器**按鈕，應用程式更新後會在遊戲關閉時自動升級載入器。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
+**v0.2.3** · 新增第一方 3D 派對小遊戲 **泡泡爆破（Bubble Blitz `v0.1.0`）**（3 滴血結合版、4 套隨機工業地圖含傳送帶、復用原版爆炸特效與 3D 道具），並推出多小遊戲共存註冊中心（[ADR-015](../zh-TW/architecture/ADR-015-multi-minigame-hub.md)）與 **滾筒嘉年華 `v0.1.6`**，支援多款自研小遊戲同時安裝共存。[完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 

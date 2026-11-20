@@ -1,80 +1,123 @@
 extends "res://minigames/intermission_new/components/intermission_game_picker.gd"
 
-## MPML Override for res://minigames/intermission_new/components/intermission_game_picker.gd
-## Includes Roller Carnival (ShapeCutter = 6) among the CRT picker candidates,
-## displays its title, and supplies its briefing icon/controls before super()._ready().
+## Multi-Minigame Coexistence Hub Override for
+## res://minigames/intermission_new/components/intermission_game_picker.gd
+## Includes every custom minigame registered in Engine meta `_mpm_custom_minigames`
+## in the 15-slot CRT picker, briefing screen, and localized title banners.
 
 
-static func _roller_display_name() -> String:
-	var loc: String = TranslationServer.get_locale().to_upper()
-	if loc.begins_with("ZHS"):
-		return "滚筒嘉年华"
-	if loc.begins_with("ZH"):
-		return "滾筒嘉年華"
-	return "ROLLER CARNIVAL"
+static func _get_custom_minigames() -> Dictionary:
+	var raw = Engine.get_meta("_mpm_custom_minigames", {})
+	if raw is Dictionary:
+		return raw
+	return {}
 
 
-static func _roller_brief_content() -> String:
-	var loc: String = TranslationServer.get_locale().to_upper()
-	if loc.begins_with("ZHS"):
-		return "高处琥珀滚筒：按住 [S / ↓] 下蹲闪避；\n低处冷钢滚筒：按 [空格 / W / ↑] 跳跃越过；\n被撞击只会向左击退，推入左侧粉碎熔炉即淘汰！"
-	if loc.begins_with("ZH"):
-		return "高處琥珀滾筒：按住 [S / ↓] 下蹲閃避；\n低處冷鋼滾筒：按 [空白鍵 / W / ↑] 跳躍越過；\n被撞擊只會向左擊退，推入左側粉碎熔爐即淘汰！"
-	return "HIGH AMBER ROLLER: Hold [S / Down] to crouch under.\nLOW STEEL ROLLER: Press [Space / W / Up] to jump over.\nHits knock you left into the shredder furnace. Rank by total dodges!"
+static func _sorted_custom_slots(custom_map: Dictionary) -> Array:
+	var slots: Array = []
+	for raw_key in custom_map.keys():
+		slots.append(int(raw_key))
+	slots.sort()
+	return slots
 
 
-static func _roller_jump_control_text() -> String:
-	var loc: String = TranslationServer.get_locale().to_upper()
-	if loc.begins_with("ZHS"):
-		return "跳跃 [空格 / W]（低处冷钢滚筒）"
-	if loc.begins_with("ZH"):
-		return "跳躍 [空白鍵 / W]（低處冷鋼滾筒）"
-	return "JUMP [SPACE / W] (LOW STEEL ROLLER)"
+static func _resolve_callable_string(spec: Dictionary, key: String, fallback: String) -> String:
+	var fn = spec.get(key, null)
+	if fn is Callable and (fn as Callable).is_valid():
+		return str((fn as Callable).call())
+	if fn is String and not (fn as String).is_empty():
+		return fn as String
+	return fallback
 
 
-static func _roller_crouch_control_text() -> String:
-	var loc: String = TranslationServer.get_locale().to_upper()
-	if loc.begins_with("ZHS"):
-		return "按住下蹲 [S / ↓]（高处琥珀滚筒）"
-	if loc.begins_with("ZH"):
-		return "按住下蹲 [S / ↓]（高處琥珀滾筒）"
-	return "HOLD CROUCH [S] (HIGH AMBER ROLLER)"
+static func _resolve_icon_texture(slot_id: int, spec: Dictionary) -> Texture2D:
+	var tex = spec.get("icon_texture", null)
+	if tex is Texture2D:
+		return tex as Texture2D
+	if Globals.MinigameIconPaths.has(slot_id):
+		return load(Globals.MinigameIconPaths[slot_id]) as Texture2D
+	return null
 
 
-func _ensure_roller_icon_resource() -> void:
+func _ensure_custom_icon_resources() -> void:
 	if intermission_manager == null:
 		return
-	var mod_slot: Globals.MinigameIdentifier = Globals.MinigameIdentifier.ShapeCutter
-	var icon_res: Intermission_IconResource
-	for res in intermission_manager.minigame_icon_resource_array:
-		if res != null and res.identifier == mod_slot:
-			icon_res = res
-			break
-	if icon_res == null:
-		icon_res = Intermission_IconResource.new()
-		icon_res.identifier = mod_slot
-		intermission_manager.minigame_icon_resource_array.append(icon_res)
-	icon_res.icon_texture = load(Globals.MinigameIconPaths[mod_slot])
-	icon_res.brief_instructions_header_pages = ["LOC_IM_BRIEFING"]
-	icon_res.brief_instructions_content_pages = [_roller_brief_content()]
+	var custom_map: Dictionary = _get_custom_minigames()
+	var custom_slots: Array = _sorted_custom_slots(custom_map)
+	for slot_id in custom_slots:
+		var spec_raw = custom_map[slot_id]
+		if not (spec_raw is Dictionary):
+			continue
+		var spec: Dictionary = spec_raw
+		var icon_res: Intermission_IconResource = null
+		for res in intermission_manager.minigame_icon_resource_array:
+			if res != null and int(res.identifier) == slot_id:
+				icon_res = res
+				break
+		if icon_res == null:
+			icon_res = Intermission_IconResource.new()
+			icon_res.identifier = slot_id
+			intermission_manager.minigame_icon_resource_array.append(icon_res)
+		var tex := _resolve_icon_texture(slot_id, spec)
+		if tex != null:
+			icon_res.icon_texture = tex
+		icon_res.brief_instructions_header_pages = ["LOC_IM_BRIEFING"]
+		icon_res.brief_instructions_content_pages = [_resolve_callable_string(spec, "brief_content", "")]
 
-	var ctrl_jump := IntermissionControlInputLabelData.new()
-	ctrl_jump.control_text = _roller_jump_control_text()
-	ctrl_jump.controller_text = "JUMP"
-	ctrl_jump.keyboard_icons = [InputIconMapping.InputAction.KeyboardW]
-	ctrl_jump.controller_icons = [InputIconMapping.InputAction.ControllerFaceSouth]
+		var controls: Array[IntermissionControlInputLabelData] = []
+		var ctrl_fn = spec.get("controls_data", null)
+		var raw_controls: Array = []
+		if ctrl_fn is Callable and (ctrl_fn as Callable).is_valid():
+			var produced = (ctrl_fn as Callable).call()
+			if produced is Array:
+				raw_controls = produced
+		elif ctrl_fn is Array:
+			raw_controls = ctrl_fn
+		for entry in raw_controls:
+			if entry is IntermissionControlInputLabelData:
+				controls.append(entry)
+			elif entry is Dictionary:
+				var d: Dictionary = entry
+				var ctrl := IntermissionControlInputLabelData.new()
+				ctrl.control_text = str(d.get("control_text", ""))
+				ctrl.controller_text = str(d.get("controller_text", ""))
+				var kb_icons: Array[InputIconMapping.InputAction] = []
+				var raw_kb = d.get("keyboard_icons", [])
+				if raw_kb is Array:
+					for k in raw_kb:
+						if k is String and InputIconMapping.InputAction.has(k):
+							kb_icons.append(int(InputIconMapping.InputAction[k]))
+						else:
+							kb_icons.append(int(k))
+				ctrl.keyboard_icons = kb_icons
+				var pad_icons: Array[InputIconMapping.InputAction] = []
+				var raw_pad = d.get("controller_icons", [])
+				if raw_pad is Array:
+					for p in raw_pad:
+						if p is String and InputIconMapping.InputAction.has(p):
+							pad_icons.append(int(InputIconMapping.InputAction[p]))
+						else:
+							pad_icons.append(int(p))
+				ctrl.controller_icons = pad_icons
+				controls.append(ctrl)
+		icon_res.controls_data = controls
 
-	var ctrl_crouch := IntermissionControlInputLabelData.new()
-	ctrl_crouch.control_text = _roller_crouch_control_text()
-	ctrl_crouch.controller_text = "CROUCH"
-	ctrl_crouch.keyboard_icons = [InputIconMapping.InputAction.KeyboardS]
-	ctrl_crouch.controller_icons = [InputIconMapping.InputAction.ControllerFaceEast]
 
-	icon_res.controls_data = [ctrl_jump, ctrl_crouch]
+func _apply_custom_title(slot_id: int) -> void:
+	var custom_map: Dictionary = _get_custom_minigames()
+	if not custom_map.has(slot_id):
+		return
+	var spec = custom_map[slot_id]
+	if not (spec is Dictionary):
+		return
+	var title: String = _resolve_callable_string(spec as Dictionary, "display_name", str(spec.get("mod_id", str(slot_id))))
+	var label_text: String = tr("LOC_IM_NEXT_SIMULATION") % title
+	next_minigame_label.text = label_text
+	next_minigame_label_higher.text = label_text
 
 
 func _ready() -> void:
-	_ensure_roller_icon_resource()
+	_ensure_custom_icon_resources()
 	super()
 
 
@@ -82,7 +125,7 @@ func setup_minigame_pick_host() -> void:
 	if not multiplayer.is_server():
 		return
 
-	_ensure_roller_icon_resource()
+	_ensure_custom_icon_resources()
 
 	for child in minigame_icon_spawn_parent.get_children():
 		child.queue_free()
@@ -93,27 +136,38 @@ func setup_minigame_pick_host() -> void:
 	if not is_inside_tree():
 		return
 
-	var mod_slot: Globals.MinigameIdentifier = Globals.MinigameIdentifier.ShapeCutter
+	var custom_map: Dictionary = _get_custom_minigames()
+	var custom_slots: Array = _sorted_custom_slots(custom_map)
 	var active_indices: Array[int] = []
 	var dictionary_array_to_send: Array[Dictionary] = []
+	var seen_ids: Dictionary = {}
 
+	var candidate_ids: Array = []
 	for identifier in Globals.MinigameIdentifier.values():
-		if not Globals.CustomMinigamesWhitelist.has(identifier) and identifier != mod_slot:
+		candidate_ids.append(int(identifier))
+	for slot_id in custom_slots:
+		if not candidate_ids.has(slot_id):
+			candidate_ids.append(slot_id)
+
+	for raw_id in candidate_ids:
+		var identifier: int = int(raw_id)
+		if seen_ids.has(identifier):
+			continue
+		if not Globals.CustomMinigamesWhitelist.has(identifier) and not custom_map.has(identifier):
 			continue
 		if Globals.CutsceneMinigameIdentifiers.has(identifier):
 			continue
 		if Globals.CutsceneGlitchedPickerMinigameIdentifiers.has(identifier):
 			continue
-
-		var dict_to_append := {
+		seen_ids[identifier] = true
+		dictionary_array_to_send.append({
 			"_minigame_identifier": identifier,
 			"_is_played_already": false,
 			"_is_in_playlist": false,
-		}
-		dictionary_array_to_send.append(dict_to_append)
+		})
 
 	for item in dictionary_array_to_send:
-		if item._minigame_identifier != Globals.MinigameIdentifier.EMPTY:
+		if int(item._minigame_identifier) != int(Globals.MinigameIdentifier.EMPTY):
 			item._is_in_playlist = item._minigame_identifier in intermission_manager.game.session_minigame_list
 			item._is_played_already = item._minigame_identifier in intermission_manager.game.session_minigame_played_list
 
@@ -130,7 +184,7 @@ func setup_minigame_pick_host() -> void:
 			next_minigame_index = randi_range(0, intermission_manager.game.session_minigame_list.size() - 1)
 		next_minigame_identifier = intermission_manager.game.session_minigame_list[next_minigame_index]
 
-	# Keep the drawn game on the CRT when the shuffle puts it beyond the grid.
+	# Keep the drawn game on the CRT when the shuffle puts it beyond the 15-slot grid.
 	_ensure_identifier_in_first_15(dictionary_array_to_send, next_minigame_identifier)
 
 	var grid_limit: int = min(15, dictionary_array_to_send.size())
@@ -159,7 +213,7 @@ func _ensure_identifier_in_first_15(
 
 	var target_idx := -1
 	for i in range(arr.size()):
-		if arr[i]._minigame_identifier == target_id:
+		if int(arr[i]._minigame_identifier) == int(target_id):
 			target_idx = i
 			break
 
@@ -181,26 +235,17 @@ func _ensure_identifier_in_first_15(
 
 
 func debug_update() -> void:
-	_ensure_roller_icon_resource()
+	_ensure_custom_icon_resources()
 	super()
-	if debug_active_identifier == Globals.MinigameIdentifier.ShapeCutter:
-		var label_text: String = tr("LOC_IM_NEXT_SIMULATION") % _roller_display_name()
-		next_minigame_label.text = label_text
-		next_minigame_label_higher.text = label_text
+	_apply_custom_title(int(debug_active_identifier))
 
 
 func pick_next_game(index: int, random_active_index_icon_index: int):
 	super(index, random_active_index_icon_index)
-	if index == Globals.MinigameIdentifier.ShapeCutter:
-		var label_text: String = tr("LOC_IM_NEXT_SIMULATION") % _roller_display_name()
-		next_minigame_label.text = label_text
-		next_minigame_label_higher.text = label_text
+	_apply_custom_title(int(index))
 
 
 func set_viewfinder_for_briefing_screen(minigame_identifier: Globals.MinigameIdentifier):
-	_ensure_roller_icon_resource()
+	_ensure_custom_icon_resources()
 	super(minigame_identifier)
-	if minigame_identifier == Globals.MinigameIdentifier.ShapeCutter:
-		var label_text: String = tr("LOC_IM_NEXT_SIMULATION") % _roller_display_name()
-		next_minigame_label.text = label_text
-		next_minigame_label_higher.text = label_text
+	_apply_custom_title(int(minigame_identifier))

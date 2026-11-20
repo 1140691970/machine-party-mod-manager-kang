@@ -5,7 +5,7 @@
 ![滾筒嘉年華小遊戲圖示](../../apps/desktop/ui/images/roller-carnival.png)
 
 - **模組 ID**：`roller-carnival`
-- **版本**：`0.1.5`（目錄清單對應 `v0.1.5`）
+- **版本**：`0.1.6`（目錄清單對應 `v0.1.6`）
 - **授權**：`GPL-3.0-only`
 - **目標遊戲版本**：Steam Windows `v2.1.2`
 - **開發與打包規範**：[自研模組開發、測試、接入與打包規範](../../docs/zh-TW/development/mod-development.md) · [ADR-009](../../docs/zh-TW/architecture/ADR-009-bundled-first-party-mods.md)
@@ -67,9 +67,10 @@
 | `carnival_meshes.gd` | 是 | 程序化 3D 齒輪、滾筒、岩漿池、齊平起跑線與燈泡框舞台建構器 |
 | `roller_carnival_game.gd` | 是 | 主遊戲場景迴圈、跳蹲物理、純擊退與淘汰判定、精簡 HUD 與 `--self-test` |
 | `official_minigame.gd` | 是 | 官方開局、參賽名單與結算入口 |
-| `override_game.gd` | 是 | 覆寫 `res://scripts/scenes/game/game.gd` 以納入官方預設與街機輪換池 |
-| `override_playlist.gd` | 是 | 覆寫 `res://scenes/lobby/components/playlist_handler.gd` 補入自訂歌單項目 |
-| `override_picker.gd` | 是 | 覆寫過場 `intermission_game_picker.gd` 補上 15 格 CRT 圖示與簡報說明 |
+| `override_game.gd` | 是 | 多小遊戲共存中心覆寫 `res://scripts/scenes/game/game.gd`，將所有已註冊自研小遊戲納入官方預設與街機輪換池 |
+| `override_local_game.gd` | 是 | 多小遊戲共存中心覆寫 `res://scenes/local_game/script/local_game.gd`，支援本機同螢幕輪換 |
+| `override_playlist.gd` | 是 | 多小遊戲共存中心覆寫 `res://scenes/lobby/components/playlist_handler.gd`，於自訂歌單補入所有已註冊自研小遊戲 |
+| `override_picker.gd` | 是 | 多小遊戲共存中心覆寫過場 `intermission_game_picker.gd`，補上 15 格 CRT 圖示與簡報說明 |
 | `README.md` | 否 | 本說明文件（`*.md` 自動跳過） |
 | `project.godot` | 否 | macOS 獨立 Godot 4.5.2 預覽專案設定 |
 | `roller_carnival_scene.tscn` | 否 | 獨立啟動測試場景（`*_scene.tscn` 自動跳過） |

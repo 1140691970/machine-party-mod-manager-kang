@@ -1,21 +1,24 @@
 extends Node
 
 ## MPML API v2 Entry Point for Roller Carnival (滾筒嘉年華).
-## Registers overrides so Roller Carnival joins Machine Party's minigame rotation
-## (repurposing unused slot Globals.MinigameIdentifier.ShapeCutter = 6).
+## Registers Roller Carnival into the shared Multi-Minigame Coexistence Hub
+## (slot Globals.MinigameIdentifier.ShapeCutter = 6) so multiple custom minigames
+## can coexist in Official Default, Custom Playlist, Arcade, Local, and CRT Picker pools.
 
 const MOD_ID := "roller-carnival"
+const HUB_VERSION := 1
 const TARGET_SLOT_ID := 6 # Globals.MinigameIdentifier.ShapeCutter
 const TARGET_SCENE_PATH := "res://minigames/shape_cutter/shape_cutter.tscn"
+const TARGET_ICON_PATH := "res://minigames/intermission_new/minigame_icons/placeholder_icons/minigame icon_placeholder11.png"
 const REG_RES_DIR := "res://mods_roller_carnival/"
 
-const OVERRIDES := {
+const HUB_OVERRIDES := {
 	"res://scripts/scenes/game/game.gd": "override_game.gd",
+	"res://scenes/local_game/script/local_game.gd": "override_local_game.gd",
 	"res://scenes/lobby/components/playlist_handler.gd": "override_playlist.gd",
 	"res://minigames/intermission_new/components/intermission_game_picker.gd": "override_picker.gd",
 }
-var _installed_paths := {}
-var _cached_overrides := {}
+
 var _loader = null
 var _mod_dir: String = ""
 var _config_script = null
@@ -26,11 +29,68 @@ var _roller_icon_texture: Texture2D = null
 var _official_script: GDScript
 
 
+static func _display_name() -> String:
+	var loc: String = TranslationServer.get_locale().to_upper()
+	if loc.begins_with("ZHS"):
+		return "滚筒嘉年华"
+	if loc.begins_with("ZH"):
+		return "滾筒嘉年華"
+	return "ROLLER CARNIVAL"
+
+
+static func _brief_content() -> String:
+	var loc: String = TranslationServer.get_locale().to_upper()
+	if loc.begins_with("ZHS"):
+		return "高处琥珀滚筒：按住 [S / ↓] 下蹲闪避；\n低处冷钢滚筒：按 [空格 / W / ↑] 跳跃越过；\n被撞击只会向左击退，推入左侧粉碎熔炉即淘汰！"
+	if loc.begins_with("ZH"):
+		return "高處琥珀滾筒：按住 [S / ↓] 下蹲閃避；\n低處冷鋼滾筒：按 [空白鍵 / W / ↑] 跳躍越過；\n被撞擊只會向左擊退，推入左側粉碎熔爐即淘汰！"
+	return "HIGH AMBER ROLLER: Hold [S / Down] to crouch under.\nLOW STEEL ROLLER: Press [Space / W / Up] to jump over.\nHits knock you left into the shredder furnace. Rank by total dodges!"
+
+
+static func _controls_data() -> Array:
+	var loc: String = TranslationServer.get_locale().to_upper()
+	var jump_text := "JUMP [SPACE / W] (LOW STEEL ROLLER)"
+	var crouch_text := "HOLD CROUCH [S] (HIGH AMBER ROLLER)"
+	if loc.begins_with("ZHS"):
+		jump_text = "跳跃 [空格 / W]（低处冷钢滚筒）"
+		crouch_text = "按住下蹲 [S / ↓]（高处琥珀滚筒）"
+	elif loc.begins_with("ZH"):
+		jump_text = "跳躍 [空白鍵 / W]（低處冷鋼滾筒）"
+		crouch_text = "按住下蹲 [S / ↓]（高處琥珀滾筒）"
+	return [
+		{
+			"control_text": jump_text,
+			"controller_text": "JUMP",
+			"keyboard_icons": ["KeyboardW"],
+			"controller_icons": ["ControllerFaceSouth"],
+		},
+		{
+			"control_text": crouch_text,
+			"controller_text": "CROUCH",
+			"keyboard_icons": ["KeyboardS"],
+			"controller_icons": ["ControllerFaceEast"],
+		},
+	]
+
+
 func _mod_init(loader) -> void:
 	_loader = loader
 	_mod_dir = str(loader.dir_of(MOD_ID))
-
 	_try_register(loader)
+
+
+func _get_shared_registry(loader, reg_name: String, meta_key: String) -> Dictionary:
+	var dict: Dictionary = {}
+	if loader != null and loader.has_method("registry"):
+		var raw = loader.registry(reg_name)
+		if raw is Dictionary:
+			dict = raw
+	elif Engine.has_meta(meta_key):
+		var existing = Engine.get_meta(meta_key)
+		if existing is Dictionary:
+			dict = existing
+	Engine.set_meta(meta_key, dict)
+	return dict
 
 
 func _try_register(loader) -> void:
@@ -42,23 +102,23 @@ func _try_register(loader) -> void:
 		return
 	if _meshes_script != null:
 		_roller_icon_texture = _meshes_script.build_roller_icon()
-		_roller_icon_texture.take_over_path("res://minigames/intermission_new/minigame_icons/placeholder_icons/minigame icon_placeholder11.png")
+		_roller_icon_texture.take_over_path(TARGET_ICON_PATH)
 
-	_install_overrides(loader)
-	if loader.has_method("on_node_added"):
-		loader.on_node_added(_apply_cached_override)
+	_register_into_hub(loader)
+	_install_hub_overrides(loader)
 
 	if loader.has_method("on_lobby"):
 		loader.on_lobby(func(_lobby): _ensure_default_playlist_entry())
 	if loader.has_method("on_scene_script"):
 		loader.on_scene_script("res://scripts/scenes/game/game.gd", _on_game_entered)
+		loader.on_scene_script("res://scenes/local_game/script/local_game.gd", _on_game_entered)
 
 	if loader.has_method("has_api") and loader.call("has_api", "registry"):
 		var reg = loader.registry("minigames")
 		if reg is Dictionary:
 			reg[MOD_ID] = REG_RES_DIR + "roller_carnival_game.gd"
 
-	loader.note(MOD_ID + ": initialized (integrated into slot ShapeCutter=6)")
+	loader.note(MOD_ID + ": initialized via multi-minigame hub (slot ShapeCutter=6)")
 
 
 func _mod_ready(loader) -> void:
@@ -66,39 +126,81 @@ func _mod_ready(loader) -> void:
 	if _mod_dir.is_empty():
 		_mod_dir = str(loader.dir_of(MOD_ID))
 
-	# The bootstrap can run before game autoloads are available to the compiler.
 	if _packed_minigame_scene == null:
 		_try_register(loader)
 	else:
-		_install_overrides(loader)
+		_register_into_hub(loader)
+		_install_hub_overrides(loader)
 	_ensure_default_playlist_entry()
 
 
-func _install_overrides(loader) -> void:
+func _register_into_hub(loader) -> void:
+	var custom_map: Dictionary = _get_shared_registry(loader, "custom_minigames", "_mpm_custom_minigames")
+	custom_map[TARGET_SLOT_ID] = {
+		"mod_id": MOD_ID,
+		"slot_id": TARGET_SLOT_ID,
+		"scene_path": TARGET_SCENE_PATH,
+		"packed_scene": _packed_minigame_scene,
+		"icon_texture": _roller_icon_texture,
+		"default_rounds": 1,
+		"display_name": Callable(self, "_display_name"),
+		"brief_content": Callable(self, "_brief_content"),
+		"controls_data": Callable(self, "_controls_data"),
+	}
+
+
+func _install_hub_overrides(loader) -> void:
 	if not loader.has_method("override_script_rel"):
 		return
-	for path in OVERRIDES:
-		if _installed_paths.has(path):
+	var hub: Dictionary = _get_shared_registry(loader, "custom_minigames_hub", "_mpm_custom_minigames_hub")
+	var installed_version: int = int(hub.get("version", 0))
+	if not hub.has("installed_paths") or not (hub["installed_paths"] is Dictionary):
+		hub["installed_paths"] = {}
+	if not hub.has("cached_overrides") or not (hub["cached_overrides"] is Dictionary):
+		hub["cached_overrides"] = {}
+
+	var installed_paths: Dictionary = hub["installed_paths"]
+	var cached_overrides: Dictionary = hub["cached_overrides"]
+	var upgrading: bool = HUB_VERSION > installed_version
+
+	if installed_version >= HUB_VERSION and installed_paths.size() >= HUB_OVERRIDES.size():
+		return
+
+	for path in HUB_OVERRIDES:
+		if installed_paths.has(path) and not upgrading:
 			continue
-		if not loader.override_script_rel(MOD_ID, path, OVERRIDES[path]):
-			loader.note(MOD_ID + ": override failed: " + path)
+		if not loader.override_script_rel(MOD_ID, path, HUB_OVERRIDES[path]):
+			loader.note(MOD_ID + ": hub override failed: " + path)
 			continue
 		var replacement := ResourceLoader.get_cached_ref(path) as GDScript
 		if replacement != null and replacement.get_base_script() != null:
-			_cached_overrides[replacement.get_base_script()] = replacement
-			_installed_paths[path] = true
+			cached_overrides[replacement.get_base_script()] = replacement
+			installed_paths[path] = true
+
+	if installed_paths.size() >= HUB_OVERRIDES.size():
+		hub["version"] = max(installed_version, HUB_VERSION)
+
+	if not bool(hub.get("node_hook_installed", false)) and loader.has_method("on_node_added"):
+		hub["node_hook_installed"] = true
+		loader.on_node_added(_apply_cached_override)
 
 
 func _apply_cached_override(node: Node) -> void:
 	# A PackedScene loaded before take_over_path keeps its original Script reference.
 	var original = node.get_script()
-	if original == null or not _cached_overrides.has(original) or node.is_node_ready():
+	if original == null or node.is_node_ready():
+		return
+	var hub_raw = Engine.get_meta("_mpm_custom_minigames_hub", {})
+	if not (hub_raw is Dictionary):
+		return
+	var cached_overrides = (hub_raw as Dictionary).get("cached_overrides", {})
+	if not (cached_overrides is Dictionary) or not (cached_overrides as Dictionary).has(original):
 		return
 	var exports := {}
 	for property in original.get_script_property_list():
 		if property.usage & PROPERTY_USAGE_STORAGE:
 			exports[property.name] = node.get(property.name)
-	node.set_script(_cached_overrides[original])
+	node.set_script((cached_overrides as Dictionary)[original])
 	for key in exports:
 		node.set(key, exports[key])
 
@@ -190,3 +292,19 @@ func _on_game_entered(game_node: Node) -> void:
 		return
 	_packed_minigame_scene.take_over_path(TARGET_SCENE_PATH)
 	_ensure_default_playlist_entry()
+
+
+func _exit_tree() -> void:
+	if Engine.has_meta("_mpm_custom_minigames"):
+		var custom_map = Engine.get_meta("_mpm_custom_minigames")
+		if custom_map is Dictionary:
+			(custom_map as Dictionary).erase(TARGET_SLOT_ID)
+			if (custom_map as Dictionary).is_empty():
+				Engine.remove_meta("_mpm_custom_minigames")
+	if not Engine.has_meta("_mpm_custom_minigames") and Engine.has_meta("_mpm_custom_minigames_hub"):
+		var hub = Engine.get_meta("_mpm_custom_minigames_hub")
+		if hub is Dictionary:
+			(hub as Dictionary).clear()
+		Engine.remove_meta("_mpm_custom_minigames_hub")
+	_packed_minigame_scene = null
+	_roller_icon_texture = null
