@@ -45,7 +45,7 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 | 平台 | 架構 | 下載 | 說明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.2.0（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.0/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
+| Windows | x64 | [正式版 v0.2.2（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.2/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
 
 下載並執行 Windows x64 安裝程式。
 
@@ -68,7 +68,7 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 | --- | --- |
 | ![設定頁](../images/screenshot-settings.zh-TW.png) | ![應用內更新提示](../images/screenshot-update.zh-TW.png) |
 
-**v0.2.0** · 設定 → 還原 Steam 原版
+**v0.2.2** · 設定 → 內建載入器（v5，自動升級與重載載入器）· 還原 Steam 原版
 
 更新提示截圖示範從 0.1.2-11 到 0.1.2-12 的模擬升級。
 
@@ -89,7 +89,7 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 ## 更新紀錄
 
-**v0.2.0** · 發布適用於《機械派對》v2.1.2 的 Windows x64 正式版。可安裝與更新目錄中的八個模組，也可在設定中還原 Steam 原版。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
+**v0.2.2** · 內建模組載入器升級至 v5，自動排開大廳重疊的模組按鈕（如 MachineParty+ 語音按鈕與房間機器人）且不影響原版按鈕；設定頁新增載入器版本顯示與**重載載入器**按鈕，應用程式更新後會在遊戲關閉時自動升級載入器。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 

@@ -45,7 +45,7 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 | 平台 | 架构 | 下载 | 说明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.2.0（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.0/setup.exe) | NSIS 安装包，支持签名应用内更新 |
+| Windows | x64 | [正式版 v0.2.2（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.2/setup.exe) | NSIS 安装包，支持签名应用内更新 |
 
 下载并运行 Windows x64 安装程序。
 
@@ -68,7 +68,7 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 | --- | --- |
 | ![设置页](../images/screenshot-settings.zh-CN.png) | ![应用内更新提示](../images/screenshot-update.zh-CN.png) |
 
-**v0.2.0** · 设置 → 还原 Steam 原版
+**v0.2.2** · 设置 → 内置加载器（v5，自动升级与重载加载器）· 还原 Steam 原版
 
 更新提示截图演示从 0.1.2-11 到 0.1.2-12 的模拟升级。
 
@@ -89,7 +89,7 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 ## 更新记录
 
-**v0.2.0** · 发布适用于《机械派对》v2.1.2 的 Windows x64 正式版。可安装和更新目录中的八个模组，也可在设置中还原 Steam 原版。 [完整更新记录](../zh-CN/CHANGELOG.md)。
+**v0.2.2** · 内置模组加载器升级至 v5，自动排开大厅重叠的模组按钮（如 MachineParty+ 语音按钮与房间机器人）且不影响原版按钮；设置页新增加载器版本显示与**重载加载器**按钮，应用更新后会在游戏关闭时自动升级加载器。 [完整更新记录](../zh-CN/CHANGELOG.md)。
 
 ## 文档
 

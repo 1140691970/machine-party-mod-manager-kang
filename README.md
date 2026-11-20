@@ -45,7 +45,7 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.2.0 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.0/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.2.2 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.2/setup.exe) | NSIS installer, signed in-app updates |
 
 Run the Windows x64 NSIS installer.
 
@@ -68,7 +68,7 @@ Machine Party is available on Windows. macOS support is planned for a future rel
 | --- | --- |
 | ![Settings](docs/images/screenshot-settings.png) | ![In-app update prompt](docs/images/screenshot-update.png) |
 
-**v0.2.0** · Settings → Restore the Steam original
+**v0.2.2** · Settings → Built-in loader (v5, auto-upgrade & Reload loader) · Restore the Steam original
 
 The update prompt illustrates a simulated upgrade from 0.1.2-11 to 0.1.2-12.
 
@@ -89,7 +89,7 @@ See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance
 
 ## Release notes
 
-**v0.2.0** · Windows x64 stable release for Machine Party v2.1.2. Install and update the eight catalogued mods, or use Settings to restore the Steam original. [Full changelog](CHANGELOG.md).
+**v0.2.2** · Built-in mod loader v5 automatically separates overlapping lobby mod buttons (such as MachineParty+ voice controls and Lobby Bots) without touching vanilla buttons. Settings now displays the loader version, supports one-click **Reload loader**, and automatically upgrades outdated loaders after app updates once the game is closed. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 
