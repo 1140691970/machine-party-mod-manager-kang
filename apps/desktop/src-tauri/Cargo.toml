@@ -1,6 +1,6 @@
 [package]
 name = "machine-party-mod-manager"
-version = "0.1.2-11"
+version = "0.1.2-12"
 edition = "2024"
 license = "GPL-3.0-only"
 build = "build.rs"
@@ -34,3 +34,4 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(windows)'.dependencies]
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+windows-sys = { version = "0.61", features = ["Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }

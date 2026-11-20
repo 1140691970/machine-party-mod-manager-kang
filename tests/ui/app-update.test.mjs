@@ -10,7 +10,6 @@ globalThis.localStorage = {
 globalThis.window = {__TAURI__: {core: {}}};
 
 function makeDom() {
-  const listeners = new Map();
   const makeNode = (tag = "div") => ({
     tag,
     className: "",
@@ -27,39 +26,49 @@ function makeDom() {
     prepend(...items) { this.children.unshift(...items); },
     replaceChildren(...items) { this.children = items; },
     setAttribute() {},
+    addEventListener() {},
+    remove() {},
     onclick: null
   });
   const title = makeNode("h2");
   const body = makeNode("div");
-  const dialog = {
-    open: false,
-    showModal() { this.open = true; },
-    close() {
-      if (!this.open) return;
-      this.open = false;
-      for (const fn of [...(listeners.get("close") ?? [])]) fn();
-    },
-    addEventListener(type, fn, opts = {}) {
-      if (!listeners.has(type)) listeners.set(type, []);
-      const wrapped = opts.once ? () => {
-        this.removeEventListener(type, wrapped);
-        fn();
-      } : fn;
-      wrapped._orig = fn;
-      listeners.get(type).push(wrapped);
-    },
-    removeEventListener(type, fn) {
-      const list = listeners.get(type);
-      if (!list) return;
-      listeners.set(type, list.filter(item => item !== fn && item._orig !== fn));
-    }
+  const makeDialog = () => {
+    const listeners = new Map();
+    return {
+      open: false,
+      showModal() { this.open = true; },
+      close() {
+        if (!this.open) return;
+        this.open = false;
+        for (const fn of [...(listeners.get("close") ?? [])]) fn();
+      },
+      addEventListener(type, fn, opts = {}) {
+        if (!listeners.has(type)) listeners.set(type, []);
+        const wrapped = opts.once ? () => {
+          this.removeEventListener(type, wrapped);
+          fn();
+        } : fn;
+        wrapped._orig = fn;
+        listeners.get(type).push(wrapped);
+      },
+      removeEventListener(type, fn) {
+        const list = listeners.get(type);
+        if (!list) return;
+        listeners.set(type, list.filter(item => item !== fn && item._orig !== fn));
+      }
+    };
   };
+  const dialog = makeDialog();
+  const recovery = makeDialog();
   globalThis.document = {
-    querySelector: sel => sel === "dialog" ? dialog : sel === "#dialogTitle" ? title : sel === "#dialogBody" ? body : makeNode(),
+    querySelector(sel) {
+      if (sel === "dialog[open]") return [dialog, recovery].find(item => item.open) ?? null;
+      return {"dialog":dialog, "#dialogTitle":title, "#dialogBody":body}[sel] ?? makeNode();
+    },
     createElement: makeNode,
     createElementNS: () => makeNode("svg")
   };
-  return {dialog, title, body};
+  return {dialog, recovery, title, body};
 }
 
 test("background check opens a non-forcing update dialog once per version and respects manual open", async () => {
@@ -123,6 +132,49 @@ test("queued background update waits until an active dialog closes", async () =>
   dialog.close();
 });
 
+test("a background release waits for the recovery prompt and any subsequent transaction dialog", async () => {
+  const {dialog, recovery, title} = makeDom();
+  const {checkApp} = await import("../../apps/desktop/ui/app-update.js");
+  const reply = Promise.withResolvers();
+  window.__TAURI__.core.invoke = () => reply.promise;
+  const pending = checkApp(false);
+  recovery.showModal();
+  reply.resolve({version:"0.4.0", notes:"Release notes"});
+  await pending;
+  assert.equal(dialog.open, false);
+  assert.equal(title.textContent, "");
+
+  dialog.showModal();
+  recovery.close();
+  assert.equal(title.textContent, "");
+  dialog.close();
+  assert.equal(dialog.open, true);
+  assert.match(title.textContent, /0\.4\.0/);
+  dialog.close();
+});
+
+test("a late manual update result preserves installation progress and opens after close", async () => {
+  const {dialog, title, body} = makeDom();
+  const {checkApp} = await import("../../apps/desktop/ui/app-update.js");
+  const reply = Promise.withResolvers();
+  window.__TAURI__.core.invoke = () => reply.promise;
+  const version = "0.5.0";
+  storage.set("dismissed-app-update", version);
+  const pending = checkApp(true);
+  const progress = document.createElement("progress");
+  title.textContent = "Installing";
+  body.replaceChildren(progress);
+  dialog.showModal();
+  reply.resolve({version, notes:"Release notes"});
+  await pending;
+  assert.equal(title.textContent, "Installing");
+  assert.deepEqual(body.children, [progress]);
+  dialog.close();
+  assert.equal(dialog.open, true);
+  assert.match(title.textContent, /0\.5\.0/);
+  dialog.close();
+});
+
 async function openModUpdate(releaseNotes) {
   const {body} = makeDom();
   const {state} = await import("../../apps/desktop/ui/state.js");
@@ -136,6 +188,7 @@ async function openModUpdate(releaseNotes) {
     inventory:scan.installed, modStates:scan.modStates, packages:{example:"same"}});
   window.__TAURI__.core.invoke = async command => {
     calls.push(command);
+    if (command === "game_process") return false;
     if (command === "game_copies") return ["copy"];
     if (command === "installed_versions") return scan.installed;
     if (command === "validate_game_mods") return scan;
@@ -158,7 +211,7 @@ test("a mod update can be confirmed without notes for its version and language",
     assert.deepEqual(body.children.map(el => el.tag), ["p", "div"]);
     assert.equal(body.children[0].textContent, "v1 → v2");
     await confirm();
-    assert.deepEqual(calls, ["verify_package", "update_mod"]);
+    assert.deepEqual(calls, ["game_process", "verify_package", "game_process", "update_mod"]);
   }
 });
 
@@ -173,12 +226,12 @@ test("a mod update requires fresh confirmation for new or revised notes", async 
   }
   state.mods[0].releaseNotes["zh-TW"] = "請重新啟動";
   await confirm();
-  assert.deepEqual(calls, ["verify_package", "update_mod"]);
+  assert.deepEqual(calls, ["game_process", "verify_package", "game_process", "update_mod"]);
 });
 
 test("withdrawing optional notes does not require another confirmation", async () => {
   const {calls, confirm, mod, state} = await openModUpdate({version:"v2", en:"First notes"});
   state.mods = [{...mod, releaseNotes:undefined}];
   await confirm();
-  assert.deepEqual(calls, ["verify_package", "update_mod"]);
+  assert.deepEqual(calls, ["game_process", "verify_package", "game_process", "update_mod"]);
 });

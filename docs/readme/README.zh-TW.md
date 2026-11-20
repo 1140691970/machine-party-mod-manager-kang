@@ -46,18 +46,18 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 | 平台 | 架構 | 下載 | 說明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [測試版 v0.1.2-11（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-11/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
+| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [測試版 v0.1.2-12（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-12/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
 | macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 瀏覽目錄與接收應用更新（遊戲僅限 Windows） |
 
 Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存檔並將 `.app` 移入可寫入的應用程式目錄。
 
-**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-11` 工作區已為目錄內全部七個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
+**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-12` 工作區已為目錄內全部八個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
 
 ## 開始使用
 
 1. 啟動管理器，應用會自動尋找 Steam 中的 *Machine Party*（App ID `4108000`），也可於**設定**手動選擇遊戲目錄。
 2. 支援三語搜尋與瀏覽全部已收錄模組，點擊標題可檢視連線條件、衝突規則、相容遊戲版本與作者倉庫。
-3. 確認遊戲完全退出後，點擊**安裝**，管理器會自動下載（或沿用離線快取）、校驗 SHA-256、建立備份並套用修改。
+3. 點選**安裝**。如果遊戲正在執行，儲存進度後選擇**關閉遊戲並繼續**。管理器會校驗套件並備份檔案，再進行安裝。
 4. 在**已安裝**頁面可離線解除安裝並校驗原版還原結果；在**設定**頁面可切換介面語言、更換遊戲目錄或檢查管理器更新。
 
 ## 桌面應用
@@ -66,7 +66,7 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 | --- | --- |
 | ![設定頁](../images/screenshot-settings.zh-TW.png) | ![應用內更新提示](../images/screenshot-update.zh-TW.png) |
 
-更新提示截圖示範從 0.1.2-6 到 0.1.2-7 的模擬升級。
+更新提示截圖示範從 0.1.2-11 到 0.1.2-12 的模擬升級。
 
 ## 已收錄模組
 
@@ -78,15 +78,16 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公開房間、語音與文字聊天 | 原生 MPML |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | 八人團播、四隊輪換與導播自由鏡頭 | 作者資源目錄 → MPML |
 | [八人連線模組](https://github.com/Binary1936/machine-party-8p) | `v1.5` | 將線上遊戲擴充至 8 人 | 作者資源目錄 → MPML |
-| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.3` | 機械狂歡躲避小遊戲 | 原生 MPML |
+| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.4` | 機械狂歡躲避小遊戲 | 原生 MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可加入或移除預設就緒的測試機器人。 | 原生 MPML |
 | [獨立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | 提高 3D 渲染清晰度，保留視窗模式與 HUD 配置 | 原生 MPML |
+| [玩家聚光燈](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | 在所有 3D 小遊戲中只為自己點亮頭頂工業聚光燈 | 原生 MPML |
 
 驗收清單、上游授權邊界與互斥群組規則詳見[候選模組與收錄規範](../zh-TW/catalog/mods.md)。
 
 ## 更新紀錄
 
-Windows 測試版 **0.1.2-11** 支援從簽章目錄安裝獨立高清，並在更新模組前請求確認。該測試版發布時，目錄包含滾筒嘉年華 v0.1.2 與房間機器人 v0.1.5。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
+**v0.1.2-12** · 安裝、更新或解除安裝模組時，管理器會先詢問是否關閉所選的遊戲副本。應用程式更新提示會等目前的對話框關閉後再顯示。 滾筒嘉年華 v0.1.4 更新了場地與倒數效果；玩家聚光燈 v0.1.0 可用 F8 開關本機角色的頂燈；房間機器人 v0.2.2 支援迪斯可閃避玩法。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 

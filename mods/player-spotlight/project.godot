@@ -1,0 +1,9 @@
+; Engine configuration file.
+; Minimal project metadata for running headless Player Spotlight tests.
+
+config_version=5
+
+[application]
+
+config/name="Player Spotlight Test"
+config/features=PackedStringArray("4.5")

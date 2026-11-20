@@ -17,6 +17,8 @@ With exactly one valid Steam copy, actions are available immediately. Without on
 
 ## One-click management
 
+On Windows, installing, updating, switching or uninstalling mods checks whether the selected game copy is running. Save your progress before choosing **Close game and continue**. If the game stays open, you can keep waiting, cancel, or explicitly force it to quit.
+
 | Player action or situation | Observable result |
 | --- | --- |
 | Click "Install" | The app downloads the selected version, verifies it, backs up and installs. Progress is shown; the installed version appears after verification succeeds. |

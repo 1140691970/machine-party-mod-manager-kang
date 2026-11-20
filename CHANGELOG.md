@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-12 — 2026-11-20
+
+- The manager asks before closing the selected running game for mod installation, updates or removal. App update prompts wait until the current dialog closes.
+- Roller Carnival v0.1.4 refreshes the arena and countdown. Player Spotlight v0.1.0 adds a local overhead light that toggles with F8. Lobby Bots v0.2.2 supports Disco Dodge.
+
 ## 0.1.2-11 — 2026-11-19
 
 - Install Standalone HD and compatible new first-party mods from the signed catalog.

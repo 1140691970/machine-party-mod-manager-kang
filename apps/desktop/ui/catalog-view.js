@@ -1,6 +1,7 @@
 import { downloadUrl } from "./online-catalog.js";
 import { installationProblem, catalogAction, uninstallEntry } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
+import { confirmGameExit } from "./game-exit-dialog.js";
 import { inventoryKey, installedRows, releaseNotesFor, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
 import { applyValidation, syncGameMods, withGameCopy } from "./game-folder.js";
@@ -223,6 +224,10 @@ async function installDialog(mod, action, removals = []) {
   state.busyMod = mod.id;
   render();
   try {
+    if (action !== "identify" && !await confirmGameExit(path, target, () => ownsDialog() && state.pckDir === target)) {
+      if (ownsDialog()) closeDialog();
+      return;
+    }
     if (cached(mod)) {
       rows[0].textContent = t("usingCache");
     } else {
@@ -242,6 +247,10 @@ async function installDialog(mod, action, removals = []) {
     stage = installStage;
     if (path !== state.game || target !== state.pckDir) throw "statusUnavailable";
     rows[stage].textContent = t("working");
+    if (action !== "identify" && !await confirmGameExit(path, target, () => ownsDialog() && state.pckDir === target)) {
+      if (ownsDialog()) closeDialog();
+      return;
+    }
     close.disabled = true;
     dialog.addEventListener("cancel", preventCancel);
     if (action === "identify") {
@@ -330,6 +339,10 @@ function uninstallDialog(cardMod) {
     show(title("uninstall"), steps);
     render();
     try {
+      if (!await confirmGameExit(path, target, () => dialog.open && steps.isConnected && state.pckDir === target)) {
+        closeDialog();
+        return;
+      }
       const result = await uninstallMod(path, mod, target);
       applyValidation(result, path);
       if (result.modStates[mod.id] !== "vanilla") {
@@ -366,7 +379,7 @@ function primaryAction(mod) {
   const label = action === "updateMod" ? t("updateModTo").replace("{version}", mod.version) : t(action === "review" ? "viewReason" : action);
   const el = button(label, () => {
     if (action === "review") return details(mod);
-    if (action === "retryCheck") return syncGameMods(true);
+    if (action === "retryCheck") return withGameCopy(undefined, true);
     if (action !== "uninstall") return startInstall(mod, action);
     return withGameCopy(() => currentAction(mod) === "uninstall" ? uninstallDialog(mod) : details(mod));
   }, ["review", "uninstall", "checking"].includes(action) ? "secondary" : "primary");
@@ -405,7 +418,7 @@ function card(mod, index) {
 }
 
 export function renderModList(content) {
-  if (state.scan === "failed") content.append(button(t("retryCheck"), () => syncGameMods(true), "secondary", "refresh"));
+  if (state.scan === "failed") content.append(button(t("retryCheck"), () => withGameCopy(undefined, true), "secondary", "refresh"));
   const cards = state.page === "installed"
     ? installedRows(state.inventory, state.mods, [...state.removalMods, ...state.pinned]).map(({repo, version, mod}, index) => {
       if (mod) return card(mod, index);

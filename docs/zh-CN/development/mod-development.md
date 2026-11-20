@@ -123,7 +123,7 @@
 - **CI 自动上传 R2 并部署 Worker**：运行 `.github/workflows/catalog-worker.yml` 时，流水线会自动执行 `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`，将缺失的 `packages/sha256/<sha256>.zip` 上传至 R2（`machine-party-mods`），校验所有 `mirrorApproved` 对象的 `ContentLength`，再上传 `catalog/revisions/<revision>.json`、部署 `services/catalog-worker` 并验证线上 `HEAD /v1/downloads/...` 返回 200。
 - **更新已有自研模组** — 提升 `mods/<id>/mod.json` 的版本号，运行 `node scripts/pack-mod.mjs <id>` 取得新文件名、大小和 SHA-256。在 `catalog/mods.json` 更新包信息（包括 `assetId`）、目录修订号和模组版本。如有旧版说明，请更新或移除。同步更新模组 README、[模组索引](../../../mods/README.md)及[英文](../../../README.md)、[简中](../../readme/README.zh-CN.md)、[繁中](../../readme/README.zh-TW.md)首页表格的版本。推送到 `main` 后执行 `Deploy mod catalog Worker`。更新桌面客户端时请参阅[发布管理器更新](releasing.md)。
 
-如果管理器已收录这个原生 MPML 模组，可设置 `"updateChannel": "preview"` 将新版提供给 Windows 测试版玩家。目录部署流程会签署本次修订。开发版在“模组目录”点击“更新至”，核对版本后确认。Windows 预览版 0.1.2-11 的操作步骤见[支持指南](../SUPPORT.md)。通过 Steam 验收后再设置 `"verified": true`。详见 [ADR-012](../architecture/ADR-012-single-mod-updates.md)。
+如果管理器已收录这个原生 MPML 模组，可设置 `"updateChannel": "preview"` 将新版提供给 Windows 测试版玩家。目录部署流程会签署本次修订。Windows 测试版 0.1.2-12 在“模组目录”点击“更新至”，核对版本后确认。Windows 预览版 0.1.2-11 的操作步骤见[支持指南](../SUPPORT.md)。通过 Steam 验收后再设置 `"verified": true`。详见 [ADR-012](../architecture/ADR-012-single-mod-updates.md)。
 
 ## 相关文档
 

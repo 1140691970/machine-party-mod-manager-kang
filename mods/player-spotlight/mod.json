@@ -1,0 +1,9 @@
+{
+  "id": "player-spotlight",
+  "name": "Player Spotlight (玩家聚光燈)",
+  "version": "0.1.0",
+  "authors": ["MachineParty Mod Team"],
+  "entry": "main.gd",
+  "priority": 0,
+  "requires": []
+}

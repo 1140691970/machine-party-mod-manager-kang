@@ -3,7 +3,7 @@ import { authorizeUpdates, appVersion, bundledCatalog, cachedPackages, isDesktop
 import { sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
-import { detectGame, pickGame, syncGameMods } from "./game-folder.js";
+import { detectGame, pickGame, syncGameMods, syncGameModsOnFocus } from "./game-folder.js";
 import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
@@ -125,9 +125,7 @@ $("#close").onclick = closeDialog;
 applyLocale();
 void refreshCatalog();
 if (isDesktop) {
-  window.addEventListener("focus", () => {
-    if (!state.busyMod && !$("dialog").open) void syncGameMods();
-  });
+  window.addEventListener("focus", syncGameModsOnFocus);
   cachedPackages().then(result => { state.packages = {...result, ...state.packages}; render(); }).catch(() => {});
   detectGame().catch(error => show(t("failed"), element("p", String(error)), button(t("choose"), pickGame, "primary")));
   void checkApp(false);

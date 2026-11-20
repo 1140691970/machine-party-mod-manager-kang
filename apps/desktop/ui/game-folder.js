@@ -1,5 +1,6 @@
 import { chooseGame, gameCopies, findGames, installedVersions, saveGame, validateGameMods } from "./bridge.js";
-import { button, closeDialog, element, show } from "./dom.js";
+import { $, button, closeDialog, element, show } from "./dom.js";
+import { confirmGameExit } from "./game-exit-dialog.js";
 import { render, state, t } from "./state.js";
 
 let generation = 0;
@@ -16,6 +17,10 @@ export function applyValidation(validation, path) {
   state.lastScan = validation;
   state.scan = "ready";
   render();
+}
+
+export function syncGameModsOnFocus() {
+  if (!state.busyMod && !$("dialog[open]")) return syncGameMods();
 }
 
 export function syncGameMods(force = false) {
@@ -64,11 +69,22 @@ async function loadGame(path) {
   await syncGameMods();
 }
 
-async function selectPath(path, selected) {
+async function afterActionScan(path, dir, request, selected) {
+  const current = () => request === selection && state.game === path;
+  if (current() && state.scan === "failed" && state.scanError === "gameRunning") {
+    if (!await confirmGameExit(path, dir, current) || !current()) return;
+    await syncGameMods(true);
+  }
+  if (current() && state.scan === "ready" && state.pckDir === dir) return selected();
+}
+
+async function selectPath(path, dir, selected) {
+  const request = ++selection;
   await saveGame(path);
+  if (request !== selection) return;
   closeDialog();
   await loadGame(path);
-  if (selected && state.game === path && state.scan === "ready") return selected();
+  if (selected) return afterActionScan(path, dir, request, selected);
 }
 
 export async function pickGame(selected) {
@@ -77,16 +93,16 @@ export async function pickGame(selected) {
   if (!path || request !== selection) return;
   const copies = await gameCopies(path);
   if (request !== selection) return;
-  if (copies.length <= 1) return selectPath(path, selected);
+  if (copies.length <= 1) return selectPath(path, copies[0], selected);
   return chooseCopy(copies, selected);
 }
 
 function chooseCopy(copies, selected) {
   show(t("choose"), element("p", t("multiple")),
-    ...copies.map(copy => button(copy, () => selectPath(copy, selected), "secondary", "folder")));
+    ...copies.map(copy => button(copy, () => selectPath(copy, copy, selected), "secondary", "folder")));
 }
 
-export async function withGameCopy(selected) {
+export async function withGameCopy(selected = () => {}, force = false) {
   const path = state.game;
   if (!path) return pickGame(selected);
   const request = ++selection;
@@ -94,8 +110,8 @@ export async function withGameCopy(selected) {
   if (request !== selection || state.game !== path) return;
   if (!copies.length) return pickGame(selected);
   if (copies.length > 1) return chooseCopy(copies, selected);
-  await syncGameMods();
-  if (request === selection && state.game === path && state.scan === "ready") return selected();
+  await syncGameMods(force);
+  return afterActionScan(path, copies[0], request, selected);
 }
 
 export async function detectGame(rescan = false) {
@@ -106,7 +122,11 @@ export async function detectGame(rescan = false) {
     const saved = state.game;
     const copies = await gameCopies(saved);
     if (request !== selection) return;
-    if (copies.length === 1) return loadGame(saved);
+    if (copies.length === 1) {
+      await saveGame(saved);
+      if (request === selection) return loadGame(saved);
+      return;
+    }
   }
   if (candidates.length === 1) {
     if (rescan) await saveGame(candidates[0]);

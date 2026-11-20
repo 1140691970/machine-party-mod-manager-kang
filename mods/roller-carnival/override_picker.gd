@@ -14,6 +14,33 @@ static func _roller_display_name() -> String:
 	return "ROLLER CARNIVAL"
 
 
+static func _roller_brief_content() -> String:
+	var loc: String = TranslationServer.get_locale().to_upper()
+	if loc.begins_with("ZHS"):
+		return "高处琥珀滚筒：按住 [S / ↓] 下蹲闪避；\n低处冷钢滚筒：按 [空格 / W / ↑] 跳跃越过；\n被撞击只会向左击退，推入左侧粉碎熔炉即淘汰！"
+	if loc.begins_with("ZH"):
+		return "高處琥珀滾筒：按住 [S / ↓] 下蹲閃避；\n低處冷鋼滾筒：按 [空白鍵 / W / ↑] 跳躍越過；\n被撞擊只會向左擊退，推入左側粉碎熔爐即淘汰！"
+	return "HIGH AMBER ROLLER: Hold [S / Down] to crouch under.\nLOW STEEL ROLLER: Press [Space / W / Up] to jump over.\nHits knock you left into the shredder furnace. Rank by total dodges!"
+
+
+static func _roller_jump_control_text() -> String:
+	var loc: String = TranslationServer.get_locale().to_upper()
+	if loc.begins_with("ZHS"):
+		return "跳跃 [空格 / W]（低处冷钢滚筒）"
+	if loc.begins_with("ZH"):
+		return "跳躍 [空白鍵 / W]（低處冷鋼滾筒）"
+	return "JUMP [SPACE / W] (LOW STEEL ROLLER)"
+
+
+static func _roller_crouch_control_text() -> String:
+	var loc: String = TranslationServer.get_locale().to_upper()
+	if loc.begins_with("ZHS"):
+		return "按住下蹲 [S / ↓]（高处琥珀滚筒）"
+	if loc.begins_with("ZH"):
+		return "按住下蹲 [S / ↓]（高處琥珀滾筒）"
+	return "HOLD CROUCH [S] (HIGH AMBER ROLLER)"
+
+
 func _ensure_roller_icon_resource() -> void:
 	if intermission_manager == null:
 		return
@@ -28,18 +55,17 @@ func _ensure_roller_icon_resource() -> void:
 		icon_res.identifier = mod_slot
 		intermission_manager.minigame_icon_resource_array.append(icon_res)
 	icon_res.icon_texture = load(Globals.MinigameIconPaths[mod_slot])
-	icon_res.brief_instructions_header_pages = ["ROLLER CARNIVAL"]
-	icon_res.brief_instructions_content_pages = [
-		"金色高滾筒：按 [S] 下蹲躲過；\n銀色低滾筒：按 [空白鍵] 跳躍越過；\n被撞擊只會向左推擠，掉入岩漿即淘汰！"
-	]
+	icon_res.brief_instructions_header_pages = ["LOC_IM_BRIEFING"]
+	icon_res.brief_instructions_content_pages = [_roller_brief_content()]
 
 	var ctrl_jump := IntermissionControlInputLabelData.new()
-	ctrl_jump.control_text = "Space / 跳躍 (銀色低滾筒)"
+	ctrl_jump.control_text = _roller_jump_control_text()
 	ctrl_jump.controller_text = "JUMP"
+	ctrl_jump.keyboard_icons = [InputIconMapping.InputAction.KeyboardW]
 	ctrl_jump.controller_icons = [InputIconMapping.InputAction.ControllerFaceSouth]
 
 	var ctrl_crouch := IntermissionControlInputLabelData.new()
-	ctrl_crouch.control_text = "CROUCH / 下蹲 (金色高滾筒)"
+	ctrl_crouch.control_text = _roller_crouch_control_text()
 	ctrl_crouch.controller_text = "CROUCH"
 	ctrl_crouch.keyboard_icons = [InputIconMapping.InputAction.KeyboardS]
 	ctrl_crouch.controller_icons = [InputIconMapping.InputAction.ControllerFaceEast]
@@ -155,6 +181,7 @@ func _ensure_identifier_in_first_15(
 
 
 func debug_update() -> void:
+	_ensure_roller_icon_resource()
 	super()
 	if debug_active_identifier == Globals.MinigameIdentifier.ShapeCutter:
 		var label_text: String = tr("LOC_IM_NEXT_SIMULATION") % _roller_display_name()
@@ -171,6 +198,7 @@ func pick_next_game(index: int, random_active_index_icon_index: int):
 
 
 func set_viewfinder_for_briefing_screen(minigame_identifier: Globals.MinigameIdentifier):
+	_ensure_roller_icon_resource()
 	super(minigame_identifier)
 	if minigame_identifier == Globals.MinigameIdentifier.ShapeCutter:
 		var label_text: String = tr("LOC_IM_NEXT_SIMULATION") % _roller_display_name()

@@ -53,8 +53,16 @@ func initialize(current_round: int, rounds: int, _scores: Dictionary = {}):
 	var ids: Array = PlayerManager.player_presences.keys()
 	ids.sort()
 	for id in ids:
-		roster.append({"id": roster.size(), "network_id": id,
-			"nickname": PlayerManager.player_presences[id].network_name})
+		var presence = PlayerManager.player_presences[id]
+		var cust = presence.get("customization")
+		roster.append({
+			"id": roster.size(),
+			"network_id": id,
+			"nickname": presence.network_name,
+			"customization": cust.duplicate() if cust is Array else [],
+			"round_number": current_round,
+			"total_rounds": rounds,
+		})
 	$Stage.start_round.rpc(roster)
 
 

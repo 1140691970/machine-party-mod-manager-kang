@@ -98,6 +98,41 @@ const GLASSES_COSMETICS := {
 	5: {"path": "res://models/character cosmetics/cosmetic_reading glasses/cosmetic_reading glasses.glb", "tf": Transform3D(Basis(Vector3(0.00952975, -0.0227329, 0.999696), Vector3(-0.141247, 0.989687, 0.0238517), Vector3(-0.989929, -0.141432, 0.00622053)), Vector3(0.253487, 0.231504, -0.0139316))},
 }
 
+const HAT_COSMETIC_BY_NAME := {
+	"tophat": 0,
+	"traffic_cone": 1,
+	"rubiks_cube": 2,
+	"maska_helmet": 3,
+	"beer_hat": 4,
+	"cap_blade": 5,
+	"drill_sgt_hat": 6,
+	"hard_hat": 7,
+}
+
+const GLASSES_COSMETIC_BY_NAME := {
+	"sunglasses": 0,
+	"reading_glasses": 5,
+}
+
+const SUIT_COLOR_VALUES := {
+	"red": Color(0.96, 0.28, 0.30),
+	"blue": Color(0.22, 0.58, 1.00),
+	"green": Color(0.22, 0.84, 0.44),
+	"yellow": Color(1.00, 0.84, 0.20),
+	"purple": Color(0.70, 0.34, 0.98),
+}
+
+const TEX_THREADPLATE := "res://minigames/chisel_gauntlet_multiplayer/models/chisel gauntlet art2/chisel gauntlet art2_threadplate albedo.png"
+const TEX_THREADPLATE_NORMAL := "res://minigames/chisel_gauntlet_multiplayer/models/chisel gauntlet art2/chisel gauntlet art2_threadplate normal 1024.png"
+const TEX_SHREDDER := "res://minigames/escalator_pit/models/escalator pit art11/escalator pit art11_shredder6.png"
+const TEX_HEAVY_RUST := "res://minigames/junk_platform/models/junk platform visuals2/junk platform visuals2_heavy rust2.png"
+const TEX_METAL_PLATE := "res://minigames/dvd_roomba/models/dvd roomba visuals1_metal plate1.png"
+const TEX_FLOOR := "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba floor5.png"
+const TEX_GRATE := "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba grate.png"
+const TEX_PIPES := "res://minigames/forklift_certified/models/forklift certified visuals1/forklift certified visuals1_fc pipes2.png"
+const TEX_WALL := "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba walls1.png"
+const TEX_SIDING := "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba siding.png"
+
 static var _pck_checked: bool = false
 static var _pck_available: bool = false
 
@@ -131,7 +166,7 @@ static func load_terminal_font() -> Font:
 	return load_optional("res://fonts/Terminal F4.ttf")
 
 
-static func make_toon_mat(color: Color, roughness: float = 0.48, metallic: float = 0.08, emission: Color = Color.BLACK, emission_energy: float = 0.0, tex_path: String = "", uv_scale: Vector3 = Vector3.ONE) -> StandardMaterial3D:
+static func make_toon_mat(color: Color, roughness: float = 0.48, metallic: float = 0.08, emission: Color = Color.BLACK, emission_energy: float = 0.0, tex_path: String = "", uv_scale: Vector3 = Vector3.ONE, triplanar: bool = true, normal_path: String = "") -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = roughness
@@ -141,8 +176,14 @@ static func make_toon_mat(color: Color, roughness: float = 0.48, metallic: float
 		if tex is Texture2D:
 			mat.albedo_texture = tex
 			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-			mat.uv1_triplanar = true
+			mat.uv1_triplanar = triplanar
 			mat.uv1_scale = uv_scale
+	if not normal_path.is_empty():
+		var norm = load_optional(normal_path)
+		if norm is Texture2D:
+			mat.normal_enabled = true
+			mat.normal_texture = norm
+			mat.normal_scale = 0.7
 	if emission_energy > 0.0:
 		mat.emission_enabled = true
 		mat.emission = emission
@@ -157,26 +198,29 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 		"bulbs": [],
 		"lava_mesh": null,
 		"lava_bubbles": [],
+		"pit_shredders": [],
 		"beacon_gold": null,
 		"beacon_silver": null,
 		"starting_line": null,
 		"lane_tracks": [],
+		"monitor_timer_label": null,
+		"monitor_phase_label": null,
 	}
 
 	# --- World Environment (Machine Party low-saturation warm industrial tone + bloom) ---
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.06, 0.05, 0.08)
+	env.background_color = Color(0.04, 0.04, 0.05)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.44, 0.35, 0.30)
-	env.ambient_light_energy = 0.78
+	env.ambient_light_color = Color(0.36, 0.31, 0.28)
+	env.ambient_light_energy = 0.72
 	env.adjustment_enabled = true
-	env.adjustment_brightness = 1.12
-	env.adjustment_contrast = 1.12
-	env.adjustment_saturation = 0.88
+	env.adjustment_brightness = 1.08
+	env.adjustment_contrast = 1.15
+	env.adjustment_saturation = 0.84
 	env.glow_enabled = true
-	env.glow_intensity = 0.45
-	env.glow_bloom = 0.14
+	env.glow_intensity = 0.42
+	env.glow_bloom = 0.12
 	env.tonemap_mode = Environment.TONE_MAPPER_ACES
 	var world_env := WorldEnvironment.new()
 	world_env.name = "WorldEnvironment"
@@ -186,7 +230,7 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 	# --- Warm Directional Key Light with Crisp Shadows ---
 	var dir_light := DirectionalLight3D.new()
 	dir_light.name = "KeyLight"
-	dir_light.light_color = Color(1.0, 0.90, 0.76)
+	dir_light.light_color = Color(1.0, 0.89, 0.74)
 	dir_light.light_energy = 1.85
 	dir_light.shadow_enabled = true
 	dir_light.directional_shadow_max_distance = 45.0
@@ -195,7 +239,7 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 
 	var fill_light := DirectionalLight3D.new()
 	fill_light.name = "RimFillLight"
-	fill_light.light_color = Color(0.62, 0.74, 1.0)
+	fill_light.light_color = Color(0.56, 0.68, 0.92)
 	fill_light.light_energy = 0.45
 	fill_light.shadow_enabled = false
 	fill_light.rotation_degrees = Vector3(-35.0, 145.0, 0.0)
@@ -223,15 +267,14 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 	deck_box.size = Vector3(stage_width, 0.9, stage_depth)
 	deck.mesh = deck_box
 	deck.material_override = make_toon_mat(
-		Color(0.75, 0.70, 0.74), 0.58, 0.35, Color.BLACK, 0.0,
-		"res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba floor5.png",
-		Vector3(0.24, 0.24, 0.24)
+		Color(0.72, 0.68, 0.71), 0.60, 0.35, Color.BLACK, 0.0,
+		TEX_FLOOR, Vector3(0.24, 0.24, 0.24)
 	)
 	deck.position = Vector3(stage_center_x, -0.45, 0.0)
 	root.add_child(deck)
 
-	# Mechanical seam lines & cracks
-	var seam_mat := make_toon_mat(Color(0.22, 0.20, 0.24), 0.70, 0.45, Color.BLACK, 0.0, "res://minigames/dvd_roomba/models/dvd roomba visuals1_metal plate1.png", Vector3(0.3, 0.3, 0.3))
+	# Mechanical seam lines & floor cracks
+	var seam_mat := make_toon_mat(Color(0.22, 0.20, 0.23), 0.72, 0.45, Color.BLACK, 0.0, TEX_METAL_PLATE, Vector3(0.3, 0.3, 0.3))
 	for i in range(9):
 		var sx: float = left_x + 1.1 + float(i) * (stage_width - 1.5) / 8.0
 		var seam := MeshInstance3D.new()
@@ -242,19 +285,19 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 		seam.position = Vector3(sx, 0.01, 0.0)
 		root.add_child(seam)
 
-	# Starting Line (Option A: all 1-8 players stand shoulder-to-shoulder at player_spawn_x)
+	# Starting Line
 	var start_line := MeshInstance3D.new()
 	start_line.name = "StartingLine"
 	var sl_mesh := BoxMesh.new()
-	sl_mesh.size = Vector3(0.24, 0.024, stage_depth - 0.6)
+	sl_mesh.size = Vector3(0.22, 0.024, stage_depth - 0.6)
 	start_line.mesh = sl_mesh
-	start_line.material_override = make_toon_mat(Color(1.0, 0.80, 0.22), 0.35, 0.3, Color(1.0, 0.72, 0.14), 0.38)
+	start_line.material_override = make_toon_mat(Color(0.95, 0.74, 0.20), 0.42, 0.35, Color(0.92, 0.66, 0.14), 0.24, TEX_GRATE, Vector3(0.5, 0.5, 0.5))
 	start_line.position = Vector3(cfg.player_spawn_x, 0.014, 0.0)
 	root.add_child(start_line)
 	result["starting_line"] = start_line
 
-	# Horizontal lane tracks from starting line leftward toward lava (16 reusable tracks)
-	var lane_mat := make_toon_mat(Color(0.36, 0.31, 0.38, 0.55), 0.65, 0.25)
+	# Horizontal lane tracks from starting line leftward toward shredder pit (16 reusable tracks)
+	var lane_mat := make_toon_mat(Color(0.32, 0.29, 0.34, 0.50), 0.68, 0.25)
 	lane_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	var lane_tracks: Array = []
 	for li in range(16):
@@ -279,9 +322,9 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 		crack.rotation_degrees.y = (c.x * 23.0)
 		root.add_child(crack)
 
-	# Left Hazard Warning Stripes + Grate bordering the lava pit
-	var stripe_yellow := make_toon_mat(Color(0.96, 0.74, 0.12), 0.45, 0.2, Color(0.96, 0.65, 0.08), 0.18, "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba grate.png", Vector3(0.5, 0.5, 0.5))
-	var stripe_dark := make_toon_mat(Color(0.18, 0.16, 0.20), 0.55, 0.35, Color.BLACK, 0.0, "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba grate.png", Vector3(0.5, 0.5, 0.5))
+	# Left Hazard Warning Stripes + Grate bordering the shredder pit
+	var stripe_yellow := make_toon_mat(Color(0.88, 0.66, 0.12), 0.52, 0.25, Color(0.88, 0.56, 0.08), 0.12, TEX_GRATE, Vector3(0.5, 0.5, 0.5))
+	var stripe_dark := make_toon_mat(Color(0.18, 0.16, 0.19), 0.60, 0.35, Color.BLACK, 0.0, TEX_GRATE, Vector3(0.5, 0.5, 0.5))
 	for idx in range(14):
 		var sz: float = -stage_depth * 0.5 + 0.3 + float(idx) * (stage_depth / 14.0)
 		var stripe := MeshInstance3D.new()
@@ -292,106 +335,300 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 		stripe.position = Vector3(left_x + 0.38, 0.015, sz)
 		root.add_child(stripe)
 
-	# Front & Back Brass / Industrial Metal Rails
-	var brass_mat := make_toon_mat(Color(0.82, 0.60, 0.24), 0.34, 0.70, Color.BLACK, 0.0, "res://minigames/dvd_roomba/models/dvd roomba visuals1_metal plate1.png", Vector3(0.4, 0.4, 0.4))
-	for side in [-1.0, 1.0]:
-		var rail := MeshInstance3D.new()
-		var rm := BoxMesh.new()
-		rm.size = Vector3(stage_width, 0.34, 0.32)
-		rail.mesh = rm
-		rail.material_override = brass_mat
-		rail.position = Vector3(stage_center_x, 0.14, side * (stage_depth * 0.5 + 0.12))
-		root.add_child(rail)
+	_build_guide_rails(root, cfg, left_x, right_x, stage_width, stage_center_x, stage_depth)
+	_build_shredder_pit(root, result, left_x, stage_depth)
+	_build_back_wall_and_monitor(root, result, left_x, stage_width, stage_center_x, stage_depth)
+	_build_dispenser_gantry(root, result, cfg, stage_depth)
 
-	# --- Boiling Orange-Yellow Lava Pit on Far Left ---
-	var lava_width: float = 7.5
-	var lava_center_x: float = left_x - lava_width * 0.5 + 0.05
-	var lava := MeshInstance3D.new()
-	lava.name = "LavaPool"
-	var lava_box := BoxMesh.new()
-	lava_box.size = Vector3(lava_width, 0.4, stage_depth + 4.0)
-	lava.mesh = lava_box
-	lava.material_override = make_toon_mat(Color(0.92, 0.24, 0.03), 0.30, 0.0, Color(0.95, 0.28, 0.03), 0.95)
-	lava.position = Vector3(lava_center_x, -0.58, 0.0)
-	root.add_child(lava)
-	result["lava_mesh"] = lava
+	update_starting_line(result, cfg)
+	return result
+
+
+static func _build_guide_rails(root: Node3D, cfg, left_x: float, right_x: float, stage_width: float, stage_center_x: float, stage_depth: float) -> void:
+	var curb_mat := make_toon_mat(Color(0.56, 0.44, 0.26), 0.44, 0.65, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.4, 0.4, 0.4))
+	var rail_mat := make_toon_mat(Color(0.42, 0.40, 0.42), 0.46, 0.72, Color.BLACK, 0.0, TEX_METAL_PLATE, Vector3(0.4, 0.4, 0.4))
+	var post_mat := make_toon_mat(Color(0.28, 0.26, 0.28), 0.55, 0.68, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.5, 0.5, 0.5))
+
+	for side in [-1.0, 1.0]:
+		var curb := MeshInstance3D.new()
+		var cm := BoxMesh.new()
+		cm.size = Vector3(stage_width, 0.28, 0.26)
+		curb.mesh = cm
+		curb.material_override = curb_mat
+		curb.position = Vector3(stage_center_x, 0.12, side * (stage_depth * 0.5 + 0.10))
+		root.add_child(curb)
+
+		var rail_z: float = side * (stage_depth * 0.5 + 0.24)
+		for rail_y in [cfg.silver_roller_center_y, cfg.gold_roller_center_y]:
+			var rail := MeshInstance3D.new()
+			var rm := BoxMesh.new()
+			rm.size = Vector3(stage_width, 0.14, 0.18)
+			rail.mesh = rm
+			rail.material_override = rail_mat
+			rail.position = Vector3(stage_center_x, rail_y, rail_z)
+			root.add_child(rail)
+
+		var stanchion_count: int = 7
+		for si in range(stanchion_count):
+			var sx: float = lerpf(left_x + 0.4, right_x - 0.5, float(si) / float(stanchion_count - 1))
+			var post := MeshInstance3D.new()
+			var pm := BoxMesh.new()
+			pm.size = Vector3(0.20, 1.72, 0.22)
+			post.mesh = pm
+			post.material_override = post_mat
+			post.position = Vector3(sx, 0.80, rail_z)
+			root.add_child(post)
+
+
+static func _build_shredder_pit(root: Node3D, result: Dictionary, left_x: float, stage_depth: float) -> void:
+	var pit_width: float = 7.5
+	var pit_center_x: float = left_x - pit_width * 0.5 + 0.05
+
+	var slag := MeshInstance3D.new()
+	slag.name = "LavaPool"
+	var slag_box := BoxMesh.new()
+	slag_box.size = Vector3(pit_width, 0.4, stage_depth + 3.6)
+	slag.mesh = slag_box
+	slag.material_override = make_toon_mat(
+		Color(0.42, 0.24, 0.12), 0.62, 0.15,
+		Color(0.78, 0.28, 0.05), 0.34,
+		TEX_HEAVY_RUST, Vector3(0.55, 0.55, 0.55)
+	)
+	slag.position = Vector3(pit_center_x, -0.82, 0.0)
+	root.add_child(slag)
+	result["lava_mesh"] = slag
+
+	# Dark rusted retaining walls framing the sunken shredder trench
+	var wall_mat := make_toon_mat(Color(0.20, 0.18, 0.20), 0.68, 0.55, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.35, 0.35, 0.35))
+	for side in [-1.0, 1.0]:
+		var side_wall := MeshInstance3D.new()
+		var swm := BoxMesh.new()
+		swm.size = Vector3(pit_width, 1.25, 0.45)
+		side_wall.mesh = swm
+		side_wall.material_override = wall_mat
+		side_wall.position = Vector3(pit_center_x, -0.35, side * (stage_depth * 0.5 + 0.38))
+		root.add_child(side_wall)
+
+	var far_wall := MeshInstance3D.new()
+	var fwm := BoxMesh.new()
+	fwm.size = Vector3(0.55, 1.45, stage_depth + 1.2)
+	far_wall.mesh = fwm
+	far_wall.material_override = wall_mat
+	far_wall.position = Vector3(left_x - pit_width + 0.25, -0.25, 0.0)
+	root.add_child(far_wall)
+
+	var shredder_mat := make_toon_mat(Color(0.68, 0.62, 0.62), 0.45, 0.72, Color.BLACK, 0.0, TEX_SHREDDER, Vector3(1.0, 2.0, 1.0), false)
+	var blade_mat := make_toon_mat(Color(0.26, 0.22, 0.22), 0.50, 0.65, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.5, 0.5, 0.5))
+	for sx_idx in range(2):
+		var sx: float = left_x - 0.62 - float(sx_idx) * 0.96
+		var shaft := Node3D.new()
+		shaft.name = "PitShredder_%d" % sx_idx
+		shaft.position = Vector3(sx, -0.22, 0.0)
+
+		var core := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.radial_segments = 10
+		cm.rings = 1
+		cm.top_radius = 0.35
+		cm.bottom_radius = 0.35
+		cm.height = stage_depth + 0.2
+		core.mesh = cm
+		core.material_override = shredder_mat
+		core.rotation_degrees.x = 90.0
+		shaft.add_child(core)
+
+		for ring_i in range(9):
+			var rz: float = -stage_depth * 0.44 + float(ring_i) * (stage_depth * 0.88 / 8.0)
+			for b in range(4):
+				var ang: float = TAU * float(b) / 4.0 + float(ring_i) * 0.38
+				var blade := MeshInstance3D.new()
+				var bm := BoxMesh.new()
+				bm.size = Vector3(0.24, 0.09, 0.36)
+				blade.mesh = bm
+				blade.material_override = blade_mat
+				blade.position = Vector3(cos(ang) * 0.36, sin(ang) * 0.36, rz)
+				blade.rotation.z = ang + 0.3
+				shaft.add_child(blade)
+
+		root.add_child(shaft)
+		result["pit_shredders"].append(shaft)
 
 	var lava_light := OmniLight3D.new()
 	lava_light.name = "LavaGlowLight"
-	lava_light.light_color = Color(1.0, 0.42, 0.08)
-	lava_light.light_energy = 3.2
+	lava_light.light_color = Color(1.0, 0.34, 0.06)
+	lava_light.light_energy = 1.65
 	lava_light.omni_range = 10.5
-	lava_light.position = Vector3(left_x - 1.8, 1.2, 0.0)
+	lava_light.position = Vector3(left_x - 1.8, 1.1, 0.0)
 	root.add_child(lava_light)
 
-	var bubble_mat := make_toon_mat(Color(1.0, 0.68, 0.12), 0.2, 0.0, Color(1.0, 0.62, 0.08), 1.45)
-	for b in range(12):
-		var bmesh := MeshInstance3D.new()
-		var sph := SphereMesh.new()
-		sph.radius = 0.22 + float(b % 3) * 0.08
-		sph.height = sph.radius * 2.0
-		bmesh.mesh = sph
-		bmesh.material_override = bubble_mat
-		var bx: float = left_x - 0.65 - float(b % 4) * 1.15
-		var bz: float = -3.4 + float(b) * 0.62
-		bmesh.position = Vector3(bx, -0.45, bz)
-		root.add_child(bmesh)
+	var ember_mat := make_toon_mat(Color(1.0, 0.56, 0.12), 0.25, 0.0, Color(1.0, 0.48, 0.06), 1.55)
+	for b in range(16):
+		var emesh := MeshInstance3D.new()
+		var ebox := BoxMesh.new()
+		var esize: float = 0.09 + float(b % 3) * 0.03
+		ebox.size = Vector3(esize, esize, esize)
+		emesh.mesh = ebox
+		emesh.material_override = ember_mat
+		var bx: float = left_x - 0.55 - float(b % 5) * 0.95
+		var bz: float = -3.6 + float(b) * 0.48
+		emesh.position = Vector3(bx, -0.58, bz)
+		emesh.rotation_degrees = Vector3(float(b * 23), float(b * 41), float(b * 17))
+		root.add_child(emesh)
 		result["lava_bubbles"].append({
-			"node": bmesh,
+			"node": emesh,
 			"base_x": bx,
 			"base_z": bz,
-			"phase": float(b) * 0.73,
+			"phase": float(b) * 0.67,
 		})
 
-	# --- Carnival String Lights & Rotating Mechanical Gears ---
-	var post_mat := make_toon_mat(Color(0.55, 0.48, 0.52), 0.45, 0.6, Color.BLACK, 0.0, "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba pipes.png", Vector3(0.5, 0.5, 0.5))
-	var bulb_palette := [
-		Color(1.0, 0.32, 0.24),
-		Color(1.0, 0.82, 0.18),
-		Color(0.22, 0.88, 1.0),
-		Color(0.95, 0.36, 0.88),
-	]
-	for p in range(6):
-		var px: float = left_x + 1.2 + float(p) * 2.7
-		var post := MeshInstance3D.new()
-		var pm := CylinderMesh.new()
-		pm.top_radius = 0.09
-		pm.bottom_radius = 0.12
-		pm.height = 2.6
-		post.mesh = pm
-		post.material_override = post_mat
-		post.position = Vector3(px, 1.3, -stage_depth * 0.5 - 0.15)
-		root.add_child(post)
 
-		var col: Color = bulb_palette[p % bulb_palette.size()]
-		var bulb := MeshInstance3D.new()
-		var bm := SphereMesh.new()
-		bm.radius = 0.20
-		bm.height = 0.40
-		bulb.mesh = bm
-		bulb.material_override = make_toon_mat(col, 0.2, 0.0, col, 2.2)
-		bulb.position = Vector3(px, 2.7, -stage_depth * 0.5 - 0.15)
-		root.add_child(bulb)
-		result["bulbs"].append(bulb)
+static func _build_back_wall_and_monitor(root: Node3D, result: Dictionary, _left_x: float, stage_width: float, stage_center_x: float, stage_depth: float) -> void:
+	var back_z: float = -stage_depth * 0.5 - 0.65
+	var wall_mat := make_toon_mat(Color(0.44, 0.40, 0.44), 0.72, 0.35, Color.BLACK, 0.0, TEX_WALL, Vector3(0.25, 0.25, 0.25))
+	var pipe_mat := make_toon_mat(Color(0.52, 0.48, 0.48), 0.46, 0.65, Color.BLACK, 0.0, TEX_PIPES, Vector3(0.4, 0.4, 0.4))
+
+	var back_wall := MeshInstance3D.new()
+	back_wall.name = "BackWall"
+	var wm := BoxMesh.new()
+	wm.size = Vector3(stage_width + 10.5, 5.6, 0.4)
+	back_wall.mesh = wm
+	back_wall.material_override = wall_mat
+	back_wall.position = Vector3(stage_center_x - 3.6, 2.1, back_z - 0.45)
+	root.add_child(back_wall)
+
+	for py in [1.95, 3.65]:
+		var pipe := MeshInstance3D.new()
+		var pm := CylinderMesh.new()
+		pm.radial_segments = 10
+		pm.top_radius = 0.16
+		pm.bottom_radius = 0.16
+		pm.height = stage_width + 9.5
+		pipe.mesh = pm
+		pipe.material_override = pipe_mat
+		pipe.rotation_degrees.z = 90.0
+		pipe.position = Vector3(stage_center_x - 3.6, py, back_z - 0.16)
+		root.add_child(pipe)
+
+	# Rotating mechanical saw gears along the lower back wall
+	for g in range(4):
+		var saw_tex := "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw2.png" if g % 2 == 0 else "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw bloody.png"
+		var gear := _build_gear(1.15 + float(g % 2) * 0.45, 10, Color(0.70, 0.54, 0.32) if g % 2 == 0 else Color(0.56, 0.58, 0.62), saw_tex)
+		gear.position = Vector3(-3.8 + float(g) * 4.2, 0.72 + float(g % 2) * 0.42, back_z + 0.05)
+		root.add_child(gear)
+		result["gears"].append(gear)
+
+	# Industrial cage wall lamps mounted symmetrically outside the CRT monitor
+	var lamp_packed = load_optional("res://models/elevator light2/elevator light2.glb")
+	var cage_mat := make_toon_mat(Color(0.24, 0.22, 0.22), 0.52, 0.72, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.5, 0.5, 0.5))
+	for lx in [-4.5, -2.2, 3.0, 6.2, 9.4]:
+		var lamp_mat := make_toon_mat(Color(1.0, 0.74, 0.36), 0.22, 0.0, Color(1.0, 0.66, 0.24), 1.65)
+		if lamp_packed is PackedScene:
+			var linst: Node3D = lamp_packed.instantiate()
+			linst.position = Vector3(lx, 3.10, back_z + 0.08)
+			linst.rotation_degrees = Vector3(0.0, 90.0, 0.0)
+			linst.scale = Vector3(0.62, 0.62, 0.62)
+			root.add_child(linst)
+			for c in linst.get_children():
+				if c is MeshInstance3D:
+					(c as MeshInstance3D).set_surface_override_material(0, lamp_mat)
+		else:
+			var housing := MeshInstance3D.new()
+			var hm := BoxMesh.new()
+			hm.size = Vector3(0.95, 0.32, 0.28)
+			housing.mesh = hm
+			housing.material_override = cage_mat
+			housing.position = Vector3(lx, 3.10, back_z - 0.08)
+			root.add_child(housing)
+
+			var filament := MeshInstance3D.new()
+			var fm := BoxMesh.new()
+			fm.size = Vector3(0.72, 0.16, 0.16)
+			filament.mesh = fm
+			filament.material_override = lamp_mat
+			filament.position = Vector3(lx, 3.08, back_z + 0.04)
+			root.add_child(filament)
+		result["bulbs"].append(lamp_mat)
 
 	var warm_stage_light := OmniLight3D.new()
 	warm_stage_light.name = "CarnivalStageGlow"
-	warm_stage_light.light_color = Color(1.0, 0.76, 0.40)
-	warm_stage_light.light_energy = 2.6
+	warm_stage_light.light_color = Color(1.0, 0.74, 0.38)
+	warm_stage_light.light_energy = 2.4
 	warm_stage_light.omni_range = 18.0
 	warm_stage_light.position = Vector3(1.5, 4.6, -2.5)
 	root.add_child(warm_stage_light)
 
-	for g in range(4):
-		var saw_tex := "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw2.png" if g % 2 == 0 else "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw bloody.png"
-		var gear := _build_gear(1.25 + float(g % 2) * 0.55, 10, Color(0.84, 0.64, 0.36) if g % 2 == 0 else Color(0.68, 0.70, 0.74), saw_tex)
-		gear.position = Vector3(-3.8 + float(g) * 4.2, 0.75 + float(g % 2) * 0.9, -stage_depth * 0.5 - 0.75)
-		root.add_child(gear)
-		result["gears"].append(gear)
+	var left_wall_light := OmniLight3D.new()
+	left_wall_light.name = "PitWallLight"
+	left_wall_light.light_color = Color(1.0, 0.64, 0.34)
+	left_wall_light.light_energy = 1.6
+	left_wall_light.omni_range = 14.0
+	left_wall_light.position = Vector3(-7.5, 4.2, -2.0)
+	root.add_child(left_wall_light)
 
-	# --- Right-side Roller Dispenser Gantry ---
+	# --- 3D Diegetic Industrial CRT Timer Monitor on Back Wall ---
+	var monitor := Node3D.new()
+	monitor.name = "DiegeticMonitor"
+	monitor.position = Vector3(0.35, 2.78, back_z + 0.22)
+	monitor.rotation_degrees.x = 18.0
+	root.add_child(monitor)
+
+	var casing := MeshInstance3D.new()
+	var cm := BoxMesh.new()
+	cm.size = Vector3(3.45, 1.78, 0.45)
+	casing.mesh = cm
+	casing.material_override = make_toon_mat(Color(0.30, 0.28, 0.28), 0.56, 0.65, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.4, 0.4, 0.4))
+	monitor.add_child(casing)
+
+	var bezel := MeshInstance3D.new()
+	var bzm := BoxMesh.new()
+	bzm.size = Vector3(3.16, 1.50, 0.10)
+	bezel.mesh = bzm
+	bezel.material_override = make_toon_mat(Color(0.10, 0.10, 0.11), 0.68, 0.45)
+	bezel.position = Vector3(0.0, 0.0, 0.20)
+	monitor.add_child(bezel)
+
+	var screen := MeshInstance3D.new()
+	var scm := BoxMesh.new()
+	scm.size = Vector3(2.96, 1.30, 0.04)
+	screen.mesh = scm
+	screen.material_override = make_toon_mat(Color(0.03, 0.06, 0.04), 0.25, 0.10, Color(0.08, 0.20, 0.10), 0.32)
+	screen.position = Vector3(0.0, 0.0, 0.24)
+	monitor.add_child(screen)
+
+	var term_font := load_terminal_font()
+	var timer_lbl := Label3D.new()
+	timer_lbl.name = "MonitorTimerLabel"
+	timer_lbl.text = "00:50"
+	timer_lbl.font_size = 96
+	timer_lbl.pixel_size = 0.0095
+	timer_lbl.modulate = Color(0.53, 0.83, 0.50)
+	timer_lbl.outline_modulate = Color(0.02, 0.06, 0.02)
+	timer_lbl.outline_size = 14
+	if term_font != null:
+		timer_lbl.font = term_font
+	timer_lbl.position = Vector3(0.0, 0.14, 0.27)
+	monitor.add_child(timer_lbl)
+	result["monitor_timer_label"] = timer_lbl
+
+	var phase_lbl := Label3D.new()
+	phase_lbl.name = "MonitorPhaseLabel"
+	phase_lbl.text = "WAVE 01 // SINGLE"
+	phase_lbl.font_size = 30
+	phase_lbl.pixel_size = 0.0085
+	phase_lbl.modulate = Color(0.45, 0.72, 0.42)
+	phase_lbl.outline_modulate = Color(0.02, 0.06, 0.02)
+	phase_lbl.outline_size = 8
+	if term_font != null:
+		phase_lbl.font = term_font
+	phase_lbl.position = Vector3(0.0, -0.38, 0.27)
+	monitor.add_child(phase_lbl)
+	result["monitor_phase_label"] = phase_lbl
+
+
+static func _build_dispenser_gantry(root: Node3D, result: Dictionary, cfg, stage_depth: float) -> void:
 	var gantry_x: float = cfg.roller_spawn_x + 0.2
-	var gantry_mat := make_toon_mat(Color(0.58, 0.52, 0.56), 0.38, 0.7, Color.BLACK, 0.0, "res://minigames/dvd_roomba/models/dvd roomba visuals1_dvd roomba siding.png", Vector3(0.4, 0.4, 0.4))
+	var gantry_mat := make_toon_mat(Color(0.50, 0.46, 0.48), 0.44, 0.7, Color.BLACK, 0.0, TEX_SIDING, Vector3(0.4, 0.4, 0.4))
+	var beam_mat := make_toon_mat(Color(0.58, 0.44, 0.24), 0.42, 0.68, Color.BLACK, 0.0, TEX_HEAVY_RUST, Vector3(0.4, 0.4, 0.4))
 	for gz in [-stage_depth * 0.5 - 0.15, stage_depth * 0.5 + 0.15]:
 		var pillar := MeshInstance3D.new()
 		var pil_m := BoxMesh.new()
@@ -405,32 +642,33 @@ static func build_stage_and_environment(root: Node3D, cfg) -> Dictionary:
 	var beam_m := BoxMesh.new()
 	beam_m.size = Vector3(0.65, 0.55, stage_depth + 0.85)
 	top_beam.mesh = beam_m
-	top_beam.material_override = brass_mat
+	top_beam.material_override = beam_mat
 	top_beam.position = Vector3(gantry_x, 3.35, 0.0)
 	root.add_child(top_beam)
 
 	var beacon_gold := MeshInstance3D.new()
-	var bg_m := SphereMesh.new()
-	bg_m.radius = 0.28
-	bg_m.height = 0.56
+	var bg_m := CylinderMesh.new()
+	bg_m.radial_segments = 8
+	bg_m.top_radius = 0.22
+	bg_m.bottom_radius = 0.26
+	bg_m.height = 0.44
 	beacon_gold.mesh = bg_m
-	beacon_gold.material_override = make_toon_mat(Color(1.0, 0.82, 0.18), 0.2, 0.0, Color(1.0, 0.78, 0.12), 0.6)
-	beacon_gold.position = Vector3(gantry_x - 0.2, 3.35, -1.2)
+	beacon_gold.material_override = make_toon_mat(Color(0.95, 0.68, 0.16), 0.25, 0.1, Color(0.95, 0.66, 0.12), 0.5)
+	beacon_gold.position = Vector3(gantry_x - 0.22, 3.35, -1.2)
 	root.add_child(beacon_gold)
 	result["beacon_gold"] = beacon_gold
 
 	var beacon_silver := MeshInstance3D.new()
-	var bs_m := SphereMesh.new()
-	bs_m.radius = 0.28
-	bs_m.height = 0.56
+	var bs_m := CylinderMesh.new()
+	bs_m.radial_segments = 8
+	bs_m.top_radius = 0.22
+	bs_m.bottom_radius = 0.26
+	bs_m.height = 0.44
 	beacon_silver.mesh = bs_m
-	beacon_silver.material_override = make_toon_mat(Color(0.75, 0.90, 1.0), 0.2, 0.0, Color(0.55, 0.85, 1.0), 0.6)
-	beacon_silver.position = Vector3(gantry_x - 0.2, 3.35, 1.2)
+	beacon_silver.material_override = make_toon_mat(Color(0.68, 0.82, 0.94), 0.25, 0.1, Color(0.52, 0.78, 0.96), 0.5)
+	beacon_silver.position = Vector3(gantry_x - 0.22, 3.35, 1.2)
 	root.add_child(beacon_silver)
 	result["beacon_silver"] = beacon_silver
-
-	update_starting_line(result, cfg)
-	return result
 
 
 static func update_starting_line(scene_props: Dictionary, cfg) -> void:
@@ -469,6 +707,8 @@ static func _build_gear(radius: float, teeth: int, color: Color, tex_path: Strin
 
 	var disc := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
+	cyl.radial_segments = 12
+	cyl.rings = 1
 	cyl.top_radius = radius
 	cyl.bottom_radius = radius
 	cyl.height = 0.26
@@ -491,9 +731,32 @@ static func _build_gear(radius: float, teeth: int, color: Color, tex_path: Strin
 	return gear
 
 
-static func build_cartoon_character(idx: int, nickname: String) -> Dictionary:
+static func _resolve_player_color(idx: int, customization: Array = []) -> Color:
+	if customization.size() >= 3:
+		var suit_name := str(customization[2]).strip_edges().to_lower()
+		if SUIT_COLOR_VALUES.has(suit_name):
+			return SUIT_COLOR_VALUES[suit_name]
+	return PLAYER_COLORS[idx % PLAYER_COLORS.size()]
+
+
+static func _build_local_spotlight() -> SpotLight3D:
+	var spot := SpotLight3D.new()
+	spot.name = "LocalSpotlight"
+	spot.light_color = Color(0.94, 1.0, 0.88)
+	spot.light_energy = 16.0
+	spot.spot_range = 6.2
+	spot.spot_angle = 15.0
+	spot.spot_angle_attenuation = 1.8
+	spot.spot_attenuation = 0.65
+	spot.shadow_enabled = false
+	spot.position = Vector3(0.0, 3.8, 0.20)
+	spot.rotation_degrees = Vector3(-87.0, 0.0, 0.0)
+	return spot
+
+
+static func build_cartoon_character(idx: int, nickname: String, customization: Array = [], is_local: bool = false) -> Dictionary:
 	ensure_game_pck_mounted()
-	var col: Color = PLAYER_COLORS[idx % PLAYER_COLORS.size()]
+	var col: Color = _resolve_player_color(idx, customization)
 	var root := Node3D.new()
 	root.name = "Player_%d" % (idx + 1)
 
@@ -511,6 +774,15 @@ static func build_cartoon_character(idx: int, nickname: String) -> Dictionary:
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(shadow)
 
+	var local_light: SpotLight3D = null
+	var external_spotlight := Engine.has_meta(&"mpm_player_spotlight_active")
+	if is_local:
+		root.add_to_group(&"mpm_local_player")
+		root.set_meta(&"mpm_alive", true)
+		if not external_spotlight:
+			local_light = _build_local_spotlight()
+			root.add_child(local_light)
+
 	var visual := Node3D.new()
 	visual.name = "VisualPivot"
 	root.add_child(visual)
@@ -525,22 +797,23 @@ static func build_cartoon_character(idx: int, nickname: String) -> Dictionary:
 		# Original mesh height is ~4.84 units -> 0.31 scale aligns character height to ~1.50 units
 		rig.scale = Vector3(0.31, 0.31, 0.31)
 		visual.add_child(rig)
-		_customize_official_rig(rig, idx)
+		_customize_official_rig(rig, idx, customization)
 		anim_player = _setup_official_animations(rig)
 	else:
 		_build_fallback_character(visual, idx, col)
 
-	# Floating colored nickname Label3D
+	# Vanilla Machine Party heavy-outlined Terminal F4 nametag (truncated at 11 chars)
+	var formatted_name := nickname.left(11) + "-" if nickname.length() > 11 else nickname
 	var label := Label3D.new()
 	label.name = "NicknameLabel"
-	label.text = nickname
-	label.font_size = 34
-	label.pixel_size = 0.0082
+	label.text = formatted_name
+	label.font_size = 36
+	label.pixel_size = 0.0080
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
-	label.modulate = col.lightened(0.22)
-	label.outline_modulate = Color(0.04, 0.03, 0.06)
-	label.outline_size = 10
+	label.modulate = Color(0.62, 1.0, 0.58, 1.0) if (is_local and not external_spotlight) else Color(1.0, 1.0, 1.0, 1.0)
+	label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
+	label.outline_size = 12
 	var font := load_terminal_font()
 	if font != null:
 		label.font = font
@@ -551,24 +824,34 @@ static func build_cartoon_character(idx: int, nickname: String) -> Dictionary:
 		"root": root,
 		"visual": visual,
 		"shadow": shadow,
+		"local_light": local_light,
 		"label": label,
 		"anim_player": anim_player,
 	}
 
 
-static func _customize_official_rig(rig: Node3D, idx: int) -> void:
+static func _customize_official_rig(rig: Node3D, idx: int, customization: Array = []) -> void:
 	var sk := rig.get_node_or_null("Armature/Skeleton3D") as Skeleton3D
 	if sk == null:
 		return
 
+	var has_custom := not customization.is_empty()
 	var char_mesh := sk.get_node_or_null("character mesh") as MeshInstance3D
 	if char_mesh != null:
-		var suit_tex = load_optional(SUIT_TEXTURE_MAP[idx % SUIT_TEXTURE_MAP.size()])
+		var suit_tex = null
+		var suit_tint := Color.WHITE
+		if has_custom and customization.size() >= 3:
+			var suit_name := str(customization[2]).strip_edges().to_lower()
+			if SUIT_COLOR_VALUES.has(suit_name):
+				suit_tex = load_optional("res://modules/character_customization/character_customization_textures/main character painted %s.png" % suit_name)
+		if suit_tex == null:
+			suit_tex = load_optional(SUIT_TEXTURE_MAP[idx % SUIT_TEXTURE_MAP.size()])
+			suit_tint = SUIT_TINTS[idx % SUIT_TINTS.size()]
 		if suit_tex is Texture2D:
 			var suit_mat := StandardMaterial3D.new()
 			suit_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 			suit_mat.albedo_texture = suit_tex
-			suit_mat.albedo_color = SUIT_TINTS[idx % SUIT_TINTS.size()]
+			suit_mat.albedo_color = suit_tint
 			suit_mat.metallic = 0.02
 			suit_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 			char_mesh.set_surface_override_material(0, suit_mat)
@@ -591,22 +874,35 @@ static func _customize_official_rig(rig: Node3D, idx: int) -> void:
 			char_mesh.set_surface_override_material(2, eye_mat)
 
 	# Attach official Machine Party 3D hat to Skeleton3D bone "hat" (idx 5)
-	var hat_cfg: Dictionary = HAT_COSMETICS[idx % HAT_COSMETICS.size()]
-	var hat_packed = load_optional(str(hat_cfg["path"]))
-	if hat_packed is PackedScene:
-		var hat_attach := BoneAttachment3D.new()
-		hat_attach.name = "ModHatAttachment"
-		hat_attach.bone_name = "hat"
-		hat_attach.bone_idx = sk.find_bone("hat")
-		sk.add_child(hat_attach)
+	var hat_cfg = null
+	if has_custom:
+		var hat_name := str(customization[0]).strip_edges().to_lower()
+		if HAT_COSMETIC_BY_NAME.has(hat_name):
+			hat_cfg = HAT_COSMETICS[int(HAT_COSMETIC_BY_NAME[hat_name])]
+	else:
+		hat_cfg = HAT_COSMETICS[idx % HAT_COSMETICS.size()]
+	if hat_cfg is Dictionary:
+		var hat_packed = load_optional(str(hat_cfg["path"]))
+		if hat_packed is PackedScene:
+			var hat_attach := BoneAttachment3D.new()
+			hat_attach.name = "ModHatAttachment"
+			hat_attach.bone_name = "hat"
+			hat_attach.bone_idx = sk.find_bone("hat")
+			sk.add_child(hat_attach)
 
-		var hat_inst: Node3D = hat_packed.instantiate()
-		hat_inst.transform = hat_cfg["tf"]
-		hat_attach.add_child(hat_inst)
+			var hat_inst: Node3D = hat_packed.instantiate()
+			hat_inst.transform = hat_cfg["tf"]
+			hat_attach.add_child(hat_inst)
 
 	# Attach official Machine Party 3D glasses where configured
-	if GLASSES_COSMETICS.has(idx):
-		var gl_cfg: Dictionary = GLASSES_COSMETICS[idx]
+	var gl_cfg = null
+	if has_custom and customization.size() >= 2:
+		var gl_name := str(customization[1]).strip_edges().to_lower()
+		if GLASSES_COSMETIC_BY_NAME.has(gl_name):
+			gl_cfg = GLASSES_COSMETICS[int(GLASSES_COSMETIC_BY_NAME[gl_name])]
+	elif GLASSES_COSMETICS.has(idx):
+		gl_cfg = GLASSES_COSMETICS[idx]
+	if gl_cfg is Dictionary:
 		var gl_packed = load_optional(str(gl_cfg["path"]))
 		if gl_packed is PackedScene:
 			var gl_attach := BoneAttachment3D.new()
@@ -696,67 +992,140 @@ static func _build_fallback_character(visual: Node3D, idx: int, col: Color) -> v
 	visual.add_child(cap)
 
 
-static func build_roller_mesh(roller_type: String, radius: float, length: float = 8.0) -> Dictionary:
+static func _first_existing_path(candidates: Array) -> String:
+	for p in candidates:
+		var path := str(p)
+		if ResourceLoader.exists(path):
+			return path
+	return ""
+
+
+static func build_roller_mesh(roller_type: String, radius: float, length: float = 9.0) -> Dictionary:
 	ensure_game_pck_mounted()
 	var root := Node3D.new()
 	var is_gold: bool = (roller_type == "gold")
-	var base_color: Color = Color(1.0, 0.76, 0.18) if is_gold else Color(0.84, 0.90, 0.96)
-	var glow_color: Color = Color(1.0, 0.72, 0.10) if is_gold else Color(0.55, 0.88, 1.0)
-	var spike_color: Color = Color(0.52, 0.30, 0.06) if is_gold else Color(0.32, 0.38, 0.46)
+	var base_color: Color = Color(1.0, 0.72, 0.16) if is_gold else Color(0.76, 0.88, 1.0)
+	var glow_color: Color = Color(1.0, 0.68, 0.10) if is_gold else Color(0.50, 0.82, 1.0)
+	var trim_color: Color = Color(0.32, 0.24, 0.20) if is_gold else Color(0.24, 0.28, 0.34)
+
+	var body_tex := _first_existing_path([TEX_THREADPLATE, TEX_METAL_PLATE] if is_gold else [TEX_SHREDDER, TEX_METAL_PLATE])
+	var body_norm := TEX_THREADPLATE_NORMAL if (is_gold and ResourceLoader.exists(TEX_THREADPLATE_NORMAL)) else ""
+	var rust_tex := _first_existing_path([TEX_HEAVY_RUST, TEX_METAL_PLATE])
 
 	var body_mat := make_toon_mat(
-		base_color, 0.24, 0.84, glow_color, 0.22,
-		"res://minigames/dvd_roomba/models/dvd roomba visuals1_metal plate1.png",
-		Vector3(0.6, 0.6, 0.6)
+		base_color,
+		0.48 if is_gold else 0.45,
+		0.46 if is_gold else 0.50,
+		Color(0.30, 0.18, 0.02) if is_gold else Color(0.10, 0.18, 0.26), 0.12,
+		body_tex,
+		Vector3(3.0, 2.0, 1.0),
+		false,
+		body_norm
 	)
-	var glow_mat := make_toon_mat(glow_color, 0.2, 0.1, glow_color, 1.85)
-	var spike_mat := make_toon_mat(spike_color, 0.35, 0.75)
+	var flange_mat := make_toon_mat(trim_color, 0.52, 0.68, Color.BLACK, 0.0, rust_tex, Vector3(0.6, 0.6, 0.6))
+	var lug_mat := make_toon_mat(Color(0.24, 0.20, 0.18) if is_gold else Color(0.36, 0.42, 0.48), 0.45, 0.78)
+	var beacon_mat := make_toon_mat(glow_color, 0.25, 0.15, glow_color, 1.05)
 
 	var spin_pivot := Node3D.new()
 	spin_pivot.name = "SpinPivot"
 	root.add_child(spin_pivot)
 
-	var cyl_node := MeshInstance3D.new()
+	# 12-sided low-poly industrial steel drum
+	var drum := MeshInstance3D.new()
 	var cyl := CylinderMesh.new()
-	cyl.top_radius = radius
-	cyl.bottom_radius = radius
+	cyl.radial_segments = 12
+	cyl.rings = 1
+	cyl.top_radius = radius * 0.90
+	cyl.bottom_radius = radius * 0.90
 	cyl.height = length
-	cyl_node.mesh = cyl
-	cyl_node.material_override = body_mat
-	cyl_node.rotation_degrees.x = 90.0
-	spin_pivot.add_child(cyl_node)
+	drum.mesh = cyl
+	drum.material_override = body_mat
+	drum.rotation_degrees.x = 90.0
+	spin_pivot.add_child(drum)
 
-	for rz in [-2.6, -0.9, 0.9, 2.6]:
+	# Central steel axle running out to the guide rail carriages
+	var axle := MeshInstance3D.new()
+	var am := CylinderMesh.new()
+	am.radial_segments = 10
+	am.rings = 1
+	am.top_radius = 0.13
+	am.bottom_radius = 0.13
+	am.height = length + 0.75
+	axle.mesh = am
+	axle.material_override = flange_mat
+	axle.rotation_degrees.x = 90.0
+	spin_pivot.add_child(axle)
+
+	# 5 heavy ribbed flanges / shredder collars along the drum
+	var flange_count := 5
+	for fi in range(flange_count):
+		var fz: float = lerpf(-length * 0.36, length * 0.36, float(fi) / float(flange_count - 1))
+		var flange := MeshInstance3D.new()
+		var fm := CylinderMesh.new()
+		fm.radial_segments = 12
+		fm.rings = 1
+		fm.top_radius = radius + (0.045 if is_gold else 0.035)
+		fm.bottom_radius = fm.top_radius
+		fm.height = 0.24 if is_gold else 0.20
+		flange.mesh = fm
+		flange.material_override = flange_mat
+		flange.rotation_degrees.x = 90.0
+		flange.position = Vector3(0.0, 0.0, fz)
+		spin_pivot.add_child(flange)
+
+	# Two hazard indicator rings near the ends
+	for rz in [-3.5, 3.5]:
 		var ring := MeshInstance3D.new()
 		var rm := CylinderMesh.new()
-		rm.top_radius = radius + 0.025
-		rm.bottom_radius = radius + 0.025
-		rm.height = 0.20
+		rm.radial_segments = 12
+		rm.rings = 1
+		rm.top_radius = radius * 0.94
+		rm.bottom_radius = radius * 0.94
+		rm.height = 0.16
 		ring.mesh = rm
-		ring.material_override = glow_mat
+		ring.material_override = beacon_mat
 		ring.rotation_degrees.x = 90.0
 		ring.position = Vector3(0.0, 0.0, rz)
 		spin_pivot.add_child(ring)
 
+	# Chunky angular crusher lugs (gold) or angled shredder teeth (silver) in 6 rings
 	for s_idx in range(6):
-		var z_pos: float = -3.0 + float(s_idx) * 1.2
+		var z_pos: float = lerpf(-length * 0.40, length * 0.40, float(s_idx) / 5.0)
 		for k in range(4):
-			var ang: float = TAU * float(k) / 4.0 + float(s_idx) * 0.45
-			var spike := MeshInstance3D.new()
-			var sm := CylinderMesh.new()
-			sm.top_radius = 0.015
-			sm.bottom_radius = 0.085
-			sm.height = 0.18
-			spike.mesh = sm
-			spike.material_override = spike_mat
-			spike.position = Vector3(cos(ang) * (radius + 0.06), sin(ang) * (radius + 0.06), z_pos)
-			spike.rotation.z = ang - PI * 0.5
-			spin_pivot.add_child(spike)
+			var ang: float = TAU * float(k) / 4.0 + float(s_idx) * (TAU / 8.0)
+			var lug := MeshInstance3D.new()
+			var lm := BoxMesh.new()
+			lm.size = Vector3(0.18, 0.14, 0.34) if is_gold else Vector3(0.22, 0.09, 0.28)
+			lug.mesh = lm
+			lug.material_override = lug_mat
+			var radial_offset := radius * (0.93 if is_gold else 0.95)
+			lug.position = Vector3(cos(ang) * radial_offset, sin(ang) * radial_offset, z_pos)
+			lug.rotation.z = ang + (0.0 if is_gold else 0.28)
+			spin_pivot.add_child(lug)
 
+	var saw_tex := "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw2.png" if is_gold else "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw bloody.png"
 	for ez in [-length * 0.5, length * 0.5]:
-		var cap := _build_gear(radius + 0.08, 8, spike_color, "res://minigames/dvd_roomba/models/dvd roomba visuals1_circular saw bloody.png")
+		var cap := _build_gear(radius + 0.05, 8, trim_color, saw_tex)
 		cap.position = Vector3(0.0, 0.0, ez)
 		spin_pivot.add_child(cap)
+
+	# Non-rotating steel bearing carriage blocks engaging the front/back guide rails
+	for cz in [-(length * 0.5 + 0.28), length * 0.5 + 0.28]:
+		var carriage := MeshInstance3D.new()
+		var cm := BoxMesh.new()
+		cm.size = Vector3(0.46, 0.46, 0.36)
+		carriage.mesh = cm
+		carriage.material_override = flange_mat
+		carriage.position = Vector3(0.0, 0.0, cz)
+		root.add_child(carriage)
+
+		var rivet := MeshInstance3D.new()
+		var rvm := BoxMesh.new()
+		rvm.size = Vector3(0.20, 0.14, 0.40)
+		rivet.mesh = rvm
+		rivet.material_override = beacon_mat
+		rivet.position = Vector3(0.0, 0.0, cz)
+		root.add_child(rivet)
 
 	return {
 		"root": root,

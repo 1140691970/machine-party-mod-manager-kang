@@ -22,6 +22,8 @@ const COUNTDOWN_SECONDS := 3.0
 const ENTRANCE_SECONDS := 0.75
 const ENTRANCE_HEIGHT := 3.0
 const RELEASE_CROUCH := 4
+const CAM_BASE_POS := Vector3(0.45, 11.8, 11.8)
+const CAM_LOOK_TARGET := Vector3(0.35, 0.65, 0.0)
 var _held_controls := {}
 var _snapshot_timer := 0.0
 var _countdown := 0.0
@@ -31,7 +33,6 @@ var _scene_props: Dictionary = {}
 var _players: Array[Dictionary] = []
 var _rollers: Array[Dictionary] = []
 var _decals: Array[Node3D] = []
-var _popups: Array[Dictionary] = []
 var _particles: Array[Dictionary] = []
 
 var _players_layer: Node3D
@@ -48,10 +49,22 @@ var _next_roller_id: int = 1
 var _match_ended: bool = false
 var _beacon_gold_flash: float = 0.0
 var _beacon_silver_flash: float = 0.0
+var _camera_shake: float = 0.0
+var _cam_sway_time: float = 0.0
+var _go_timer: float = 0.0
+var _you_marker_timer: float = 0.0
+var _you_marker_shown: bool = false
+var _last_countdown_ceil: int = 4
+var _last_timer_beep_sec: int = -1
 
 # UI References
 var _ui_layer: CanvasLayer
 var _countdown_label: Label
+var _go_label: Label
+var _round_banner: Control
+var _round_title_label: Label
+var _round_tagline_label: Label
+var _you_marker: YouMarkerOverlay
 var _results_panel: PanelContainer
 var _results_title: Label
 var _results_subtitle: Label
@@ -60,8 +73,61 @@ var _is_self_test: bool = false
 var _screenshot_path: String = ""
 var _sfx_shove: AudioStreamPlayer = null
 var _sfx_fall: AudioStreamPlayer = null
+var _sfx_round_show: AudioStreamPlayer = null
+var _sfx_ding: AudioStreamPlayer = null
+var _sfx_countdown: AudioStreamPlayer = null
+var _sfx_timer_beep: AudioStreamPlayer = null
 var _ambience_player: AudioStreamPlayer = null
 var _shader_layer: CanvasLayer = null
+
+
+class YouMarkerOverlay extends Control:
+	var top_left: Vector2 = Vector2.ZERO
+	var bound_size: Vector2 = Vector2.ZERO
+	var marker_font: Font = null
+	var marker_text: String = "YOU"
+	var shake_offset: Vector2 = Vector2.ZERO
+	var active: bool = false
+
+	func _draw() -> void:
+		if not active or bound_size.x <= 1.0 or bound_size.y <= 1.0:
+			return
+		var font_to_use: Font = marker_font if marker_font != null else ThemeDB.fallback_font
+		var viewport_rect := get_viewport_rect()
+		var bounds_center := top_left + bound_size * 0.5
+		var viewport_center := viewport_rect.size * 0.5
+		var dir := Vector2(1.0 if bounds_center.x < viewport_center.x else -1.0, 1.0 if bounds_center.y < viewport_center.y else -1.0)
+		var start_point := Vector2(
+			top_left.x + maxf(bound_size.x * dir.x, 0.0),
+			top_left.y + maxf(bound_size.y * dir.y, 0.0)
+		) - dir
+		var text_size := font_to_use.get_string_size(marker_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
+		var text_point := start_point + dir * 32.0 + Vector2(minf(dir.x, 0.0) * text_size.x, 0.0)
+		var line_pts := PackedVector2Array([
+			start_point,
+			start_point + dir * 32.0,
+			start_point + dir * 32.0 + Vector2(dir.x * text_size.x, 0.0),
+		])
+		var corner := 16.0
+		var shadow := Vector2(2.0, 2.0)
+		for pass_idx in range(2):
+			var off := (shadow if pass_idx == 0 else Vector2.ZERO) + shake_offset
+			var col := Color.BLACK if pass_idx == 0 else Color.WHITE
+			var p0 := top_left + off
+			var p1 := top_left + Vector2(bound_size.x, 0.0) + off
+			var p2 := top_left + bound_size + off
+			var p3 := top_left + Vector2(0.0, bound_size.y) + off
+			draw_line(p0, p0 + Vector2.RIGHT * corner, col, 2.0)
+			draw_line(p0, p0 + Vector2.DOWN * corner, col, 2.0)
+			draw_line(p1, p1 + Vector2.LEFT * corner, col, 2.0)
+			draw_line(p1, p1 + Vector2.DOWN * corner, col, 2.0)
+			draw_line(p2, p2 + Vector2.UP * corner, col, 2.0)
+			draw_line(p2, p2 + Vector2.LEFT * corner, col, 2.0)
+			draw_line(p3, p3 + Vector2.UP * corner, col, 2.0)
+			draw_line(p3, p3 + Vector2.RIGHT * corner, col, 2.0)
+			var s_pts := PackedVector2Array([line_pts[0] + off, line_pts[1] + off, line_pts[2] + off])
+			draw_polyline(s_pts, col, 2.0, false)
+			draw_string(font_to_use, text_point + Vector2(0.0, -4.0) + off, marker_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, col)
 
 
 func _ready() -> void:
@@ -112,6 +178,11 @@ func _ready() -> void:
 			get_tree().quit(error)
 
 
+func _loc_or(key: String, fallback: String) -> String:
+	var translated := tr(key)
+	return fallback if (translated.is_empty() or translated == key) else translated
+
+
 @rpc("authority", "call_local", "reliable")
 func start_round(roster: Array) -> void:
 	_roster = roster
@@ -122,6 +193,21 @@ func start_round(roster: Array) -> void:
 	_update_entrance()
 	_countdown_label.text = str(ceili(_countdown))
 	_countdown_label.show()
+
+	if not _is_self_test and _round_banner != null:
+		var round_num := 1
+		var total_num := 1
+		if not _roster.is_empty() and _roster[0] is Dictionary:
+			round_num = int((_roster[0] as Dictionary).get("round_number", 1))
+			total_num = int((_roster[0] as Dictionary).get("total_rounds", 1))
+		_round_title_label.text = _loc_or("LOC_IM_ROUND", "Round %s/%s") % [round_num, total_num]
+		_round_tagline_label.text = _loc_or("LOC_MG_TAGLINE_11", "SURVIVAL IS UNLIKELY.")
+		_round_tagline_label.visible_ratio = 0.0
+		_round_banner.modulate.a = 1.0
+		_round_banner.visible = true
+		_countdown_label.modulate.a = 0.0
+		if _sfx_round_show != null and _screenshot_path.is_empty():
+			_sfx_round_show.play()
 
 
 func _update_entrance() -> void:
@@ -162,6 +248,35 @@ func _build_post_fx_and_audio() -> void:
 			_sfx_fall.volume_db = -2.0
 			add_child(_sfx_fall)
 
+		var round_stream = _meshes.load_optional("res://audio/unique/intermission/intermission show round1.ogg")
+		if round_stream is AudioStream:
+			_sfx_round_show = AudioStreamPlayer.new()
+			_sfx_round_show.stream = round_stream
+			_sfx_round_show.pitch_scale = 0.6
+			_sfx_round_show.volume_db = -3.0
+			add_child(_sfx_round_show)
+
+		var ding_stream = _meshes.load_optional("res://audio/sfx/airplane ding.ogg")
+		if ding_stream is AudioStream:
+			_sfx_ding = AudioStreamPlayer.new()
+			_sfx_ding.stream = ding_stream
+			_sfx_ding.volume_db = -4.0
+			add_child(_sfx_ding)
+
+		var cd_stream = _meshes.load_optional("res://audio/sfx/countdown_mechanism2.ogg")
+		if cd_stream is AudioStream:
+			_sfx_countdown = AudioStreamPlayer.new()
+			_sfx_countdown.stream = cd_stream
+			_sfx_countdown.volume_db = -4.0
+			add_child(_sfx_countdown)
+
+		var beep_stream = _meshes.load_optional("res://audio/sfx/ekg_beep.ogg")
+		if beep_stream is AudioStream:
+			_sfx_timer_beep = AudioStreamPlayer.new()
+			_sfx_timer_beep.stream = beep_stream
+			_sfx_timer_beep.volume_db = -9.0
+			add_child(_sfx_timer_beep)
+
 		var amb_stream = _meshes.load_optional("res://audio/unique/dvd roomba/dvd roomba ambience.ogg")
 		if amb_stream is AudioStream and _screenshot_path.is_empty():
 			_ambience_player = AudioStreamPlayer.new()
@@ -170,7 +285,7 @@ func _build_post_fx_and_audio() -> void:
 			add_child(_ambience_player)
 			_ambience_player.play()
 
-	# Machine Party signature posterization + vignette post-processing on layer 1 (below HUD layer 2)
+	# Machine Party signature vignette + 8-step posterization with BackBufferCopy on layer 1 (below HUD layer 2)
 	var post_shader = _meshes.load_optional("res://shaders/posterization.gdshader")
 	var vig_shader = _meshes.load_optional("res://shaders/vignette.gdshader")
 	if post_shader is Shader or vig_shader is Shader:
@@ -179,31 +294,55 @@ func _build_post_fx_and_audio() -> void:
 		_shader_layer.layer = 1
 		add_child(_shader_layer)
 
-		if post_shader is Shader:
-			var post_rect := ColorRect.new()
-			post_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-			post_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var pm := ShaderMaterial.new()
-			pm.shader = post_shader
-			pm.set_shader_parameter("SCREEN_WIDTH", 960.0)
-			pm.set_shader_parameter("RED_COMPONENT", 18.0)
-			pm.set_shader_parameter("GREEN_COMPONENT", 18.0)
-			pm.set_shader_parameter("BLUE_COMPONENT", 18.0)
-			post_rect.material = pm
-			_shader_layer.add_child(post_rect)
+		var fx_root := Control.new()
+		fx_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+		fx_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_shader_layer.add_child(fx_root)
 
 		if vig_shader is Shader:
+			var vig_holder := Control.new()
+			vig_holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+			vig_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			fx_root.add_child(vig_holder)
+
+			var vig_copy := BackBufferCopy.new()
+			vig_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+			vig_holder.add_child(vig_copy)
+
 			var vig_rect := ColorRect.new()
 			vig_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 			vig_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			var vm := ShaderMaterial.new()
 			vm.shader = vig_shader
-			vm.set_shader_parameter("radius", 0.44)
-			vm.set_shader_parameter("softness", 0.44)
-			vm.set_shader_parameter("intensity", 0.65)
-			vm.set_shader_parameter("contrast", 1.8)
+			vm.set_shader_parameter("radius", 0.90)
+			vm.set_shader_parameter("softness", 0.38)
+			vm.set_shader_parameter("intensity", 1.85)
+			vm.set_shader_parameter("contrast", 1.57)
+			vm.set_shader_parameter("vignette_color", Color(0.0, 0.0, 0.0, 1.0))
 			vig_rect.material = vm
-			_shader_layer.add_child(vig_rect)
+			vig_holder.add_child(vig_rect)
+
+		if post_shader is Shader:
+			var post_holder := Control.new()
+			post_holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+			post_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			fx_root.add_child(post_holder)
+
+			var post_copy := BackBufferCopy.new()
+			post_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+			post_holder.add_child(post_copy)
+
+			var post_rect := ColorRect.new()
+			post_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+			post_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var pm := ShaderMaterial.new()
+			pm.shader = post_shader
+			pm.set_shader_parameter("SCREEN_WIDTH", 1920.0)
+			pm.set_shader_parameter("RED_COMPONENT", 8.0)
+			pm.set_shader_parameter("GREEN_COMPONENT", 8.0)
+			pm.set_shader_parameter("BLUE_COMPONENT", 8.0)
+			post_rect.material = pm
+			post_holder.add_child(post_rect)
 
 
 func _start_new_round() -> void:
@@ -217,7 +356,6 @@ func _start_new_round() -> void:
 	_players.clear()
 	_rollers.clear()
 	_decals.clear()
-	_popups.clear()
 	_particles.clear()
 
 	_elapsed = 0.0
@@ -229,9 +367,22 @@ func _start_new_round() -> void:
 	_next_roller_id = 1
 	_match_ended = false
 	_snapshot_timer = 0.0
+	_camera_shake = 0.0
+	_go_timer = 0.0
+	_you_marker_timer = 0.0
+	_you_marker_shown = false
+	_last_countdown_ceil = 4
+	_last_timer_beep_sec = -1
 
 	if _results_panel != null:
 		_results_panel.visible = false
+	if _go_label != null:
+		_go_label.visible = false
+	if _round_banner != null:
+		_round_banner.visible = false
+	if _you_marker != null:
+		_you_marker.active = false
+		_you_marker.visible = false
 
 	if _meshes != null:
 		_meshes.update_starting_line(_scene_props, config)
@@ -260,13 +411,17 @@ func _spawn_players() -> void:
 	var z_span: float = 7.5 if count > 8 else 6.3
 	var char_scale: float = 0.76 if count > 12 else (0.86 if count > 8 else 1.0)
 	var spawn_x: float = config.player_spawn_x
+	var local_nid := multiplayer.get_unique_id() if _hosted_in_official_game else 1
 	for i in range(count):
 		var entry: Dictionary = roster[i]
 		var frac: float = 0.5 if count == 1 else float(i) / float(count - 1)
 		var spawn_z: float = lerpf(-z_span * 0.5, z_span * 0.5, frac)
 		var nickname: String = str(entry["nickname"])
 		var nid: int = int(entry["network_id"])
-		var visual_dict: Dictionary = _meshes.build_cartoon_character(i, nickname)
+		var is_local: bool = (nid == local_nid)
+		var cust_raw = entry.get("customization", [])
+		var cust: Array = cust_raw if cust_raw is Array else []
+		var visual_dict: Dictionary = _meshes.build_cartoon_character(i, nickname, cust, is_local)
 		var pnode: Node3D = visual_dict["root"]
 		pnode.position = Vector3(spawn_x, 0.0, spawn_z)
 		pnode.scale = Vector3.ONE * char_scale
@@ -275,11 +430,13 @@ func _spawn_players() -> void:
 		_players.append({
 			"id": i,
 			"network_id": nid,
+			"is_local": is_local,
 			"nickname": nickname,
 			"color": _meshes.PLAYER_COLORS[i % _meshes.PLAYER_COLORS.size()],
 			"node": pnode,
 			"visual": visual_dict["visual"],
 			"shadow": visual_dict["shadow"],
+			"local_light": visual_dict.get("local_light", null),
 			"label": visual_dict["label"],
 			"anim_player": visual_dict.get("anim_player", null),
 			"x": spawn_x,
@@ -311,19 +468,27 @@ func _process(delta: float) -> void:
 	if _is_self_test:
 		return
 
-
+	_update_camera(delta)
 	_animate_environment(delta)
 	_update_particles(delta)
-	_update_popups(delta)
+	_update_you_marker(delta)
+
+	if _go_timer > 0.0 and _go_label != null:
+		_go_timer = maxf(0.0, _go_timer - delta)
+		if _go_timer <= 0.0:
+			_go_label.visible = false
+		else:
+			var t_go := 1.0 - clampf(_go_timer / 0.55, 0.0, 1.0)
+			_go_label.position.y = lerpf(28.0, 0.0, clampf(t_go * 3.5, 0.0, 1.0))
+			_go_label.modulate.a = clampf(_go_timer / 0.35, 0.0, 1.0)
 
 	if _match_ended or _players.is_empty():
 		return
 
 	if _countdown > 0:
-		_countdown = maxf(0, _countdown - delta)
+		_countdown = maxf(0.0, _countdown - delta)
 		_update_entrance()
-		_countdown_label.text = str(ceili(_countdown))
-		_countdown_label.visible = _countdown > 0
+		_step_countdown_overlay()
 		return
 
 	if _hosted_in_official_game and not multiplayer.is_server():
@@ -345,6 +510,121 @@ func _process(delta: float) -> void:
 	_check_round_end()
 
 
+func _step_countdown_overlay() -> void:
+	if _round_banner != null and _round_banner.visible:
+		if _countdown > 2.4:
+			_round_banner.modulate.a = 1.0
+			_round_tagline_label.visible_ratio = clampf((COUNTDOWN_SECONDS - _countdown) / 0.50, 0.0, 1.0)
+		elif _countdown > 1.9:
+			_round_tagline_label.visible_ratio = 1.0
+			_round_banner.modulate.a = clampf((_countdown - 1.9) / 0.50, 0.0, 1.0)
+		else:
+			_round_banner.visible = false
+
+	if _countdown <= 2.3 and not _you_marker_shown:
+		_you_marker_shown = true
+		_you_marker_timer = 3.15
+		if _sfx_ding != null and _screenshot_path.is_empty():
+			_sfx_ding.play()
+
+	if _countdown > 0.0:
+		var cur_ceil := ceili(_countdown)
+		_countdown_label.text = str(cur_ceil)
+		_countdown_label.visible = true
+		_countdown_label.modulate.a = 0.0 if _countdown > 2.0 else 1.0
+		if cur_ceil != _last_countdown_ceil and cur_ceil > 0:
+			_last_countdown_ceil = cur_ceil
+			if cur_ceil <= 2 and _sfx_countdown != null and _screenshot_path.is_empty():
+				_sfx_countdown.pitch_scale = 0.6
+				_sfx_countdown.play()
+	else:
+		_countdown_label.visible = false
+		if _go_label != null:
+			_go_label.text = _loc_or("LOC_IM_GO", "GO!")
+			_go_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
+			_go_label.position.y = 28.0
+			_go_label.show()
+			_go_timer = 0.55
+		if _sfx_countdown != null and _screenshot_path.is_empty():
+			_sfx_countdown.pitch_scale = 0.8
+			_sfx_countdown.play()
+
+
+func _find_local_player() -> Dictionary:
+	var local_nid := multiplayer.get_unique_id() if _hosted_in_official_game else 1
+	for p in _players:
+		if int(p.get("network_id", -1)) == local_nid:
+			return p
+	return _players[0] if not _players.is_empty() else {}
+
+
+func _update_you_marker(delta: float) -> void:
+	if _you_marker == null:
+		return
+	if _you_marker_timer <= 0.0:
+		if _you_marker.active:
+			_you_marker.active = false
+			_you_marker.visible = false
+		return
+	_you_marker_timer = maxf(0.0, _you_marker_timer - delta)
+	var lp := _find_local_player()
+	var cam := get_node_or_null("StageCamera") as Camera3D
+	if lp.is_empty() or not bool(lp.get("alive", false)) or cam == null or _match_ended or _countdown > 2.3:
+		_you_marker.active = false
+		_you_marker.visible = false
+		return
+	var px := float(lp["x"])
+	var py := float(lp["y"]) + (lp["visual"] as Node3D).position.y
+	var pz := float(lp["z"])
+	var h := 0.85 if bool(lp["crouching"]) else 1.55
+	var center := Vector3(px, py + h * 0.5, pz)
+	var half := Vector3(0.40, h * 0.52, 0.40)
+	var min_pt := Vector2(INF, INF)
+	var max_pt := Vector2(-INF, -INF)
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var wp := center + Vector3(sx * half.x, sy * half.y, sz * half.z)
+				if cam.is_position_behind(wp):
+					_you_marker.visible = false
+					return
+				var sp := cam.unproject_position(wp)
+				min_pt.x = minf(min_pt.x, sp.x)
+				min_pt.y = minf(min_pt.y, sp.y)
+				max_pt.x = maxf(max_pt.x, sp.x)
+				max_pt.y = maxf(max_pt.y, sp.y)
+	_you_marker.top_left = min_pt
+	_you_marker.bound_size = max_pt - min_pt
+	var jitter_step := int(floor(_cam_sway_time * 15.0)) % 4
+	var jitters := [Vector2(0.5, 0.5), Vector2(-0.5, -0.5), Vector2(-0.5, 0.5), Vector2(0.5, -0.5)]
+	_you_marker.shake_offset = jitters[jitter_step]
+	_you_marker.active = true
+	_you_marker.visible = true
+	_you_marker.queue_redraw()
+
+
+func _update_camera(delta: float) -> void:
+	if _is_self_test:
+		return
+	var cam := get_node_or_null("StageCamera") as Camera3D
+	if cam == null:
+		return
+	_cam_sway_time += delta
+	_camera_shake = maxf(0.0, _camera_shake - delta * 2.6)
+	var sway := Vector3(
+		sin(_cam_sway_time * 0.55) * 0.07,
+		cos(_cam_sway_time * 0.42) * 0.05,
+		sin(_cam_sway_time * 0.35) * 0.04
+	)
+	var mag := 0.28 * _camera_shake * _camera_shake
+	var shake := Vector3(
+		_rng.randf_range(-1.0, 1.0) * mag,
+		_rng.randf_range(-1.0, 1.0) * mag,
+		_rng.randf_range(-1.0, 1.0) * mag
+	) if _camera_shake > 0.001 else Vector3.ZERO
+	cam.look_at_from_position(CAM_BASE_POS + sway + shake, CAM_LOOK_TARGET + shake * 0.35, Vector3.UP)
+
+
 func _animate_environment(delta: float) -> void:
 	var gears: Array = _scene_props.get("gears", [])
 	for i in range(gears.size()):
@@ -352,21 +632,32 @@ func _animate_environment(delta: float) -> void:
 		var dir: float = 1.0 if i % 2 == 0 else -1.0
 		g.rotation.z += delta * (0.65 + float(i % 2) * 0.35) * dir
 
+	var shredders: Array = _scene_props.get("pit_shredders", [])
+	for i in range(shredders.size()):
+		var sh := shredders[i] as Node3D
+		if sh != null:
+			sh.rotation.z += delta * (-2.8 if i % 2 == 0 else 2.8)
+
 	var bubbles: Array = _scene_props.get("lava_bubbles", [])
 	for b in bubbles:
 		var node: MeshInstance3D = b["node"]
-		var phase: float = b["phase"] + _elapsed * 2.6
-		var lift: float = maxf(0.0, sin(phase))
-		node.position.y = -0.50 + lift * 0.36
-		var s: float = 0.65 + lift * 0.65
+		var phase: float = b["phase"] + _cam_sway_time * 2.1
+		var rise: float = fposmod(phase, TAU) / TAU
+		node.position.y = -0.72 + rise * 0.72
+		node.rotation.y += delta * 1.4
+		var s: float = 1.0 - absf(rise * 2.0 - 1.0) * 0.65
 		node.scale = Vector3(s, s, s)
 
 	var bulbs: Array = _scene_props.get("bulbs", [])
 	for i in range(bulbs.size()):
-		var bulb: MeshInstance3D = bulbs[i]
-		var mat := bulb.material_override as StandardMaterial3D
-		if mat:
-			mat.emission_energy_multiplier = 1.4 + 0.9 * sin(_elapsed * 4.5 + float(i) * 1.1)
+		var entry = bulbs[i]
+		var mat: StandardMaterial3D = null
+		if entry is StandardMaterial3D:
+			mat = entry as StandardMaterial3D
+		elif entry is MeshInstance3D:
+			mat = (entry as MeshInstance3D).material_override as StandardMaterial3D
+		if mat != null:
+			mat.emission_energy_multiplier = 1.25 + 0.30 * sin(_cam_sway_time * 5.2 + float(i) * 1.7)
 
 	_beacon_gold_flash = maxf(0.0, _beacon_gold_flash - delta * 2.8)
 	_beacon_silver_flash = maxf(0.0, _beacon_silver_flash - delta * 2.8)
@@ -376,6 +667,28 @@ func _animate_environment(delta: float) -> void:
 	var bs := _scene_props.get("beacon_silver") as MeshInstance3D
 	if bs and bs.material_override:
 		(bs.material_override as StandardMaterial3D).emission_energy_multiplier = 0.5 + _beacon_silver_flash * 3.0
+
+	var timer_lbl := _scene_props.get("monitor_timer_label") as Label3D
+	var phase_lbl := _scene_props.get("monitor_phase_label") as Label3D
+	if timer_lbl != null:
+		var secs_left := ceili(maxf(0.0, _time_left))
+		timer_lbl.text = "00:%02d" % secs_left
+		if _countdown <= 0.0 and not _match_ended and _time_left <= 10.0 and _time_left > 0.0:
+			var pulse := 0.75 + 0.25 * sin(_cam_sway_time * 12.0)
+			timer_lbl.modulate = Color(1.0, 0.32 * pulse, 0.22 * pulse)
+			if secs_left != _last_timer_beep_sec:
+				_last_timer_beep_sec = secs_left
+				if _sfx_timer_beep != null and _screenshot_path.is_empty():
+					_sfx_timer_beep.play()
+		else:
+			timer_lbl.modulate = Color(0.53, 0.83, 0.50)
+	if phase_lbl != null:
+		if _elapsed < config.pair_start_time:
+			phase_lbl.text = "WAVE 01 // SINGLE"
+		elif _elapsed < config.triple_start_time:
+			phase_lbl.text = "WAVE 02 // DOUBLE"
+		else:
+			phase_lbl.text = "WAVE 03 // OVERDRIVE"
 
 
 func _current_progress() -> float:
@@ -417,7 +730,7 @@ func _spawn_roller(roller_type: String, spawn_x: float) -> Dictionary:
 	var center_y: float = config.gold_roller_center_y if is_gold else config.silver_roller_center_y
 	var radius: float = config.gold_roller_radius if is_gold else config.silver_roller_radius
 
-	var built: Dictionary = _meshes.build_roller_mesh(roller_type, radius, 8.4)
+	var built: Dictionary = _meshes.build_roller_mesh(roller_type, radius, 9.0)
 	var rnode: Node3D = built["root"]
 	rnode.position = Vector3(spawn_x, center_y, 0.0)
 	_rollers_layer.add_child(rnode)
@@ -451,7 +764,7 @@ func _input(event: InputEvent) -> void:
 			return
 		match event.keycode:
 			KEY_S, KEY_DOWN: action = 1
-			KEY_SPACE: action = 2
+			KEY_SPACE, KEY_W, KEY_UP: action = 2
 			_: return
 		control = Vector2i(-1, event.keycode)
 	elif event is InputEventJoypadButton:
@@ -703,7 +1016,10 @@ func _show_snapshot(elapsed: float, poses: PackedFloat32Array, rollers: PackedFl
 		if p.alive and not bool(poses[offset + 4]):
 			_eliminate_player(p)
 		p.dodges = int(poses[offset + 5])
-		p.hit_flash = poses[offset + 6]
+		var new_flash: float = poses[offset + 6]
+		if new_flash > 0.85 and float(p.hit_flash) <= 0.4:
+			_play_hit_feedback(p)
+		p.hit_flash = new_flash
 		_update_player_visuals(p)
 		if not p.alive:
 			p.node.position.y = -poses[offset + 7] * 1.6
@@ -785,7 +1101,20 @@ func _evaluate_roller_interactions(r: Dictionary) -> void:
 			if not hit_map.has(pid) and not pass_map.has(pid):
 				pass_map[pid] = true
 				p["dodges"] = int(p["dodges"]) + 1
-				_spawn_popup(Vector3(px, p_top + 0.45, float(p["z"])), "+1", Color(0.35, 1.0, 0.55))
+
+
+func _play_hit_feedback(p: Dictionary) -> void:
+	if not _is_self_test:
+		_camera_shake = maxf(_camera_shake, 0.55)
+	var pos := Vector3(float(p["x"]), 0.02, float(p["z"]))
+	_spawn_impact_decal(pos, 1.0)
+	if not _spawn_vanilla_effect("res://prefabs/managed_effects/hit_blood.tscn", Vector3(pos.x, 0.72, pos.z), 0.38, 1.2):
+		_spawn_burst(Vector3(pos.x, 0.75, pos.z), Color(0.42, 0.02, 0.01), 6)
+	var ap: AnimationPlayer = p.get("anim_player", null)
+	if ap != null and ap.has_animation(&"mp_mod/shoved"):
+		ap.play(&"mp_mod/shoved")
+	if _sfx_shove != null and not _is_self_test:
+		_sfx_shove.play()
 
 
 func _apply_knockback_to_player(p: Dictionary) -> void:
@@ -793,15 +1122,7 @@ func _apply_knockback_to_player(p: Dictionary) -> void:
 	p["knockback_timer"] = config.knockback_duration
 	p["knockback_cooldown"] = config.knockback_cooldown
 	p["hit_flash"] = 1.0
-
-	var pos := Vector3(float(p["x"]), 0.02, float(p["z"]))
-	_spawn_impact_decal(pos)
-	_spawn_burst(Vector3(pos.x, 0.75, pos.z), Color(1.0, 0.65, 0.2), 7)
-	var ap: AnimationPlayer = p.get("anim_player", null)
-	if ap != null and ap.has_animation(&"mp_mod/shoved"):
-		ap.play(&"mp_mod/shoved")
-	if _sfx_shove != null and not _is_self_test:
-		_sfx_shove.play()
+	_play_hit_feedback(p)
 
 	# In instant/headless step verification or heavy hit, check boundary after knockback applies
 	if _is_self_test:
@@ -817,47 +1138,88 @@ func _eliminate_player(p: Dictionary) -> void:
 		return
 	p["alive"] = false
 	p["sink_progress"] = 0.0
+	if not _is_self_test:
+		_camera_shake = 1.0
 	var lbl: Label3D = p["label"]
-	lbl.text = "%s 💀" % str(p["nickname"])
-	lbl.modulate = Color(0.55, 0.55, 0.58)
+	lbl.visible = false
+	var pnode = p.get("node", null)
+	if pnode is Node:
+		(pnode as Node).set_meta(&"mpm_alive", false)
+	var llight = p.get("local_light", null)
+	if llight is Node3D:
+		(llight as Node3D).visible = false
 	var ap: AnimationPlayer = p.get("anim_player", null)
 	if ap != null and ap.has_animation(&"mp_mod/falling"):
 		ap.play(&"mp_mod/falling")
 	if _sfx_fall != null and not _is_self_test:
 		_sfx_fall.play()
-	_spawn_burst(Vector3(config.stage_left_lava_x - 0.3, 0.25, float(p["z"])), Color(1.0, 0.45, 0.08), 16)
-	_spawn_popup(Vector3(config.stage_left_lava_x - 0.2, 1.5, float(p["z"])), "淘汰!", Color(1.0, 0.35, 0.25))
+	_spawn_impact_decal(Vector3(config.stage_left_lava_x + 0.35, 0.02, float(p["z"])), 1.35)
+	var pit_pos := Vector3(config.stage_left_lava_x - 0.35, 0.35, float(p["z"]))
+	if not _spawn_vanilla_effect("res://prefabs/managed_effects/bloodmist_01.tscn", pit_pos, 0.42, 3.2):
+		_spawn_burst(pit_pos, Color(0.38, 0.02, 0.01), 14)
 
 
-func _spawn_impact_decal(pos: Vector3) -> void:
-	if _decals.size() >= 24:
+func _spawn_vanilla_effect(scene_path: String, origin: Vector3, eff_scale: float, lifetime: float) -> bool:
+	if _is_self_test:
+		return true
+	var packed = _meshes.load_optional(scene_path)
+	if not (packed is PackedScene):
+		return false
+	var inst = (packed as PackedScene).instantiate()
+	if not (inst is Node3D):
+		if inst is Node:
+			(inst as Node).queue_free()
+		return false
+	inst.set_script(null)
+	var node3d := inst as Node3D
+	node3d.position = origin
+	node3d.scale = Vector3.ONE * eff_scale
+	_fx_layer.add_child(node3d)
+	for child in node3d.get_children():
+		if child is GPUParticles3D:
+			var gp := child as GPUParticles3D
+			gp.one_shot = true
+			gp.restart()
+			gp.emitting = true
+	var timer := get_tree().create_timer(lifetime)
+	timer.timeout.connect(func():
+		if is_instance_valid(node3d):
+			node3d.queue_free()
+	)
+	return true
+
+
+func _spawn_impact_decal(pos: Vector3, scale_mul: float = 1.0) -> void:
+	if _decals.size() >= 28:
 		var old: Node3D = _decals.pop_front()
-		old.queue_free()
-	var mark := MeshInstance3D.new()
-	var blood_tex = _meshes.load_optional("res://textures/decals/blood decals/blood_splat_01.png")
+		if is_instance_valid(old):
+			old.queue_free()
+	var tex_path := "res://textures/decals/blood decals/blood_splat_02.png" if _rng.randf() < 0.7 else "res://textures/decals/blood decals/blood_splat_01.png"
+	var blood_tex = _meshes.load_optional(tex_path)
 	if blood_tex is Texture2D:
-		var qm := PlaneMesh.new()
-		qm.size = Vector2(0.95, 0.95)
-		mark.mesh = qm
-		var mat := StandardMaterial3D.new()
-		mat.albedo_texture = blood_tex
-		mat.albedo_color = Color(0.92, 0.14, 0.10, 0.85)
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.roughness = 0.6
-		mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-		mark.material_override = mat
-		mark.rotation.y = _rng.randf_range(0.0, TAU)
+		var dec := Decal.new()
+		var sz := _rng.randf_range(1.25, 1.75) * scale_mul
+		dec.size = Vector3(sz, 0.42, sz)
+		dec.texture_albedo = blood_tex
+		dec.modulate = Color(0.3809, 0.0189, 0.0, 1.0)
+		dec.upper_fade = 0.3
+		dec.lower_fade = 0.3
+		dec.position = Vector3(pos.x, 0.04, pos.z)
+		dec.rotation.y = _rng.randf_range(0.0, TAU)
+		_fx_layer.add_child(dec)
+		_decals.append(dec)
 	else:
+		var mark := MeshInstance3D.new()
 		var cm := CylinderMesh.new()
-		cm.top_radius = 0.34
-		cm.bottom_radius = 0.36
+		cm.top_radius = 0.34 * scale_mul
+		cm.bottom_radius = 0.36 * scale_mul
 		cm.height = 0.015
 		mark.mesh = cm
-		mark.material_override = _meshes.make_toon_mat(Color(0.55, 0.14, 0.08, 0.65), 0.9, 0.0)
+		mark.material_override = _meshes.make_toon_mat(Color(0.38, 0.02, 0.01, 0.80), 0.9, 0.0)
 		mark.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mark.position = pos
-	_fx_layer.add_child(mark)
-	_decals.append(mark)
+		mark.position = pos
+		_fx_layer.add_child(mark)
+		_decals.append(mark)
 
 
 func _spawn_burst(origin: Vector3, color: Color, count: int) -> void:
@@ -872,21 +1234,6 @@ func _spawn_burst(origin: Vector3, color: Color, count: int) -> void:
 		_fx_layer.add_child(part)
 		var vel := Vector3(_rng.randf_range(-2.8, 1.8), _rng.randf_range(2.2, 5.2), _rng.randf_range(-2.2, 2.2))
 		_particles.append({"node": part, "vel": vel, "life": 0.55})
-
-
-func _spawn_popup(origin: Vector3, text: String, color: Color) -> void:
-	var lbl := Label3D.new()
-	lbl.text = text
-	lbl.font_size = 40
-	lbl.pixel_size = 0.0085
-	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	lbl.no_depth_test = true
-	lbl.modulate = color
-	lbl.outline_modulate = Color.BLACK
-	lbl.outline_size = 8
-	lbl.position = origin
-	_fx_layer.add_child(lbl)
-	_popups.append({"node": lbl, "life": 0.75})
 
 
 func _update_particles(delta: float) -> void:
@@ -905,19 +1252,6 @@ func _update_particles(delta: float) -> void:
 			node.scale = Vector3.ONE * clampf(float(pt["life"]) * 1.8, 0.1, 1.0)
 
 
-func _update_popups(delta: float) -> void:
-	for i in range(_popups.size() - 1, -1, -1):
-		var pp: Dictionary = _popups[i]
-		pp["life"] = float(pp["life"]) - delta
-		if float(pp["life"]) <= 0.0:
-			(pp["node"] as Node3D).queue_free()
-			_popups.remove_at(i)
-		else:
-			var node: Label3D = pp["node"]
-			node.position.y += delta * 1.2
-			node.modulate.a = clampf(float(pp["life"]) / 0.75, 0.0, 1.0)
-
-
 func _check_round_end() -> void:
 	var alive_count: int = 0
 	for p in _players:
@@ -925,7 +1259,7 @@ func _check_round_end() -> void:
 			alive_count += 1
 
 	if alive_count == 0:
-		_finish_round("全員落入岩漿淘汰（提前結束）")
+		_finish_round("全員落入粉碎熔爐淘汰（提前結束）")
 	elif _time_left <= 0.0:
 		_finish_round("倒計時結束！%d 名存活玩家獲勝" % alive_count)
 
@@ -1018,19 +1352,87 @@ func _build_ui() -> void:
 	root_ctrl.theme = hud_theme
 	_ui_layer.add_child(root_ctrl)
 
+	_you_marker = YouMarkerOverlay.new()
+	_you_marker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_you_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_you_marker.marker_font = term_font
+	_you_marker.marker_text = _loc_or("LOC_CONTROL_YOU", "YOU")
+	_you_marker.visible = false
+	root_ctrl.add_child(_you_marker)
+
 	_countdown_label = Label.new()
 	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_countdown_label.add_theme_font_size_override("font_size", 48)
+	_countdown_label.add_theme_font_size_override("font_size", 68)
+	_countdown_label.add_theme_color_override("font_color", Color.WHITE)
+	_countdown_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_countdown_label.add_theme_constant_override("outline_size", 8)
 	root_ctrl.add_child(_countdown_label)
 	_countdown_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_countdown_label.hide()
 
+	_go_label = Label.new()
+	_go_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_go_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_go_label.add_theme_font_size_override("font_size", 68)
+	_go_label.add_theme_color_override("font_color", Color.WHITE)
+	_go_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	_go_label.add_theme_constant_override("outline_size", 8)
+	root_ctrl.add_child(_go_label)
+	_go_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_go_label.hide()
+
+	_round_banner = Control.new()
+	_round_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_round_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_round_banner.visible = false
+	root_ctrl.add_child(_round_banner)
+
+	var banner_bg := ColorRect.new()
+	banner_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	banner_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner_bg.color = Color(0.0, 0.0, 0.0, 1.0)
+	_round_banner.add_child(banner_bg)
+
+	var grunge_tex = _meshes.load_optional("res://minigames/intermission_new/textures/intermission grunge overlay4.png")
+	if grunge_tex is Texture2D:
+		var grunge := TextureRect.new()
+		grunge.set_anchors_preset(Control.PRESET_FULL_RECT)
+		grunge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		grunge.texture = grunge_tex
+		grunge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		grunge.stretch_mode = TextureRect.STRETCH_SCALE
+		var g_mat := CanvasItemMaterial.new()
+		g_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_SUB
+		grunge.material = g_mat
+		grunge.modulate = Color(1.0, 1.0, 1.0, 0.25)
+		_round_banner.add_child(grunge)
+
+	var banner_vbox := VBoxContainer.new()
+	banner_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
+	banner_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	banner_vbox.add_theme_constant_override("separation", 18)
+	banner_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_round_banner.add_child(banner_vbox)
+
+	_round_title_label = Label.new()
+	_round_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_round_title_label.add_theme_font_size_override("font_size", 60)
+	_round_title_label.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
+	banner_vbox.add_child(_round_title_label)
+
+	_round_tagline_label = Label.new()
+	_round_tagline_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_round_tagline_label.add_theme_font_size_override("font_size", 24)
+	_round_tagline_label.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
+	_round_tagline_label.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING
+	banner_vbox.add_child(_round_tagline_label)
+
 	if _hosted_in_official_game:
 		return
 
-	# --- End-of-Round Settlement Overlay ---
-	_results_panel = _make_panel_box(Color(0.10, 0.07, 0.13, 0.95))
+	# --- End-of-Round Settlement Overlay (CRT Terminal) ---
+	_results_panel = _make_panel_box(Color(0.03, 0.04, 0.03, 0.96))
 	_results_panel.anchor_left = 0.5
 	_results_panel.anchor_right = 0.5
 	_results_panel.anchor_top = 0.5
@@ -1048,15 +1450,15 @@ func _build_ui() -> void:
 
 	_results_title = Label.new()
 	_results_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_results_title.text = "本局結算"
+	_results_title.text = "ROUND SUMMARY"
 	_results_title.add_theme_font_size_override("font_size", 28)
-	_results_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
+	_results_title.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
 	r_vbox.add_child(_results_title)
 
 	_results_subtitle = Label.new()
 	_results_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_results_subtitle.add_theme_font_size_override("font_size", 16)
-	_results_subtitle.add_theme_color_override("font_color", Color(0.88, 0.84, 0.92))
+	_results_subtitle.add_theme_color_override("font_color", Color(0.76, 0.86, 0.74))
 	r_vbox.add_child(_results_subtitle)
 
 	var r_scroll := ScrollContainer.new()
@@ -1075,15 +1477,15 @@ func _make_panel_box(bg: Color) -> PanelContainer:
 	var panel := PanelContainer.new()
 	var st := StyleBoxFlat.new()
 	st.bg_color = bg
-	st.content_margin_left = 14
-	st.content_margin_right = 14
-	st.content_margin_top = 8
-	st.content_margin_bottom = 8
-	st.corner_radius_top_left = 8
-	st.corner_radius_top_right = 8
-	st.corner_radius_bottom_left = 8
-	st.corner_radius_bottom_right = 8
-	st.border_color = Color(0.82, 0.60, 0.24, 0.75)
+	st.content_margin_left = 18
+	st.content_margin_right = 18
+	st.content_margin_top = 14
+	st.content_margin_bottom = 14
+	st.corner_radius_top_left = 0
+	st.corner_radius_top_right = 0
+	st.corner_radius_bottom_left = 0
+	st.corner_radius_bottom_right = 0
+	st.border_color = Color(0.53, 0.83, 0.50, 0.85)
 	st.set_border_width_all(2)
 	panel.add_theme_stylebox_override("panel", st)
 	return panel
@@ -1093,28 +1495,31 @@ func _populate_results_ui(rankings: Array, reason: String) -> void:
 	for child in _results_rows.get_children():
 		child.queue_free()
 
-	_results_title.text = "本局排名"
+	_results_title.text = "ROUND SUMMARY // 本局排名"
 	_results_subtitle.text = reason
 	for r in rankings:
+		var is_alive := bool(r["alive"])
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 
 		var rk := Label.new()
 		rk.custom_minimum_size.x = 46
 		rk.text = "#%d" % int(r["rank"])
+		rk.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
 		rk.add_theme_font_size_override("font_size", 17)
 		row.add_child(rk)
 
 		var nm := Label.new()
 		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		nm.text = str(r["nickname"]) + ("  [存活]" if bool(r["alive"]) else "  [💀 淘汰]")
-		nm.add_theme_color_override("font_color", (r["color"] as Color).lightened(0.2))
+		nm.text = str(r["nickname"]) + ("  [存活]" if is_alive else "  [淘汰]")
+		nm.add_theme_color_override("font_color", Color(0.92, 0.96, 0.90) if is_alive else Color(0.66, 0.44, 0.44))
 		nm.add_theme_font_size_override("font_size", 17)
 		row.add_child(nm)
 
 		var dg := Label.new()
 		dg.custom_minimum_size.x = 110
 		dg.text = "躲避 %d 次" % int(r["dodges"])
+		dg.add_theme_color_override("font_color", Color(0.84, 0.90, 0.82))
 		dg.add_theme_font_size_override("font_size", 17)
 		row.add_child(dg)
 
@@ -1122,7 +1527,7 @@ func _populate_results_ui(rankings: Array, reason: String) -> void:
 		bn.custom_minimum_size.x = 155
 		bn.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		bn.text = "原始分 +%d" % int(r["bonus"])
-		bn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
+		bn.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
 		bn.add_theme_font_size_override("font_size", 17)
 		row.add_child(bn)
 

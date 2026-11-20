@@ -4,9 +4,9 @@ import { render, state, t } from "./state.js";
 
 const dismissKey = "dismissed-app-update";
 let activeClose;
-let queued = false;
+let queuedPrompt;
 
-export function showRelease() {
+function displayRelease() {
   if (!state.release || state.installing) return;
   const selected = state.release;
   const dialog = $("dialog");
@@ -53,21 +53,28 @@ export function showRelease() {
     }, "ghost"));
 }
 
-function queueReleasePrompt() {
-  if (!state.release || state.installing || localStorage.getItem(dismissKey) === state.release.version) return;
-  const dialog = $("dialog");
-  if (!dialog) return;
-  if (dialog.open) {
-    if (!queued) {
-      queued = true;
-      dialog.addEventListener("close", () => {
-        queued = false;
-        queueReleasePrompt();
-      }, { once: true });
-    }
+function queueReleasePrompt(manual) {
+  if (!state.release || state.installing) return;
+  if (!manual && localStorage.getItem(dismissKey) === state.release.version) return;
+  if (queuedPrompt) {
+    queuedPrompt.manual ||= manual;
     return;
   }
-  showRelease();
+  const dialog = $("dialog[open]");
+  if (dialog) {
+    queuedPrompt = {manual};
+    dialog.addEventListener("close", () => {
+      const pending = queuedPrompt;
+      queuedPrompt = undefined;
+      queueReleasePrompt(pending.manual);
+    }, { once: true });
+    return;
+  }
+  displayRelease();
+}
+
+export function showRelease() {
+  queueReleasePrompt(true);
 }
 
 export async function checkApp(manual) {
@@ -90,8 +97,5 @@ export async function checkApp(manual) {
     state.checking = false;
     render();
   }
-  if (found) {
-    if (manual) showRelease();
-    else queueReleasePrompt();
-  }
+  if (found) queueReleasePrompt(manual);
 }

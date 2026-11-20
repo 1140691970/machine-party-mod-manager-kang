@@ -21,6 +21,7 @@ fn main() {
             commands::catalog,
             app_updates::check_app_update,
             app_updates::install_app_update,
+            commands::game_process,
             commands::installed_versions,
             commands::validate_game_mods,
             commands::game_copies,

@@ -123,23 +123,8 @@ impl GameLockCheck for SystemGameLockCheck {
         opts.read(true).write(true);
         #[cfg(windows)]
         {
-            use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
-            let exe = _pck_dir.join("Machine Party.exe");
-            let target = file_id::get_file_id(&exe).map_err(|_| "invalidGame")?;
-            let system = System::new_with_specifics(
-                RefreshKind::nothing()
-                    .with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
-            );
-            for proc in system.processes().values().filter(|p| {
-                p.name()
-                    .eq_ignore_ascii_case(std::ffi::OsStr::new("Machine Party.exe"))
-            }) {
-                let Some(path) = proc.exe() else {
-                    return Err("gameRunning".into());
-                };
-                if !matches!(file_id::get_file_id(path), Ok(id) if id != target) {
-                    return Err("gameRunning".into());
-                }
+            if !game::process::matching_pids(_pck_dir)?.is_empty() {
+                return Err("gameRunning".into());
             }
             opts.share_mode(0);
         }
@@ -3838,11 +3823,16 @@ print("Patched")
         for copy in ["running", "idle"] {
             let dir = root.path().join(copy);
             fs::create_dir(&dir).unwrap();
-            fs::copy(&source, dir.join("Machine Party.exe")).unwrap();
             fs::write(dir.join("Machine Party.pck"), b"copy").unwrap();
         }
         let running = root.path().join("running");
         let idle = root.path().join("idle");
+        fs::copy(&source, running.join("Machine Party.exe")).unwrap();
+        fs::hard_link(
+            running.join("Machine Party.exe"),
+            idle.join("Machine Party.exe"),
+        )
+        .unwrap();
         let mut child = Command::new(running.join("Machine Party.exe"))
             .args(["/D", "/Q", "/K"])
             .stdin(Stdio::piped())
@@ -3853,8 +3843,14 @@ print("Patched")
         let blocked =
             SystemGameLockCheck.ensure_unlocked(&running, &running.join("Machine Party.pck"));
         let allowed = SystemGameLockCheck.ensure_unlocked(&idle, &idle.join("Machine Party.pck"));
-        child.kill().unwrap();
+        assert!(!game::process::apply(&idle, game::ProcessAction::Close).unwrap());
+        assert!(!game::process::apply(&idle, game::ProcessAction::Force).unwrap());
+        assert!(child.try_wait().unwrap().is_none());
+        // This fixture has no window and can only be closed by the explicit force action.
+        assert!(game::process::apply(&running, game::ProcessAction::Close).unwrap());
+        game::process::apply(&running, game::ProcessAction::Force).unwrap();
         child.wait().unwrap();
+        assert!(!game::process::apply(&running, game::ProcessAction::Check).unwrap());
         assert_eq!(blocked.unwrap_err(), "gameRunning");
         allowed.unwrap();
     }
@@ -4842,6 +4838,13 @@ print("Patched")
                     inventory::record_installed(&config, &game, new.inventory_key(), "v0.1.1")
                         .unwrap();
                 }
+                let journal = before.backup_dir.join("update.json");
+                let pending = fs::read(&journal).unwrap();
+                assert_eq!(
+                    update::recover(&config, &game, &list, &LockedCheck).unwrap_err(),
+                    "gameRunning"
+                );
+                assert_eq!(fs::read(&journal).unwrap(), pending);
                 update::recover(&config, &game, &list, &UnlockedCheck).unwrap();
             } else {
                 assert_eq!(apply(&fault).unwrap_err(), "gameRunning");

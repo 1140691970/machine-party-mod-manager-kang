@@ -3,6 +3,43 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(windows)]
+pub mod process;
+
+#[derive(Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcessAction {
+    Check,
+    Close,
+    Force,
+}
+
+pub fn game_process(
+    path: &Path,
+    expected_dir: &Path,
+    action: ProcessAction,
+) -> Result<bool, String> {
+    if resolve_pck_dir(path).as_deref() != Some(expected_dir) {
+        return Err("statusUnavailable".into());
+    }
+    #[cfg(windows)]
+    {
+        process::apply(expected_dir, action)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = action;
+        Ok(false)
+    }
+}
+
+// Hard-linked executables can belong to different game copies.
+#[cfg(any(windows, test))]
+fn image_identity(image: &Path) -> std::io::Result<(file_id::FileId, file_id::FileId)> {
+    let dir = image.parent().ok_or(std::io::ErrorKind::InvalidInput)?;
+    Ok((file_id::get_file_id(dir)?, file_id::get_file_id(image)?))
+}
+
 pub const STEAM_APP_ID: u32 = 4108000;
 
 fn game_files(dir: &Path) -> bool {
@@ -59,6 +96,25 @@ pub fn steam_installations() -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hard_linked_images_in_different_copies_have_distinct_identities() {
+        let root = tempfile::tempdir().unwrap();
+        let copy = root.path().join("copy");
+        fs::create_dir(&copy).unwrap();
+        let original = root.path().join("Machine Party.exe");
+        let linked = copy.join("Machine Party.exe");
+        fs::write(&original, b"fixture").unwrap();
+        fs::hard_link(&original, &linked).unwrap();
+        assert_eq!(
+            file_id::get_file_id(&original).unwrap(),
+            file_id::get_file_id(&linked).unwrap()
+        );
+        assert_ne!(
+            image_identity(&original).unwrap(),
+            image_identity(&linked).unwrap()
+        );
+    }
 
     #[test]
     fn recognizes_complete_copy_in_root_or_version_folder() {

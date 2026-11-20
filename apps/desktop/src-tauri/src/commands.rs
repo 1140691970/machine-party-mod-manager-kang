@@ -137,6 +137,21 @@ pub fn save_game(app: AppHandle, path: PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn game_process(
+    app: AppHandle,
+    path: PathBuf,
+    expected_dir: PathBuf,
+    action: game::ProcessAction,
+) -> Result<bool, String> {
+    if preferences::saved_game(&config_dir(&app)?).as_ref() != Some(&path) {
+        return Err("statusUnavailable".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || game::game_process(&path, &expected_dir, action))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 pub fn installed_versions(app: AppHandle, path: PathBuf) -> Result<inventory::Installed, String> {
     let dir = app.path().app_config_dir().map_err(|_| "inventoryError")?;
     inventory::installed_versions(&dir, &path)

@@ -106,6 +106,7 @@ test("reload restores inventory for a valid saved copy when Steam detection retu
   window.__TAURI__.core.invoke = async command => {
     if (command === "find_games") return [];
     if (command === "game_copies") return [state.game];
+    if (command === "save_game") return;
     if (command === "installed_versions") return installed;
     assert.equal(command, "validate_game_mods");
     return {installed, pckDir:state.game, modStates:{project:"installed"}};
@@ -145,4 +146,96 @@ test("rescan preserves an existing valid game folder when no Steam installs are 
   assert.equal(state.game, existing);
   assert.equal(localStorage.getItem("game-path"), existing);
   assert.equal(dialog.open, true);
+});
+
+test("focus skips recovery while its separate prompt is open, and resumes scanning when idle", async () => {
+  const {syncGameModsOnFocus} = await import("../../apps/desktop/ui/game-folder.js");
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const main = {open:false};
+  const recovery = {open:true};
+  globalThis.document = {querySelector(selector) {
+    if (selector === "dialog") return main;
+    assert.equal(selector, "dialog[open]");
+    return [main, recovery].find(dialog => dialog.open) ?? null;
+  }};
+  Object.assign(state, {game:"Game", busyMod:""});
+  const calls = [];
+  window.__TAURI__.core.invoke = async command => {
+    calls.push(command);
+    if (command === "installed_versions") return {};
+    assert.equal(command, "validate_game_mods");
+    return {pckDir:"Game", installed:{}, modStates:{}};
+  };
+  await syncGameModsOnFocus();
+  recovery.open = false;
+  state.busyMod = "example";
+  await syncGameModsOnFocus();
+  assert.deepEqual(calls, []);
+  state.busyMod = "";
+  await syncGameModsOnFocus();
+  assert.deepEqual(calls, ["installed_versions", "validate_game_mods"]);
+});
+
+test("an interactive scan blocked by update recovery asks before retrying the same copy", async t => {
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const {withGameCopy, syncGameMods} = await import("../../apps/desktop/ui/game-folder.js");
+  const path = "Steam/Game";
+  const dir = path + "/Windows";
+
+  for (const scenario of ["resume", "cancel", "switch copy", "new pick", "retry still blocked"]) {
+    await t.test(scenario, async () => {
+      const calls = [];
+      let blocked = true;
+      let modal;
+      function node(tag) {
+        return {
+          tag, children: [], setAttribute() {}, addEventListener() {}, focus() {},
+          append(...items) { this.children.push(...items); },
+          replaceChildren(...items) { this.children = items; },
+          querySelector() { return {focus() {}}; },
+          showModal() { this.open = true; modal = this; },
+          close() { this.open = false; }, remove() {}
+        };
+      }
+      globalThis.document = {body:node("body"), createElement:node, querySelector:() => node("dialog")};
+      Object.assign(state, {game:path, pckDir:"", scan:"idle"});
+      window.__TAURI__.core.invoke = async (cmd, args) => {
+        if (cmd === "choose_game") return path;
+        if (cmd === "save_game") return;
+        if (cmd === "game_copies") return [dir];
+        if (cmd === "installed_versions") return {};
+        if (cmd === "validate_game_mods") {
+          calls.push(args.force ? "forced scan" : "scan");
+          if (blocked) throw "gameRunning";
+          return {installed:{example:"v2"}, modStates:{example:"installed"}, pckDir:dir};
+        }
+        assert.equal(cmd, "game_process");
+        assert.equal(args.path, path);
+        assert.equal(args.expectedDir, dir);
+        calls.push(args.action);
+        if (args.action === "close" && scenario !== "retry still blocked") blocked = false;
+        return args.action === "check";
+      };
+
+      await syncGameMods();
+      assert.deepEqual(calls.splice(0), ["scan"]);
+      assert.equal(state.scanError, "gameRunning");
+      if (scenario === "new pick") state.game = "";
+      let continued = 0;
+      const pending = withGameCopy(() => {
+        continued++;
+        assert.equal(state.inventory.example, "v2");
+      });
+      await flush();
+      assert.ok(modal?.open);
+      if (scenario === "switch copy") state.game = "other copy";
+      const buttons = modal.children[1].children[1].children;
+      await buttons[scenario === "cancel" ? 0 : 1].onclick();
+      await pending;
+      const approved = ["resume", "new pick", "retry still blocked"].includes(scenario);
+      assert.deepEqual(calls, approved ? ["scan","check","close","forced scan"] : ["scan","check"]);
+      assert.equal(continued, Number(scenario === "resume" || scenario === "new pick"));
+      assert.equal(modal.open, false);
+    });
+  }
 });

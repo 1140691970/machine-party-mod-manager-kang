@@ -46,18 +46,18 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 | 平台 | 架构 | 下载 | 说明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-11（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-11/setup.exe) | NSIS 安装包，支持签名应用内更新 |
+| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-12（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-12/setup.exe) | NSIS 安装包，支持签名应用内更新 |
 | macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 浏览目录与接收应用更新（游戏仅限 Windows） |
 
 Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档并将 `.app` 移入可写的应用程序目录。
 
-**Steam 上的《机械派对》（Machine Party）仅支持 Windows；当前 `0.1.2-11` 工作区已为目录内全部七个模组接入 `v2.1.2` 适配器，仍待完整 Windows 实机验收。** macOS 构建仅作 ad hoc 签名，未经 Apple 公证；Windows 安装包在未配置代码签名证书时为未签名包。已安装客户端会在启动时静默检查更新，在设置页显示红点，并在发现新版时弹出可延后处理的更新说明弹窗。详见[发布流程与验证说明](../zh-CN/development/releasing.md)。
+**Steam 上的《机械派对》（Machine Party）仅支持 Windows；当前 `0.1.2-12` 工作区已为目录内全部八个模组接入 `v2.1.2` 适配器，仍待完整 Windows 实机验收。** macOS 构建仅作 ad hoc 签名，未经 Apple 公证；Windows 安装包在未配置代码签名证书时为未签名包。已安装客户端会在启动时静默检查更新，在设置页显示红点，并在发现新版时弹出可延后处理的更新说明弹窗。详见[发布流程与验证说明](../zh-CN/development/releasing.md)。
 
 ## 开始使用
 
 1. 启动管理器，应用会自动定位 Steam 中的 *Machine Party*（App ID `4108000`），也可在**设置**手动选择游戏目录。
 2. 支持三语搜索与浏览全部已收录模组，点击标题可查看联机要求、冲突规则、兼容游戏版本与作者主页。
-3. 确认游戏完全退出后，点击**安装**，管理器会自动下载（或复用离线缓存）、校验 SHA-256、创建备份并应用修改。
+3. 点击**安装**。如果游戏正在运行，保存进度后选择**关闭游戏并继续**。管理器会校验套件并备份文件，然后安装。
 4. 在**已安装**页面可离线卸载并校验原版还原结果；在**设置**页面可切换界面语言、更换游戏目录或检查管理器更新。
 
 ## 桌面应用
@@ -66,7 +66,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | --- | --- |
 | ![设置页](../images/screenshot-settings.zh-CN.png) | ![应用内更新提示](../images/screenshot-update.zh-CN.png) |
 
-更新提示截图演示从 0.1.2-6 到 0.1.2-7 的模拟升级。
+更新提示截图演示从 0.1.2-11 到 0.1.2-12 的模拟升级。
 
 ## 已收录模组
 
@@ -78,15 +78,16 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公开房间、语音与文字聊天 | 原生 MPML |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | 8 人团播、四队轮换与导播自由镜头 | 作者资源目录 → MPML |
 | [八人联机模组](https://github.com/Binary1936/machine-party-8p) | `v1.5` | 将在线游戏扩展至 8 人 | 作者资源目录 → MPML |
-| [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.3` | 机械狂欢躲避小游戏 | 原生 MPML |
+| [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.4` | 机械狂欢躲避小游戏 | 原生 MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可添加或移除默认就绪的测试机器人。 | 原生 MPML |
 | [独立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | 提高 3D 渲染清晰度，保留窗口模式和 HUD 布局 | 原生 MPML |
+| [玩家聚光灯](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | 在所有 3D 小游戏中只为自己点亮头顶工业聚光灯 | 原生 MPML |
 
 验收清单、上游授权边界与互斥组规则详见[候选模组与收录规范](../zh-CN/catalog/mods.md)。
 
 ## 更新记录
 
-Windows 测试版 **0.1.2-11** 支持从签名目录安装独立高清，并在更新模组前请求确认。该测试版发布时，目录包含滚筒嘉年华 v0.1.2 与房间机器人 v0.1.5。 [完整更新记录](../zh-CN/CHANGELOG.md)。
+**v0.1.2-12** · 安装、更新或卸载模组时，管理器会先询问是否关闭所选的游戏副本。应用更新提示会等当前对话框关闭后再显示。 滚筒嘉年华 v0.1.4 更新了场地和倒数效果；玩家聚光灯 v0.1.0 可用 F8 开关本机角色的顶灯；房间机器人 v0.2.2 支持迪斯科躲避玩法。 [完整更新记录](../zh-CN/CHANGELOG.md)。
 
 ## 文档
 

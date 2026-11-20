@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-11").len(), 7);
+        assert_eq!(preview_entries("0.1.2-12").len(), 8);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -476,12 +476,13 @@ mod tests {
             "roller-carnival",
             "lobby-bots",
             "standalone-hd",
+            "player-spotlight",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-11"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-12"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-11"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-12"), "{id}");
         }
     }
 
@@ -554,14 +555,14 @@ mod tests {
             Some("binary-tree-v1")
         );
         let entries = all_entries();
-        assert_eq!(entries.len(), 7);
+        assert_eq!(entries.len(), 8);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
         assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller
             .package
             .as_ref()
             .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.3.zip");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.4.zip");
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
@@ -574,7 +575,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.3/1011"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.4/1015"
         );
     }
 }
