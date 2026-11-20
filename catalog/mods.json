@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.9-mpml1",
+  "revision": "2026-11-20.8-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -404,18 +404,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "image": "bubble-blitz",
-      "version": "v0.1.2",
+      "version": "v0.1.1",
       "releaseNotes": {
-        "version": "v0.1.2",
-        "zh-CN": "修复底部个人属性 HUD 在不同分辨率下偏移或截断的问题（改用全屏 HudRoot + 居中容器），修复暗角与 8 阶色阶后处理在左上角留黑块的问题，并将游戏内图标升级为 256×256 原版单色 CRT 剪影规范。",
-        "zh-TW": "修正底部個人屬性 HUD 在不同解析度下偏移或截斷的問題（改用全螢幕 HudRoot + 置中容器），修正暗角與 8 階色階後處理在左上角留黑塊的問題，並將遊戲內圖示升級為 256×256 原版單色 CRT 剪影規範。",
-        "en": "Fixes bottom personal stats HUD alignment/clipping via a full-rect HudRoot + CenterContainer, fixes top-left post-FX BackBufferCopy artifact so vignette & 8-step posterization cover the entire frame, and uses an authentic 256×256 monochrome CRT icon."
+        "version": "v0.1.1",
+        "zh-CN": "修复底部个人属性 HUD 偏移或截断问题与左上角后处理黑块，升级游戏内图标为 256×256 原版单色 CRT 剪影；现自动驱动房间机器人（Lobby Bots）主动对战，并在暂停菜单或窗口失焦时拦截误操作。",
+        "zh-TW": "修正底部個人屬性 HUD 偏移或截斷問題與左上角後處理黑塊，升級遊戲內圖示為 256×256 原版單色 CRT 剪影；現自動驅動房間機器人（Lobby Bots）主動對戰，並在暫停選單或視窗失焦時攔截誤操作。",
+        "en": "Fixes bottom personal HUD centering/clipping and top-left post-FX artifact, uses a 256×256 monochrome CRT icon, enables tactical AI for Lobby Bots in official matches, and blocks input while paused or unfocused."
       },
       "package": {
-        "assetId": "1021",
-        "filename": "bubble-blitz-0.1.2.zip",
-        "size": 159108,
-        "sha256": "54103b45b7f44b68f0eee1d820bcf770b95513385c2e1e8ddd434480216d6dac",
+        "assetId": "1020",
+        "filename": "bubble-blitz-0.1.1.zip",
+        "size": 160442,
+        "sha256": "8fde427735cf43391284751305f18ecbedb135a6e0ef31727f667292b426d173",
         "mirrorApproved": true
       },
       "supportedGameVersions": [

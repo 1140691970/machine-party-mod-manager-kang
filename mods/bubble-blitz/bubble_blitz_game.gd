@@ -504,12 +504,18 @@ func _setup_match_local(theme_id: int, seed_val: int, roster: Array, is_preview:
 		node.position = world_pos
 		_player_root.add_child(node)
 
+		var is_bot_seat: bool = bool(entry.get("is_ai", false))
+		if not is_preview and _is_server_sim:
+			var peers: PackedInt32Array = multiplayer.get_peers()
+			if net_id != 1 and not peers.has(net_id):
+				is_bot_seat = true
+
 		_players[net_id] = {
 			"network_id": net_id,
 			"nickname": nick,
 			"color": char_pack["color"],
 			"anim_player": char_pack["anim_player"],
-			"is_ai": bool(entry.get("is_ai", false)) if is_preview else false,
+			"is_ai": is_bot_seat,
 			"pos": world_pos,
 			"facing": Vector2(0.0, 1.0),
 			"hp": C.MAX_HP,
@@ -772,20 +778,34 @@ func _process(delta: float) -> void:
 	_animate_visuals(delta)
 
 
+func _is_input_blocked_by_ui() -> bool:
+	if get_tree() == null or get_tree().root == null:
+		return false
+	var pause_menu: Node = get_tree().root.get_node_or_null("PauseMenu")
+	if pause_menu != null and bool(pause_menu.get("active")):
+		return true
+	var gm: Node = get_tree().root.get_node_or_null("GameManager")
+	if gm != null and gm.get("game_focused") == false:
+		return true
+	return false
+
+
 func _read_local_input() -> void:
 	var dir := Vector2.ZERO
-	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
-		dir.x -= 1.0
-	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
-		dir.x += 1.0
-	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
-		dir.y -= 1.0
-	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
-		dir.y += 1.0
-	if dir.length_squared() > 0.0:
-		dir = dir.normalized()
+	var drop := false
+	if not _is_input_blocked_by_ui():
+		if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+			dir.x -= 1.0
+		if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+			dir.x += 1.0
+		if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+			dir.y -= 1.0
+		if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+			dir.y += 1.0
+		if dir.length_squared() > 0.0:
+			dir = dir.normalized()
+		drop = Input.is_key_pressed(KEY_SPACE)
 
-	var drop: bool = Input.is_key_pressed(KEY_SPACE)
 	if _is_server_sim:
 		_client_inputs[_local_net_id] = {"dir": dir, "drop": drop}
 	else:
@@ -1667,6 +1687,21 @@ func _compute_ai_input(p: Dictionary, delta: float) -> Dictionary:
 		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 			var nc: Vector2i = cell + d
 			if not _is_tile_blocked(nc) and _bubble_at_cell(nc) == -1 and not danger.has(nc):
+				return {"dir": Vector2(float(d.x), float(d.y)), "drop": false}
+
+	# Rush adjacent downed rivals or adjacent pickups if safe.
+	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nc: Vector2i = cell + d
+		if _is_tile_blocked(nc) or _bubble_at_cell(nc) != -1 or danger.has(nc):
+			continue
+		for other_id in _players.keys():
+			if int(other_id) == int(p["network_id"]):
+				continue
+			var op: Dictionary = _players[other_id]
+			if bool(op["alive"]) and bool(op["trapped"]) and C.world_to_grid(op["pos"], _map_width, _map_height) == nc:
+				return {"dir": Vector2(float(d.x), float(d.y)), "drop": false}
+		for item_id in _items.keys():
+			if _items[item_id]["cell"] == nc:
 				return {"dir": Vector2(float(d.x), float(d.y)), "drop": false}
 
 	p["ai_cooldown"] = float(p["ai_cooldown"]) - delta
