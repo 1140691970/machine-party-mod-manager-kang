@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.8-mpml1",
+  "revision": "2026-11-20.9-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -404,18 +404,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "image": "bubble-blitz",
-      "version": "v0.1.1",
+      "version": "v0.1.2",
       "releaseNotes": {
-        "version": "v0.1.1",
-        "zh-CN": "修复底部个人属性 HUD 在不同分辨率下被截断的问题（改为自适应居中紧凑显示），并将游戏内歌单与过场 15 格 CRT 图标重绘为与原版一致的 256×256 黑底单色剪影规范。",
-        "zh-TW": "修正底部個人屬性 HUD 在不同解析度下被截斷的問題（改為自適應置中精簡顯示），並將遊戲內歌單與過場 15 格 CRT 圖示重繪為與原版一致的 256×256 黑底單色剪影規範。",
-        "en": "Fixes the bottom personal stats HUD clipping on scaled viewports with an auto-centered compact bar, and updates the in-game playlist/CRT picker icon to the authentic 256×256 monochrome black-and-white silhouette style."
+        "version": "v0.1.2",
+        "zh-CN": "修复底部个人属性 HUD 在不同分辨率下偏移或截断的问题（改用全屏 HudRoot + 居中容器），修复暗角与 8 阶色阶后处理在左上角留黑块的问题，并将游戏内图标升级为 256×256 原版单色 CRT 剪影规范。",
+        "zh-TW": "修正底部個人屬性 HUD 在不同解析度下偏移或截斷的問題（改用全螢幕 HudRoot + 置中容器），修正暗角與 8 階色階後處理在左上角留黑塊的問題，並將遊戲內圖示升級為 256×256 原版單色 CRT 剪影規範。",
+        "en": "Fixes bottom personal stats HUD alignment/clipping via a full-rect HudRoot + CenterContainer, fixes top-left post-FX BackBufferCopy artifact so vignette & 8-step posterization cover the entire frame, and uses an authentic 256×256 monochrome CRT icon."
       },
       "package": {
-        "assetId": "1020",
-        "filename": "bubble-blitz-0.1.1.zip",
-        "size": 158546,
-        "sha256": "01f87deef04802304a0588e9959594ee2b2d5f9ffac0d83e369b21c2052939cd",
+        "assetId": "1021",
+        "filename": "bubble-blitz-0.1.2.zip",
+        "size": 159108,
+        "sha256": "54103b45b7f44b68f0eee1d820bcf770b95513385c2e1e8ddd434480216d6dac",
         "mirrorApproved": true
       },
       "supportedGameVersions": [

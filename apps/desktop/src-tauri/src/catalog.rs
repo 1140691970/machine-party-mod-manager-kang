@@ -558,7 +558,7 @@ mod tests {
             .package
             .as_ref()
             .expect("bubble-blitz package present");
-        assert_eq!(bubble_pkg.filename, "bubble-blitz-0.1.1.zip");
+        assert_eq!(bubble_pkg.filename, "bubble-blitz-0.1.2.zip");
         assert!(bubble_pkg.mirror_approved);
         assert!(bubble.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(

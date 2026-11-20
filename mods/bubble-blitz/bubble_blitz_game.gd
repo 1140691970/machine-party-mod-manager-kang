@@ -196,11 +196,17 @@ func _setup_post_fx() -> void:
 	_shader_layer.add_child(fx_root)
 
 	if vig_shader is Shader:
-		var vig_holder := BackBufferCopy.new()
-		vig_holder.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+		var vig_holder := Control.new()
+		vig_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		vig_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		fx_root.add_child(vig_holder)
+
+		var vig_copy := BackBufferCopy.new()
+		vig_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+		vig_holder.add_child(vig_copy)
+
 		var vig_rect := ColorRect.new()
-		vig_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		vig_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		vig_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var vm := ShaderMaterial.new()
 		vm.shader = vig_shader as Shader
@@ -213,11 +219,17 @@ func _setup_post_fx() -> void:
 		vig_holder.add_child(vig_rect)
 
 	if post_shader is Shader:
-		var post_holder := BackBufferCopy.new()
-		post_holder.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+		var post_holder := Control.new()
+		post_holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		post_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		fx_root.add_child(post_holder)
+
+		var post_copy := BackBufferCopy.new()
+		post_copy.copy_mode = BackBufferCopy.COPY_MODE_VIEWPORT
+		post_holder.add_child(post_copy)
+
 		var post_rect := ColorRect.new()
-		post_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+		post_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		post_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var pm := ShaderMaterial.new()
 		pm.shader = post_shader as Shader
@@ -281,6 +293,12 @@ func _setup_hud() -> void:
 	_hud_layer.layer = 5
 	add_child(_hud_layer)
 
+	var hud_root := Control.new()
+	hud_root.name = "HudRoot"
+	hud_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_layer.add_child(hud_root)
+
 	var term_font: Font = M.load_terminal_font()
 
 	_banner_label = Label.new()
@@ -296,33 +314,30 @@ func _setup_hud() -> void:
 	_banner_label.add_theme_constant_override("outline_size", 14)
 	if term_font != null:
 		_banner_label.add_theme_font_override("font", term_font)
-	_hud_layer.add_child(_banner_label)
+	hud_root.add_child(_banner_label)
 
 	_kill_feed_label = Label.new()
-	_kill_feed_label.anchor_left = 0.15
-	_kill_feed_label.anchor_right = 0.85
+	_kill_feed_label.anchor_left = 0.1
+	_kill_feed_label.anchor_right = 0.9
 	_kill_feed_label.anchor_top = 0.80
 	_kill_feed_label.anchor_bottom = 0.87
 	_kill_feed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_kill_feed_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_kill_feed_label.add_theme_font_size_override("font_size", 24)
+	_kill_feed_label.add_theme_font_size_override("font_size", 22)
 	_kill_feed_label.add_theme_color_override("font_color", Color(1.0, 0.94, 0.62))
 	_kill_feed_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_kill_feed_label.add_theme_constant_override("outline_size", 7)
+	_kill_feed_label.add_theme_constant_override("outline_size", 6)
 	if term_font != null:
 		_kill_feed_label.add_theme_font_override("font", term_font)
-	_hud_layer.add_child(_kill_feed_label)
+	hud_root.add_child(_kill_feed_label)
 
-	# Local-player-only compact CRT status bar, auto-centered across all resolutions & UI scales.
+	# Local-player-only compact CRT status bar, strictly centered across all resolutions & UI scales.
 	var stats_center := CenterContainer.new()
-	stats_center.anchor_left = 0.0
-	stats_center.anchor_right = 1.0
-	stats_center.anchor_top = 1.0
-	stats_center.anchor_bottom = 1.0
-	stats_center.offset_top = -46.0
-	stats_center.offset_bottom = -8.0
+	stats_center.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	stats_center.offset_top = -48.0
+	stats_center.offset_bottom = -10.0
 	stats_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_hud_layer.add_child(stats_center)
+	hud_root.add_child(stats_center)
 
 	_stats_panel = PanelContainer.new()
 	_stats_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE

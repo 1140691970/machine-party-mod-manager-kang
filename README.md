@@ -84,7 +84,7 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | Add or remove ready bots in online rooms. | Native MPML |
 | [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
 | [Player Spotlight](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | Local-only overhead industrial spotlight on your own character across 3D minigames | Native MPML |
-| [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.1` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
+| [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.2` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 
