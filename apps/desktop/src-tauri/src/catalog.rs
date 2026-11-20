@@ -562,7 +562,7 @@ mod tests {
             .package
             .as_ref()
             .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.4.zip");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.5.zip");
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
@@ -575,7 +575,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.4/1015"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.5/1017"
         );
     }
 }

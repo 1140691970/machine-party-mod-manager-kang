@@ -79,6 +79,10 @@ var _sfx_countdown: AudioStreamPlayer = null
 var _sfx_timer_beep: AudioStreamPlayer = null
 var _ambience_player: AudioStreamPlayer = null
 var _shader_layer: CanvasLayer = null
+var _fx_hit_blood_scene: PackedScene = null
+var _fx_bloodmist_scene: PackedScene = null
+var _blood_tex_01: Texture2D = null
+var _blood_tex_02: Texture2D = null
 
 
 class YouMarkerOverlay extends Control:
@@ -285,6 +289,20 @@ func _build_post_fx_and_audio() -> void:
 			add_child(_ambience_player)
 			_ambience_player.play()
 
+		var hit_scene = _meshes.load_optional("res://prefabs/managed_effects/hit_blood.tscn")
+		if hit_scene is PackedScene:
+			_fx_hit_blood_scene = hit_scene as PackedScene
+		var mist_scene = _meshes.load_optional("res://prefabs/managed_effects/bloodmist_01.tscn")
+		if mist_scene is PackedScene:
+			_fx_bloodmist_scene = mist_scene as PackedScene
+		var bt1 = _meshes.load_optional("res://textures/decals/blood decals/blood_splat_01.png")
+		if bt1 is Texture2D:
+			_blood_tex_01 = bt1 as Texture2D
+		var bt2 = _meshes.load_optional("res://textures/decals/blood decals/blood_splat_02.png")
+		if bt2 is Texture2D:
+			_blood_tex_02 = bt2 as Texture2D
+		_warmup_fx_pipelines.call_deferred()
+
 	# Machine Party signature vignette + 8-step posterization with BackBufferCopy on layer 1 (below HUD layer 2)
 	var post_shader = _meshes.load_optional("res://shaders/posterization.gdshader")
 	var vig_shader = _meshes.load_optional("res://shaders/vignette.gdshader")
@@ -436,7 +454,6 @@ func _spawn_players() -> void:
 			"node": pnode,
 			"visual": visual_dict["visual"],
 			"shadow": visual_dict["shadow"],
-			"local_light": visual_dict.get("local_light", null),
 			"label": visual_dict["label"],
 			"anim_player": visual_dict.get("anim_player", null),
 			"x": spawn_x,
@@ -1145,9 +1162,6 @@ func _eliminate_player(p: Dictionary) -> void:
 	var pnode = p.get("node", null)
 	if pnode is Node:
 		(pnode as Node).set_meta(&"mpm_alive", false)
-	var llight = p.get("local_light", null)
-	if llight is Node3D:
-		(llight as Node3D).visible = false
 	var ap: AnimationPlayer = p.get("anim_player", null)
 	if ap != null and ap.has_animation(&"mp_mod/falling"):
 		ap.play(&"mp_mod/falling")
@@ -1159,13 +1173,62 @@ func _eliminate_player(p: Dictionary) -> void:
 		_spawn_burst(pit_pos, Color(0.38, 0.02, 0.01), 14)
 
 
+func _warmup_fx_pipelines() -> void:
+	if _is_self_test or not is_inside_tree() or _fx_layer == null:
+		return
+	var warmup_nodes: Array[Node] = []
+	var hidden_pos := Vector3(0.0, -3.5, 0.0)
+	if _blood_tex_02 != null or _blood_tex_01 != null:
+		var dec := Decal.new()
+		dec.size = Vector3(0.05, 0.05, 0.05)
+		dec.texture_albedo = _blood_tex_02 if _blood_tex_02 != null else _blood_tex_01
+		dec.modulate = Color(0.3809, 0.0189, 0.0, 1.0)
+		dec.position = hidden_pos
+		_fx_layer.add_child(dec)
+		warmup_nodes.append(dec)
+	for packed in [_fx_hit_blood_scene, _fx_bloodmist_scene]:
+		if packed == null:
+			continue
+		var inst = packed.instantiate()
+		if inst is Node3D:
+			inst.set_script(null)
+			var n3 := inst as Node3D
+			n3.position = hidden_pos
+			n3.scale = Vector3(0.001, 0.001, 0.001)
+			_fx_layer.add_child(n3)
+			for child in n3.get_children():
+				if child is GPUParticles3D:
+					var gp := child as GPUParticles3D
+					gp.one_shot = true
+					gp.emitting = true
+			warmup_nodes.append(n3)
+		elif inst is Node:
+			(inst as Node).queue_free()
+	if warmup_nodes.is_empty():
+		return
+	var timer := get_tree().create_timer(0.25)
+	timer.timeout.connect(func():
+		for n in warmup_nodes:
+			if is_instance_valid(n):
+				n.queue_free()
+	)
+
+
 func _spawn_vanilla_effect(scene_path: String, origin: Vector3, eff_scale: float, lifetime: float) -> bool:
 	if _is_self_test:
 		return true
-	var packed = _meshes.load_optional(scene_path)
-	if not (packed is PackedScene):
+	var packed: PackedScene = null
+	if scene_path.ends_with("hit_blood.tscn"):
+		packed = _fx_hit_blood_scene
+	elif scene_path.ends_with("bloodmist_01.tscn"):
+		packed = _fx_bloodmist_scene
+	if packed == null:
+		var loaded = _meshes.load_optional(scene_path)
+		if loaded is PackedScene:
+			packed = loaded as PackedScene
+	if packed == null:
 		return false
-	var inst = (packed as PackedScene).instantiate()
+	var inst = packed.instantiate()
 	if not (inst is Node3D):
 		if inst is Node:
 			(inst as Node).queue_free()
@@ -1194,9 +1257,13 @@ func _spawn_impact_decal(pos: Vector3, scale_mul: float = 1.0) -> void:
 		var old: Node3D = _decals.pop_front()
 		if is_instance_valid(old):
 			old.queue_free()
-	var tex_path := "res://textures/decals/blood decals/blood_splat_02.png" if _rng.randf() < 0.7 else "res://textures/decals/blood decals/blood_splat_01.png"
-	var blood_tex = _meshes.load_optional(tex_path)
-	if blood_tex is Texture2D:
+	var blood_tex: Texture2D = _blood_tex_02 if (_rng.randf() < 0.7 and _blood_tex_02 != null) else _blood_tex_01
+	if blood_tex == null:
+		var tex_path := "res://textures/decals/blood decals/blood_splat_02.png" if _rng.randf() < 0.7 else "res://textures/decals/blood decals/blood_splat_01.png"
+		var loaded = _meshes.load_optional(tex_path)
+		if loaded is Texture2D:
+			blood_tex = loaded as Texture2D
+	if blood_tex != null:
 		var dec := Decal.new()
 		var sz := _rng.randf_range(1.25, 1.75) * scale_mul
 		dec.size = Vector3(sz, 0.42, sz)

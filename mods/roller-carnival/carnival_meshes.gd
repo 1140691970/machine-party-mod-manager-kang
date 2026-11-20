@@ -739,21 +739,6 @@ static func _resolve_player_color(idx: int, customization: Array = []) -> Color:
 	return PLAYER_COLORS[idx % PLAYER_COLORS.size()]
 
 
-static func _build_local_spotlight() -> SpotLight3D:
-	var spot := SpotLight3D.new()
-	spot.name = "LocalSpotlight"
-	spot.light_color = Color(0.94, 1.0, 0.88)
-	spot.light_energy = 16.0
-	spot.spot_range = 6.2
-	spot.spot_angle = 15.0
-	spot.spot_angle_attenuation = 1.8
-	spot.spot_attenuation = 0.65
-	spot.shadow_enabled = false
-	spot.position = Vector3(0.0, 3.8, 0.20)
-	spot.rotation_degrees = Vector3(-87.0, 0.0, 0.0)
-	return spot
-
-
 static func build_cartoon_character(idx: int, nickname: String, customization: Array = [], is_local: bool = false) -> Dictionary:
 	ensure_game_pck_mounted()
 	var col: Color = _resolve_player_color(idx, customization)
@@ -774,14 +759,9 @@ static func build_cartoon_character(idx: int, nickname: String, customization: A
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(shadow)
 
-	var local_light: SpotLight3D = null
-	var external_spotlight := Engine.has_meta(&"mpm_player_spotlight_active")
 	if is_local:
 		root.add_to_group(&"mpm_local_player")
 		root.set_meta(&"mpm_alive", true)
-		if not external_spotlight:
-			local_light = _build_local_spotlight()
-			root.add_child(local_light)
 
 	var visual := Node3D.new()
 	visual.name = "VisualPivot"
@@ -802,7 +782,7 @@ static func build_cartoon_character(idx: int, nickname: String, customization: A
 	else:
 		_build_fallback_character(visual, idx, col)
 
-	# Vanilla Machine Party heavy-outlined Terminal F4 nametag (truncated at 11 chars)
+	# Vanilla Machine Party pure-white heavy-outlined Terminal F4 nametag (truncated at 11 chars)
 	var formatted_name := nickname.left(11) + "-" if nickname.length() > 11 else nickname
 	var label := Label3D.new()
 	label.name = "NicknameLabel"
@@ -811,7 +791,7 @@ static func build_cartoon_character(idx: int, nickname: String, customization: A
 	label.pixel_size = 0.0080
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.no_depth_test = true
-	label.modulate = Color(0.62, 1.0, 0.58, 1.0) if (is_local and not external_spotlight) else Color(1.0, 1.0, 1.0, 1.0)
+	label.modulate = Color(1.0, 1.0, 1.0, 1.0)
 	label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
 	label.outline_size = 12
 	var font := load_terminal_font()
@@ -824,7 +804,6 @@ static func build_cartoon_character(idx: int, nickname: String, customization: A
 		"root": root,
 		"visual": visual,
 		"shadow": shadow,
-		"local_light": local_light,
 		"label": label,
 		"anim_player": anim_player,
 	}

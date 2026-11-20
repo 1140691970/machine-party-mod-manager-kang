@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.2-mpml1",
+  "revision": "2026-11-20.3-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -250,18 +250,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
       "image": "roller-carnival",
-      "version": "v0.1.4",
+      "version": "v0.1.5",
       "releaseNotes": {
-        "version": "v0.1.4",
-        "zh-CN": "全面重制为原版 Machine Party 工业 CRT 美术与界面：新增 CRT 回合黑幕与 3-2-1-GO 机械倒数、原版「你」定位框、仅自己可见的专属工业顶灯聚光与名牌着色、大厅外观同步、场内 3D 倒数波次监视器、12 面工业滚筒与双轨导轨、双轴粉碎熔炉淘汰坑及全屏色阶后处理。",
-        "zh-TW": "全面重製為原版 Machine Party 工業 CRT 美術與介面：新增 CRT 回合黑幕與 3-2-1-GO 機械倒數、原版「你」定位框、僅自己可見的專屬工業頂燈聚光與名牌著色、大廳外觀同步、場內 3D 倒數波次監視器、12 面工業滾筒與雙軌導軌、雙軸粉碎熔爐淘汰坑及全螢幕色階後處理。",
-        "en": "Overhauled visuals and UI to match Machine Party's industrial CRT style: added CRT round intro and mechanical 3-2-1-GO countdown, vanilla YOU target bracket, local-only overhead industrial spotlight and nametag tint, lobby cosmetics, 3D diegetic timer/wave monitor, 12-sided industrial rollers on dual guide rails, twin-shaft shredder pit, and full-screen posterization."
+        "version": "v0.1.5",
+        "zh-CN": "预热血迹贴花与喷血特效管线以消除首次受击时的卡顿，并移除内置玩家聚光灯（统一由独立的「玩家聚光灯」模组提供）。",
+        "zh-TW": "預熱血跡貼花與噴血特效管線以消除首次受擊時的卡頓，並移除內建玩家聚光燈（統一由獨立的「玩家聚光燈」模組提供）。",
+        "en": "Warms up blood decal and gore effect pipelines during the round intro to eliminate first-hit stutter, and removes the built-in player spotlight in favor of the standalone Player Spotlight mod."
       },
       "package": {
-        "assetId": "1015",
-        "filename": "roller-carnival-0.1.4.zip",
-        "size": 134799,
-        "sha256": "3b8ffc95c2c13e5a59d790335fa84ed509a9991923fc546b2052488c376d6f5a",
+        "assetId": "1017",
+        "filename": "roller-carnival-0.1.5.zip",
+        "size": 136417,
+        "sha256": "e84b7538969c67c998093c5b7e8829dde69e75630aa3a92c3f28236a1e37954e",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
@@ -303,9 +303,9 @@
         "en": "Jump or briefly duck as rollers arrive faster. Rounds start automatically with the players in your game."
       },
       "detail": {
-        "zh-CN": "金色高滚筒按 S 下蹲、银色低滚筒按空格跳跃，碰撞推挤至左侧岩浆淘汰并按躲避数排名加分。",
-        "zh-TW": "金色高滾筒按 S 下蹲、銀色低滾筒按空白鍵跳躍，碰撞推擠至左側岩漿淘汰並依躲避數排名加分。",
-        "en": "Crouch under gold high rollers, jump over silver low rollers, avoid being shoved into the lava, and score by dodge rank."
+        "zh-CN": "高处琥珀滚筒按住 S 下蹲、低处冷钢滚筒按空格 / W 跳跃，碰撞推挤至左侧粉碎熔炉淘汰并按躲避数排名加分。",
+        "zh-TW": "高處琥珀滾筒按住 S 下蹲、低處冷鋼滾筒按空白鍵 / W 跳躍，碰撞推擠至左側粉碎熔爐淘汰並依躲避數排名加分。",
+        "en": "Hold S to crouch under high amber rollers, press Space / W to jump over low steel rollers, avoid being shoved into the shredder furnace, and score by dodge rank."
       },
       "aliases": ["滚筒", "滾筒嘉年華", "roller", "carnival"]
     },
