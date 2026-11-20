@@ -7,29 +7,67 @@ use std::{
     },
     path::Path,
 };
-use sysinfo::{ProcessRefreshKind, RefreshKind, System, UpdateKind};
+use sysinfo::{ProcessRefreshKind, RefreshKind, System};
 use windows_sys::Win32::{
-    Foundation::{HWND, LPARAM, WAIT_OBJECT_0},
+    Foundation::{ERROR_INVALID_PARAMETER, HWND, LPARAM, WAIT_OBJECT_0},
     System::Threading::*,
     UI::WindowsAndMessaging::*,
 };
 
 use super::{ProcessAction, image_identity};
 
+fn open_process(pid: u32, extra_access: u32) -> std::io::Result<Option<OwnedHandle>> {
+    let access = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE | extra_access;
+    let raw = unsafe { OpenProcess(access, 0, pid) };
+    if !raw.is_null() {
+        return Ok(Some(unsafe { OwnedHandle::from_raw_handle(raw) }));
+    }
+    let error = std::io::Error::last_os_error();
+    if error.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
+        return Ok(None);
+    }
+    Err(error)
+}
+
+fn running_image(handle: BorrowedHandle<'_>) -> Result<Option<OsString>, String> {
+    let raw = handle.as_raw_handle();
+    if unsafe { WaitForSingleObject(raw, 0) } == WAIT_OBJECT_0 {
+        return Ok(None);
+    }
+    let mut name = vec![0u16; 32768];
+    let mut length = name.len() as u32;
+    if unsafe {
+        QueryFullProcessImageNameW(raw, PROCESS_NAME_WIN32, name.as_mut_ptr(), &mut length)
+    } != 0
+    {
+        return Ok(Some(OsString::from_wide(&name[..length as usize])));
+    }
+    if unsafe { WaitForSingleObject(raw, 0) } == WAIT_OBJECT_0 {
+        Ok(None)
+    } else {
+        Err("gameProcessUnknown".into())
+    }
+}
+
 pub fn matching_pids(dir: &Path) -> Result<Vec<u32>, String> {
     let target = image_identity(&dir.join("Machine Party.exe")).map_err(|_| "invalidGame")?;
     let system = System::new_with_specifics(
-        RefreshKind::nothing()
-            .with_processes(ProcessRefreshKind::nothing().with_exe(UpdateKind::Always)),
+        RefreshKind::nothing().with_processes(ProcessRefreshKind::nothing()),
     );
     let mut pids = Vec::new();
     for process in system.processes().values().filter(|p| {
         p.name()
             .eq_ignore_ascii_case(OsStr::new("Machine Party.exe"))
     }) {
-        let path = process.exe().ok_or("gameProcessUnknown")?;
-        if image_identity(path).map_err(|_| "gameProcessUnknown")? == target {
-            pids.push(process.pid().as_u32());
+        let pid = process.pid().as_u32();
+        let Some(handle) = open_process(pid, 0).map_err(|_| "gameProcessUnknown")? else {
+            continue;
+        };
+        let Some(path) = running_image(handle.as_handle())? else {
+            continue;
+        };
+        if image_identity(Path::new(&path)).map_err(|_| "gameProcessUnknown")? == target {
+            pids.push(pid);
         }
     }
     Ok(pids)
@@ -68,36 +106,18 @@ pub fn apply(dir: &Path, action: ProcessAction) -> Result<bool, String> {
     }
     let target = image_identity(&dir.join("Machine Party.exe")).map_err(|_| "invalidGame")?;
     for pid in pids {
-        let access = PROCESS_QUERY_LIMITED_INFORMATION
-            | PROCESS_SYNCHRONIZE
-            | if matches!(action, ProcessAction::Force) {
-                PROCESS_TERMINATE
-            } else {
-                0
-            };
-        let raw = unsafe { OpenProcess(access, 0, pid) };
-        if raw.is_null() {
-            if std::io::Error::last_os_error().raw_os_error() == Some(87) {
-                continue; // The process exited between enumeration and OpenProcess.
-            }
-            return Err("gameCloseFailed".into());
-        }
-        // Pin the process object and recheck its executable before using the PID or handle.
-        let handle = unsafe { OwnedHandle::from_raw_handle(raw) };
-        let mut name = vec![0u16; 32768];
-        let mut length = name.len() as u32;
-        if unsafe {
-            QueryFullProcessImageNameW(
-                handle.as_raw_handle(),
-                PROCESS_NAME_WIN32,
-                name.as_mut_ptr(),
-                &mut length,
-            )
-        } == 0
-        {
-            return Err("gameProcessUnknown".into());
-        }
-        let path = OsString::from_wide(&name[..length as usize]);
+        let extra = if matches!(action, ProcessAction::Force) {
+            PROCESS_TERMINATE
+        } else {
+            0
+        };
+        let Some(handle) = open_process(pid, extra).map_err(|_| "gameCloseFailed")? else {
+            continue;
+        };
+        // Recheck the image on the pinned process before sending any close request.
+        let Some(path) = running_image(handle.as_handle())? else {
+            continue;
+        };
         if image_identity(Path::new(&path)).map_err(|_| "gameProcessUnknown")? != target {
             continue;
         }
@@ -109,6 +129,12 @@ pub fn apply(dir: &Path, action: ProcessAction) -> Result<bool, String> {
             }
         };
         check_action_result(ok, handle.as_handle())?;
+        if matches!(action, ProcessAction::Force) {
+            // TerminateProcess is asynchronous. Defer to UI polling if exit is still pending.
+            if unsafe { WaitForSingleObject(handle.as_raw_handle(), 1000) } != WAIT_OBJECT_0 {
+                return Ok(true);
+            }
+        }
     }
     Ok(!matching_pids(dir)?.is_empty())
 }
@@ -159,5 +185,6 @@ mod tests {
         child.wait().unwrap();
         assert_eq!(live_result.unwrap_err(), "gameCloseFailed");
         check_action_result(0, child.as_handle()).unwrap();
+        assert!(running_image(child.as_handle()).unwrap().is_none());
     }
 }
