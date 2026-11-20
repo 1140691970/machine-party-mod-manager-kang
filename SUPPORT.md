@@ -13,7 +13,7 @@ Save your progress and choose **Close game and continue**, or cancel. If the gam
 
 ![When the game is running](docs/images/screenshot-close-game.png)
 
-## Restore the Steam original (Windows preview 0.1.2-13)
+## Restore the Steam original (Windows 0.2.0)
 
 In **Settings → Restore the Steam original**, check the selected game folder and choose **Start restore**. Save your progress before allowing the manager to close the game. Confirm verification in Steam and keep the manager open. Returning to the manager does not finish verification. After Steam reports success, the manager checks the original game fingerprint and clears recorded mods. If you stop waiting, Steam can continue independently. Unrecognized files or an unsupported Steam build require inspection. Backups are retained under the app configuration directory in `backups/<copy>/_steam_restore/`.
 

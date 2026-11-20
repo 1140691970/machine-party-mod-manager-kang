@@ -16,7 +16,6 @@ Browse hand-curated mods for [Machine Party](https://store.steampowered.com/app/
 
 <p align="center">
   <a href="#download"><img src="https://img.shields.io/badge/Windows-x64-D99A24?style=flat-square" height="24" alt="Windows: x64"></a>
-  <a href="#download"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20(browse)-007AFF?style=flat-square" height="24" alt="macOS: Apple Silicon (browse)"></a>
   <a href="#catalogued-mods"><img src="https://img.shields.io/badge/Steam-Machine%20Party%20v2.1.2-7A2431?style=flat-square" height="24" alt="Steam: Machine Party v2.1.2"></a>
 </p>
 
@@ -46,12 +45,15 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-13 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-13/setup.exe) | NSIS installer, signed in-app updates |
-| macOS | Apple Silicon | [Stable v0.1.1 (`MachineParty-aarch64.app.tar.gz`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | Catalog browsing & signed updates |
+| Windows | x64 | [Stable v0.2.0 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.0/setup.exe) | NSIS installer, signed in-app updates |
 
-On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive and move the `.app` to a writable Applications folder.
+Run the Windows x64 NSIS installer.
 
-**Machine Party on Steam is Windows-only; the `0.1.2-13` workspace adds Windows `v2.1.2` adapters for all eight catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
+Installed Windows clients verify the updater signature before installing.
+
+## Future plans
+
+Machine Party is available on Windows. macOS support is planned for a future release.
 
 ## Getting started
 
@@ -66,7 +68,7 @@ On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive an
 | --- | --- |
 | ![Settings](docs/images/screenshot-settings.png) | ![In-app update prompt](docs/images/screenshot-update.png) |
 
-**v0.1.2-13** · Settings → Restore the Steam original
+**v0.2.0** · Settings → Restore the Steam original
 
 The update prompt illustrates a simulated upgrade from 0.1.2-11 to 0.1.2-12.
 
@@ -89,7 +91,7 @@ See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance
 
 ## Release notes
 
-**v0.1.2-13** · Restore the original game from Settings. The manager waits for Steam verification, checks the game fingerprint, and removes managed mods. Interrupted cleanup can resume on the next scan. [Full changelog](CHANGELOG.md).
+**v0.2.0** · Windows x64 stable release for Machine Party v2.1.2. Install and update the eight catalogued mods, or use Settings to restore the Steam original. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

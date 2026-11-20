@@ -4,6 +4,8 @@
 
 Date: 2026-11-18. Status: accepted; records the chain shipped in v0.1.1.
 
+**0.2.0** · Machine Party is available on Windows. macOS support is planned for a future release. Installed Windows clients verify the updater signature before installing.
+
 ## Problem
 
 Players need to receive manager updates without visiting GitHub, including from mainland China, and an update must never install unsigned or unexpected binaries.

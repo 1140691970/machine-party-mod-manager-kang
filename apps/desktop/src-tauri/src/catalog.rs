@@ -394,6 +394,7 @@ mod tests {
                 .unwrap()
                 .clone();
             m["version"] = "v9.0".into();
+            m["verified"] = false.into();
             m["updateChannel"] = "preview".into();
             m
         };
@@ -441,6 +442,8 @@ mod tests {
             let doc = serde_json::json!({"schema":1,"mods":[m]}).to_string();
             approved_updates(&doc, preview).unwrap().len() == 1
         };
+        item["verified"] = false.into();
+        item["updateChannel"] = "preview".into();
         item["version"] = "v0.2.0".into();
         item["adapter"]["requiredFiles"] = serde_json::json!(["mod.json", "main.gd", "extra.gd"]);
         assert!(accepts(&item, true));

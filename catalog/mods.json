@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.4-mpml1",
+  "revision": "2026-11-20.5-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -53,7 +53,7 @@
         "conflictGroup": "eight-player",
         "sourceRule": "overtime-manifest-v1"
       },
-      "verified": false,
+      "verified": true,
       "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
       "summary": {
         "zh-CN": "最多 8 人在线或本地同玩。",
@@ -70,7 +70,6 @@
     {
       "id": "machineparty-plus",
       "category": "expansion",
-      "updateChannel": "preview",
       "order": 2,
       "repo": "Ghostx10742/MachineParty-Plus",
       "image": "plus",
@@ -106,7 +105,7 @@
         "requiredFiles": ["mod.json", "main.gd"],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {"zh-CN": "MachineParty+", "zh-TW": "MachineParty+", "en": "MachineParty+"},
       "summary": {
         "zh-CN": "公开房间、语音与文字聊天。",
@@ -166,7 +165,7 @@
         "conflictGroup": "eight-player",
         "sourceRule": "broadcast-tree-v1"
       },
-      "verified": false,
+      "verified": true,
       "name": {"zh-CN": "Broadcast 8P Freecam", "zh-TW": "Broadcast 8P Freecam", "en": "Broadcast 8P Freecam"},
       "summary": {
         "zh-CN": "八人团播、四队轮换与导播自由镜头。",
@@ -228,7 +227,7 @@
         "conflictGroup": "eight-player",
         "sourceRule": "binary-tree-v1"
       },
-      "verified": false,
+      "verified": true,
       "name": {"zh-CN": "八人联机模组", "zh-TW": "八人連線模組", "en": "Eight-player multiplayer"},
       "summary": {
         "zh-CN": "将在线游戏扩展至八人。",
@@ -245,7 +244,6 @@
     {
       "id": "roller-carnival",
       "category": "game",
-      "updateChannel": "preview",
       "order": 5,
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
@@ -291,7 +289,7 @@
         ],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {
         "zh-CN": "滚筒嘉年华",
         "zh-TW": "滾筒嘉年華",
@@ -312,7 +310,6 @@
     {
       "id": "lobby-bots",
       "category": "tool",
-      "updateChannel": "preview",
       "order": 6,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
@@ -358,7 +355,7 @@
         ],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {
         "zh-CN": "房间机器人",
         "zh-TW": "房間機器人",
@@ -383,7 +380,6 @@
     {
       "id": "standalone-hd",
       "category": "graphics",
-      "updateChannel": "preview",
       "order": 7,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
@@ -428,7 +424,7 @@
         ],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {
         "zh-CN": "独立高清",
         "zh-TW": "獨立高清",
@@ -455,7 +451,6 @@
     {
       "id": "player-spotlight",
       "category": "tool",
-      "updateChannel": "preview",
       "order": 8,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
@@ -499,7 +494,7 @@
         ],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {
         "zh-CN": "玩家聚光灯",
         "zh-TW": "玩家聚光燈",

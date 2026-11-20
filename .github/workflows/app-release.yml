@@ -114,33 +114,6 @@ jobs:
           name: windows-ui
           path: dist/windows-ui/
           if-no-files-found: warn
-  build-mac:
-    if: github.ref == 'refs/heads/main' && inputs.build_run == '' && !inputs.publish_preview
-    runs-on: macos-15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: apps/desktop/src-tauri
-      - name: Build Apple Silicon application
-        working-directory: apps/desktop/src-tauri
-        run: |
-          set -eu
-          rustup target add aarch64-apple-darwin
-          npx --yes --package @tauri-apps/cli@2.12.5 tauri build --target aarch64-apple-darwin --bundles app -- --locked
-          cd target/aarch64-apple-darwin/release/bundle/macos
-          app=( *.app )
-          codesign --verify --deep --strict "${app[0]}"
-          archive="$RUNNER_TEMP/MachineParty-aarch64.app.tar.gz"
-          COPYFILE_DISABLE=1 tar -czf "$archive" "${app[0]}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mac-installer
-          path: ${{ runner.temp }}/MachineParty-aarch64.app.tar.gz
-          retention-days: 14
   verify:
     if: inputs.verify_only && inputs.build_run != ''
     runs-on: windows-2022
@@ -188,8 +161,8 @@ jobs:
           if ($version -notmatch '^\d+\.\d+\.\d+-\d+$') { throw 'Choose a new Windows prerelease version.' }
           gh release create "v$version" dist/setup.exe --target $env:GITHUB_SHA --prerelease --latest=false --title "v$version" @notes
   release:
-    needs: [build, build-mac, windows-acceptance]
-    if: always() && !inputs.publish_preview && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.build-mac.result == 'success' && needs.windows-acceptance.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
+    needs: [build, windows-acceptance]
+    if: always() && !inputs.publish_preview && !inputs.verify_only && !cancelled() && github.ref == 'refs/heads/main' && ((needs.build.result == 'success' && needs.windows-acceptance.result == 'success') || (needs.build.result == 'skipped' && inputs.build_run != ''))
     runs-on: windows-2022
     environment: production
     permissions:
@@ -221,24 +194,17 @@ jobs:
           path: dist
           github-token: ${{ github.token }}
           run-id: ${{ inputs.build_run || github.run_id }}
-      - uses: actions/download-artifact@v4
-        with:
-          name: mac-installer
-          path: dist
-          github-token: ${{ github.token }}
-          run-id: ${{ inputs.build_run || github.run_id }}
       - name: Validate stable Windows publisher
         shell: pwsh
         run: |
           ./scripts/verify-windows-signature.ps1 -Path dist/setup.exe
-      - name: Sign platform updates
+      - name: Sign Windows update
         shell: bash
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         run: |
           version=$(node -p 'require("./apps/desktop/src-tauri/tauri.conf.json").version')
           npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/setup.exe
-          npx --yes --package @tauri-apps/cli@2.12.5 tauri signer sign --app-version "$version" -p '' dist/MachineParty-aarch64.app.tar.gz
       - name: Stage version in R2
         run: python scripts/app-release.py stage
         env: &storage
@@ -266,12 +232,11 @@ jobs:
             git push origin "$BUILD_SHA:refs/tags/$tag"
           fi
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" dist/setup.exe dist/setup.exe.sig dist/MachineParty-aarch64.app.tar.gz dist/MachineParty-aarch64.app.tar.gz.sig --verify-tag --title "$tag" --generate-notes
+            gh release create "$tag" dist/setup.exe dist/setup.exe.sig --verify-tag --title "$tag" --generate-notes
           else
-            gh release download "$tag" -p setup.exe -D existing
-            gh release download "$tag" -p MachineParty-aarch64.app.tar.gz -D existing
+            gh release download "$tag" -p setup.exe -p setup.exe.sig -D existing
             cmp dist/setup.exe existing/setup.exe
-            cmp dist/MachineParty-aarch64.app.tar.gz existing/MachineParty-aarch64.app.tar.gz
+            cmp dist/setup.exe.sig existing/setup.exe.sig
           fi
       - name: Promote stable manifest and verify public endpoint
         run: python scripts/app-release.py promote

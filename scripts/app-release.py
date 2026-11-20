@@ -35,7 +35,7 @@ def read(url):
         return response.read(), response.headers.get("ETag")
 
 
-packages = {"windows-x86_64": "setup.exe", "darwin-aarch64": "MachineParty-aarch64.app.tar.gz"}
+packages = {"windows-x86_64": "setup.exe"}
 
 
 def existing_object(name):

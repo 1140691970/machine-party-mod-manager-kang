@@ -2,7 +2,16 @@
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {connect, until} from "./windows-webview.mjs";
-const version = JSON.parse(await readFile(new URL("../apps/desktop/src-tauri/tauri.conf.json", import.meta.url))).version;
+const config = JSON.parse(await readFile(new URL("../apps/desktop/src-tauri/tauri.conf.json", import.meta.url)));
+const {version} = config;
+const downloads = new URL("/v1/app-downloads/" + version + "/", config.plugins.updater.endpoints[0]);
+const staged = await fetch(new URL("manifest.json", downloads));
+assert.equal(staged.status, 200);
+const manifest = await staged.json();
+assert.equal(manifest.version, version);
+assert.deepEqual(Object.keys(manifest.platforms), ["windows-x86_64"]);
+assert.equal(manifest.platforms["windows-x86_64"].url, new URL("setup.exe", downloads).href);
+assert.ok(manifest.platforms["windows-x86_64"].signature);
 const current = 'window.__TAURI__.core.invoke("app_version")';
 const old = await until(connect,"Opening installed bootstrap");
 assert.equal(await old.evaluate(current),"0.0.1");

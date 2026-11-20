@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.0 — 2026-11-20
+
+- Windows x64 stable release for Machine Party v2.1.2. Install and update the eight catalogued mods, or use Settings to restore the Steam original.
+- Machine Party is available on Windows. macOS support is planned for a future release.
+
 ## 0.1.2-13 — 2026-11-20
 
 - Restore the original game from Settings. The manager waits for Steam verification, checks the game fingerprint, and removes managed mods. Interrupted cleanup can resume on the next scan.

@@ -16,7 +16,6 @@
 
 <p align="center">
   <a href="#下载"><img src="https://img.shields.io/badge/Windows-x64-D99A24?style=flat-square" height="24" alt="Windows：x64"></a>
-  <a href="#下载"><img src="https://img.shields.io/badge/macOS-Apple%20Silicon%20(浏览)-007AFF?style=flat-square" height="24" alt="macOS：Apple Silicon（浏览）"></a>
   <a href="#已收录模组"><img src="https://img.shields.io/badge/Steam-Machine%20Party%20v2.1.2-7A2431?style=flat-square" height="24" alt="Steam：Machine Party v2.1.2"></a>
 </p>
 
@@ -46,12 +45,15 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 | 平台 | 架构 | 下载 | 说明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-13（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-13/setup.exe) | NSIS 安装包，支持签名应用内更新 |
-| macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 浏览目录与接收应用更新（游戏仅限 Windows） |
+| Windows | x64 | [正式版 v0.2.0（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.2.0/setup.exe) | NSIS 安装包，支持签名应用内更新 |
 
-Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档并将 `.app` 移入可写的应用程序目录。
+下载并运行 Windows x64 安装程序。
 
-**Steam 上的《机械派对》（Machine Party）仅支持 Windows；当前 `0.1.2-13` 工作区已为目录内全部八个模组接入 `v2.1.2` 适配器，仍待完整 Windows 实机验收。** macOS 构建仅作 ad hoc 签名，未经 Apple 公证；Windows 安装包在未配置代码签名证书时为未签名包。已安装客户端会在启动时静默检查更新，在设置页显示红点，并在发现新版时弹出可延后处理的更新说明弹窗。详见[发布流程与验证说明](../zh-CN/development/releasing.md)。
+已安装的 Windows 客户端会在更新前校验更新包签名。
+
+## 后续计划
+
+《机械派对》目前仅支持 Windows。macOS 管理器列入后续计划。
 
 ## 开始使用
 
@@ -66,7 +68,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | --- | --- |
 | ![设置页](../images/screenshot-settings.zh-CN.png) | ![应用内更新提示](../images/screenshot-update.zh-CN.png) |
 
-**v0.1.2-13** · 设置 → 还原 Steam 原版
+**v0.2.0** · 设置 → 还原 Steam 原版
 
 更新提示截图演示从 0.1.2-11 到 0.1.2-12 的模拟升级。
 
@@ -89,7 +91,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 
 ## 更新记录
 
-**v0.1.2-13** · 在设置中还原 Steam 原版。管理器等待 Steam 验证成功、核对游戏指纹后清理受管模组。清理中断后可重新扫描同一副本继续。 [完整更新记录](../zh-CN/CHANGELOG.md)。
+**v0.2.0** · 发布适用于《机械派对》v2.1.2 的 Windows x64 正式版。可安装和更新目录中的八个模组，也可在设置中还原 Steam 原版。 [完整更新记录](../zh-CN/CHANGELOG.md)。
 
 ## 文档
 
