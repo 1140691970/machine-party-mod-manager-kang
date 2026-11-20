@@ -45,7 +45,7 @@
 
 ## 3. 內建載入器執行期 API 與遊戲接入規範
 
-內建引導腳本（`LOADER_VERSION = "3"`、`API_VERSION = 2`）作為首項 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在遊戲腳本載入前啟動，並與外部 `MachinePartyModLoader.exe` 共用相同的 API v2 介面。
+內建引導腳本（`LOADER_VERSION = "4"`、`API_VERSION = 2`）作為首項 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在遊戲腳本載入前啟動，並與外部 `MachinePartyModLoader.exe` 共用相同的 API v2 介面。
 
 ### 生命週期回呼
 

@@ -45,7 +45,7 @@
 
 ## 3. 内置加载器运行时 API 与游戏接入规范
 
-内置引导脚本（`LOADER_VERSION = "3"`、`API_VERSION = 2`）作为首项 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在游戏脚本加载前运行，并与外部 `MachinePartyModLoader.exe` 保持 API v2 兼容。
+内置引导脚本（`LOADER_VERSION = "4"`、`API_VERSION = 2`）作为首项 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在游戏脚本加载前运行，并与外部 `MachinePartyModLoader.exe` 保持 API v2 兼容。
 
 ### 生命周期回调
 

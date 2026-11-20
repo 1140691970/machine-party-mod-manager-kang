@@ -15,7 +15,7 @@ use crate::{
 pub const LOADER_SIDECAR: &str = "Machine Party.pck.modloader.json";
 pub const EXTERNAL_LOADER_EXE: &str = "MachinePartyModLoader.exe";
 pub const MANAGED_BY: &str = "machine-party-mod-manager";
-pub const LOADER_VERSION: &str = "3";
+pub const LOADER_VERSION: &str = "4";
 
 const BOOTSTRAP_SRC: &str = include_str!("../assets/mpm_bootstrap.gd");
 const PCK_MAGIC: &[u8; 4] = b"GDPC";

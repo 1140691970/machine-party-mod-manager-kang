@@ -4,6 +4,10 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.1 — 2026-11-20
+
+- Built-in mod loader v4 automatically separates overlapping mod buttons in the lobby (such as MachineParty+ and Lobby Bots) without modifying mods or moving vanilla game buttons.
+
 ## 0.2.0 — 2026-11-20
 
 - Windows x64 stable release for Machine Party v2.1.2. Install and update the eight catalogued mods, or use Settings to restore the Steam original.
