@@ -1,3 +1,5 @@
+pub mod steam_verify;
+
 use std::{
     fs,
     path::{Path, PathBuf},

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.3-mpml1",
+  "revision": "2026-11-20.4-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -25,7 +25,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -90,7 +90,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -140,7 +140,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -201,7 +201,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -265,7 +265,7 @@
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": ["windows"],
@@ -334,7 +334,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -405,7 +405,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -476,7 +476,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-12",
+      "windowsPreview": "0.1.2-13",
       "adapter": {
         "kind": "loader-files",
         "platforms": [

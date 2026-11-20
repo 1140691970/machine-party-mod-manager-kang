@@ -5,6 +5,8 @@ import { detectGame, pickGame } from "./game-folder.js";
 import { locales } from "./languages.js";
 import { render, setLocale, state, t } from "./state.js";
 
+import { promptSteamRestore } from "./steam-restore.js";
+
 const languageNames = ["简体中文", "繁體中文", "English"];
 
 function languagePanel(applyLocale) {
@@ -95,6 +97,18 @@ function appPanel() {
 
 export function renderSettings(content, applyLocale) {
   const page = element("div", "", "settings");
-  page.append(languagePanel(applyLocale), folderPanel(), appPanel());
+  page.append(languagePanel(applyLocale), folderPanel());
+  if (isDesktop) {
+    const panel = element("section", "", "panel");
+    const row = element("div", "", "panel-row");
+    const info = element("div", "", "panel-info");
+    info.append(element("h2", t("steamRestore")), element("p", t("steamRestoreHint"), "panel-value"));
+    const action = button(t("steamRestoreStart"), promptSteamRestore);
+    action.disabled = !state.game || Boolean(state.busyMod) || state.installing;
+    row.append(info, action);
+    panel.append(row);
+    page.append(panel);
+  }
+  page.append(appPanel());
   content.append(page);
 }

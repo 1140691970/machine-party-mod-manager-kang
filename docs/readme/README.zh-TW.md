@@ -46,12 +46,12 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 
 | 平台 | 架構 | 下載 | 說明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [測試版 v0.1.2-12（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-12/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
+| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [測試版 v0.1.2-13（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-13/setup.exe) | NSIS 安裝程式，支援簽章應用內更新 |
 | macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 瀏覽目錄與接收應用更新（遊戲僅限 Windows） |
 
 Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存檔並將 `.app` 移入可寫入的應用程式目錄。
 
-**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-12` 工作區已為目錄內全部八個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
+**Steam 上的《機械派對》（Machine Party）僅支援 Windows；目前 `0.1.2-13` 工作區已為目錄內全部八個模組接入 `v2.1.2` 適配器，仍待完整 Windows 實機驗收。** macOS 建置僅採 ad hoc 簽章，未經 Apple 公證；Windows 安裝檔於未設定程式碼簽署憑證時為未簽章套件。已安裝客戶端會在啟動時靜默檢查更新，在設定頁顯示紅點，並於發現新版時彈出可稍後處理的更新說明視窗。詳見[發布流程與驗證說明](../zh-TW/development/releasing.md)。
 
 ## 開始使用
 
@@ -65,6 +65,8 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 | 設定頁 | 應用內更新提示 |
 | --- | --- |
 | ![設定頁](../images/screenshot-settings.zh-TW.png) | ![應用內更新提示](../images/screenshot-update.zh-TW.png) |
+
+**v0.1.2-13** · 設定 → 還原 Steam 原版
 
 更新提示截圖示範從 0.1.2-11 到 0.1.2-12 的模擬升級。
 
@@ -87,7 +89,7 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 
 ## 更新紀錄
 
-**v0.1.2-12** · 安裝、更新或解除安裝模組時，管理器會先詢問是否關閉所選的遊戲副本。應用程式更新提示會等目前的對話框關閉後再顯示。 滾筒嘉年華 v0.1.4 更新了場地與倒數效果；玩家聚光燈 v0.1.0 可用 F8 開關本機角色的頂燈；房間機器人 v0.2.2 支援迪斯可閃避玩法。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
+**v0.1.2-13** · 在設定中還原 Steam 原版。管理器等待 Steam 驗證成功、核對遊戲指紋後清理受管模組。清理中斷後可重新掃描同一副本續做。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 

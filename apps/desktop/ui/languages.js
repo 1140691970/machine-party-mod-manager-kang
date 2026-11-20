@@ -5,6 +5,17 @@ export function systemLocale(language) {
 }
 // Simplified Chinese, Traditional Chinese, English
 export const messages = {
+  steamRestore:["还原 Steam 原版","還原 Steam 原版","Restore the Steam original"],
+  steamRestoreHint:["由 Steam 验证游戏文件。验证成功后，管理器会清理此副本的受管模组，保留手动添加的模组。","由 Steam 驗證遊戲檔案。驗證成功後，管理器會清理此副本的受管模組，保留手動加入的模組。","Steam verifies the game files. After verification succeeds, the manager removes managed mods from this copy and keeps manually added mods."],
+  steamRestoreStart:["开始还原","開始還原","Start restore"],
+  steamRestoreWaiting:["正在备份并等待 Steam 验证。请在 Steam 中确认，保持游戏关闭。关闭此窗口将停止等待。","正在備份並等待 Steam 驗證。請在 Steam 中確認，保持遊戲關閉。關閉此視窗將停止等待。","Preparing a backup and waiting for Steam verification. Confirm in Steam and keep the game closed. Closing this dialog stops the wait."],
+  steamRestoreCleaning:["Steam 验证成功，正在清理受管模组。","Steam 驗證成功，正在清理受管模組。","Steam verification succeeded. Cleaning up managed mods."],
+  steamRestoreStop:["停止等待","停止等待","Stop waiting"],
+  steamRestoreDone:["Steam 验证成功，受管模组已清理。","Steam 驗證成功，受管模組已清理。","Steam verification succeeded and managed mods have been cleared."],
+  steamRestoreCopy:["请选择 Steam 登记的唯一游戏副本。","請選擇 Steam 登記的唯一遊戲副本。","Select the unique game copy registered with Steam."],
+  steamRestoreUnconfirmed:["无法确认本次 Steam 验证成功。受管模组已保留，请检查 Steam 下载状态后重试。","無法確認本次 Steam 驗證成功。受管模組已保留，請檢查 Steam 下載狀態後重試。","Could not confirm successful Steam verification. Managed mods were kept. Check Steam Downloads and retry."],
+  steamRestoreCancelled:["已停止等待 Steam 验证。","已停止等待 Steam 驗證。","Stopped waiting for Steam verification."],
+  steamRestoreLaunch:["无法启动 Steam 验证。","無法啟動 Steam 驗證。","Could not start Steam verification."],
   download:["下载","下載","Download"],
   downloadStep:["下载套件","下載套件","Download package"],
   verifyStep:["校验套件","校驗套件","Verify package"],

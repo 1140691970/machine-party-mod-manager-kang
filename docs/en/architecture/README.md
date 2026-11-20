@@ -69,3 +69,4 @@ Use the author's published resources and keep conversion rules versioned with th
 - [ADR-012 · Updating one installed mod](ADR-012-single-mod-updates.md)
 
 - [ADR-013 · Installing native mods from the signed catalog](ADR-013-signed-native-installs.md)
+- [ADR-014 · Steam verification before managed mod cleanup](ADR-014-steam-restore.md)

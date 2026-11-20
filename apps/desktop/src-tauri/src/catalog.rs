@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-12").len(), 8);
+        assert_eq!(preview_entries("0.1.2-13").len(), 8);
         for id in [
             "overtime",
             "machineparty-plus",
@@ -479,10 +479,10 @@ mod tests {
             "player-spotlight",
         ] {
             let mut item = entry(id).unwrap();
-            assert!(matches_preview(&item, "0.1.2-12"), "{id}");
+            assert!(matches_preview(&item, "0.1.2-13"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-12"), "{id}");
+            assert!(!matches_preview(&item, "0.1.2-13"), "{id}");
         }
     }
 

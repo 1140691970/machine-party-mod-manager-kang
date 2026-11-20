@@ -14,6 +14,7 @@ fn main() {
     #[cfg(any(windows, target_os = "macos"))]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     builder
+        .manage(commands::SteamRestore::default())
         .manage(commands::Downloads::default())
         .manage(commands::UpdateCatalog::default())
         .invoke_handler(tauri::generate_handler![
@@ -22,6 +23,9 @@ fn main() {
             app_updates::check_app_update,
             app_updates::install_app_update,
             commands::game_process,
+            commands::steam_restore_dir,
+            commands::restore_steam_game,
+            commands::cancel_steam_restore,
             commands::installed_versions,
             commands::validate_game_mods,
             commands::game_copies,

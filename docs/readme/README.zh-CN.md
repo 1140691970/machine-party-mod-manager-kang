@@ -46,12 +46,12 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 
 | 平台 | 架构 | 下载 | 说明 |
 | --- | --- | --- | --- |
-| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-12（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-12/setup.exe) | NSIS 安装包，支持签名应用内更新 |
+| Windows | x64 | [正式版 v0.1.1（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [测试版 v0.1.2-13（`setup.exe`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-13/setup.exe) | NSIS 安装包，支持签名应用内更新 |
 | macOS | Apple Silicon | [正式版 v0.1.1（`MachineParty-aarch64.app.tar.gz`）](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | 浏览目录与接收应用更新（游戏仅限 Windows） |
 
 Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档并将 `.app` 移入可写的应用程序目录。
 
-**Steam 上的《机械派对》（Machine Party）仅支持 Windows；当前 `0.1.2-12` 工作区已为目录内全部八个模组接入 `v2.1.2` 适配器，仍待完整 Windows 实机验收。** macOS 构建仅作 ad hoc 签名，未经 Apple 公证；Windows 安装包在未配置代码签名证书时为未签名包。已安装客户端会在启动时静默检查更新，在设置页显示红点，并在发现新版时弹出可延后处理的更新说明弹窗。详见[发布流程与验证说明](../zh-CN/development/releasing.md)。
+**Steam 上的《机械派对》（Machine Party）仅支持 Windows；当前 `0.1.2-13` 工作区已为目录内全部八个模组接入 `v2.1.2` 适配器，仍待完整 Windows 实机验收。** macOS 构建仅作 ad hoc 签名，未经 Apple 公证；Windows 安装包在未配置代码签名证书时为未签名包。已安装客户端会在启动时静默检查更新，在设置页显示红点，并在发现新版时弹出可延后处理的更新说明弹窗。详见[发布流程与验证说明](../zh-CN/development/releasing.md)。
 
 ## 开始使用
 
@@ -65,6 +65,8 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 | 设置页 | 应用内更新提示 |
 | --- | --- |
 | ![设置页](../images/screenshot-settings.zh-CN.png) | ![应用内更新提示](../images/screenshot-update.zh-CN.png) |
+
+**v0.1.2-13** · 设置 → 还原 Steam 原版
 
 更新提示截图演示从 0.1.2-11 到 0.1.2-12 的模拟升级。
 
@@ -87,7 +89,7 @@ Windows 下载后运行 NSIS 安装程序即可；Apple Silicon Mac 解压归档
 
 ## 更新记录
 
-**v0.1.2-12** · 安装、更新或卸载模组时，管理器会先询问是否关闭所选的游戏副本。应用更新提示会等当前对话框关闭后再显示。 滚筒嘉年华 v0.1.4 更新了场地和倒数效果；玩家聚光灯 v0.1.0 可用 F8 开关本机角色的顶灯；房间机器人 v0.2.2 支持迪斯科躲避玩法。 [完整更新记录](../zh-CN/CHANGELOG.md)。
+**v0.1.2-13** · 在设置中还原 Steam 原版。管理器等待 Steam 验证成功、核对游戏指纹后清理受管模组。清理中断后可重新扫描同一副本继续。 [完整更新记录](../zh-CN/CHANGELOG.md)。
 
 ## 文档
 

@@ -294,6 +294,7 @@ pub async fn update_mod(
     let list = active_entries(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
+        installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         let _pkg = lock_file(&dir, &format!("package-{}", item.id))?;
         let zip = packages::verified(&dir, &item)?;
         installer::update::apply(
@@ -425,6 +426,7 @@ pub async fn validate_game_mods(
     let list = active_entries(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
+        installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         installer::scan_copy(&dir, &path, &list, force.unwrap_or(false))
     })
@@ -477,6 +479,7 @@ pub async fn install_mod(
 
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
+        installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         let _package = lock_file(&dir, &format!("package-{}", mod_entry.id))?;
         let zip_path = packages::verified(&dir, &mod_entry)?;
         use installer::GameLockCheck;
@@ -588,6 +591,7 @@ pub async fn uninstall_mod(
 
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_file(&dir, "inventory")?;
+        installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         if game::resolve_pck_dir(&path).as_ref() != Some(&expected_dir) {
             return Err("statusUnavailable".into());
         }
@@ -612,6 +616,126 @@ pub async fn uninstall_mod(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[derive(Default)]
+pub struct SteamRestore(std::sync::atomic::AtomicU8);
+
+impl SteamRestore {
+    const IDLE: u8 = 0;
+    const WAITING: u8 = 1;
+    const CANCELLED: u8 = 2;
+    const CLEANING: u8 = 3;
+}
+
+#[tauri::command]
+pub fn steam_restore_dir(path: PathBuf) -> Result<PathBuf, String> {
+    if !cfg!(windows) {
+        return Err("windowsOnlyMod".into());
+    }
+    game::steam_verify::target(&path).map(|(dir, _)| dir)
+}
+
+#[tauri::command]
+pub fn cancel_steam_restore(state: tauri::State<'_, SteamRestore>) -> bool {
+    use std::sync::atomic::Ordering::SeqCst;
+    state
+        .0
+        .compare_exchange(
+            SteamRestore::WAITING,
+            SteamRestore::CANCELLED,
+            SeqCst,
+            SeqCst,
+        )
+        .is_ok()
+}
+
+#[tauri::command]
+pub async fn restore_steam_game(
+    app: AppHandle,
+    path: PathBuf,
+    expected_dir: PathBuf,
+    progress: Channel<&'static str>,
+) -> Result<installer::CopyValidation, String> {
+    use std::sync::atomic::Ordering::SeqCst;
+    let config = config_dir(&app)?;
+    let entries = active_entries(&app)?;
+    let owner = app.clone();
+    let state = app.state::<SteamRestore>();
+    state
+        .0
+        .compare_exchange(SteamRestore::IDLE, SteamRestore::WAITING, SeqCst, SeqCst)
+        .map_err(|_| "statusUnavailable")?;
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        let state = owner.state::<SteamRestore>();
+        progress
+            .send("waiting")
+            .map_err(|_| "steamRestoreCancelled")?;
+        let _guard = lock_file(&config, "inventory")?;
+        let (dir, steam) = game::steam_verify::target(&path)?;
+        if !cfg!(windows) || dir != expected_dir {
+            return Err("steamRestoreCopy".into());
+        }
+        let identity = file_id::get_file_id(&dir).map_err(|_| "invalidGame")?;
+        let start_cleaning = || -> Result<(), String> {
+            state
+                .0
+                .compare_exchange(
+                    SteamRestore::WAITING,
+                    SteamRestore::CLEANING,
+                    SeqCst,
+                    SeqCst,
+                )
+                .map_err(|_| "steamRestoreCancelled")?;
+            progress
+                .send("cleaning")
+                .map_err(|_| "steamRestoreCancelled".into())
+        };
+        if installer::steam_restore::pending(&config, &dir)? {
+            start_cleaning()?;
+            installer::steam_restore::recover(
+                &config,
+                &path,
+                &entries,
+                &installer::SystemGameLockCheck,
+            )?;
+            return installer::scan_copy(&config, &path, &entries, true);
+        }
+        installer::steam_restore::restore(
+            &config,
+            &path,
+            &dir,
+            &entries,
+            &installer::SystemGameLockCheck,
+            || {
+                game::steam_verify::wait(
+                    &steam,
+                    || state.0.load(SeqCst) == SteamRestore::CANCELLED,
+                    || {
+                        if game::game_process(&path, &dir, game::ProcessAction::Check)? {
+                            return Err("gameRunning".into());
+                        }
+                        Command::new(steam.join("steam.exe"))
+                            .arg(format!("steam://validate/{}", game::STEAM_APP_ID))
+                            .spawn()
+                            .map(|_| ())
+                            .map_err(|_| "steamRestoreLaunch".into())
+                    },
+                )?;
+                if game::steam_verify::target(&path)? != (dir.clone(), steam)
+                    || file_id::get_file_id(&dir).map_err(|_| "invalidGame")? != identity
+                {
+                    return Err("steamRestoreCopy".into());
+                }
+                start_cleaning()?;
+                Ok(())
+            },
+        )?;
+        installer::scan_copy(&config, &path, &entries, true)
+    })
+    .await;
+    state.0.store(SteamRestore::IDLE, SeqCst);
+    result.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

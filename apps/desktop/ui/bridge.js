@@ -70,3 +70,11 @@ export function installAppUpdate(version, onProgress) {
   progress.onmessage = onProgress;
   return invoke("install_app_update", {version, progress});
 }
+
+export const steamRestoreDir = path => invoke("steam_restore_dir", {path});
+export function restoreSteamGame(path, expectedDir, onPhase) {
+  const progress = new core.Channel();
+  progress.onmessage = onPhase;
+  return invoke("restore_steam_game", {path, expectedDir, progress});
+}
+export const cancelSteamRestore = () => invoke("cancel_steam_restore");

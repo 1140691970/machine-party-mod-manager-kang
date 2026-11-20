@@ -235,3 +235,66 @@ test("withdrawing optional notes does not require another confirmation", async (
   await confirm();
   assert.deepEqual(calls, ["game_process", "verify_package", "game_process", "update_mod"]);
 });
+
+test("Steam restore keeps waiting across focus and cancels monitoring when dismissed", async () => {
+  const {dialog, body} = makeDom();
+  const {state, t} = await import("../../apps/desktop/ui/state.js");
+  const {promptSteamRestore} = await import("../../apps/desktop/ui/steam-restore.js");
+  const {syncGameModsOnFocus} = await import("../../apps/desktop/ui/game-folder.js");
+  const {setImmediate: flush} = await import("node:timers/promises");
+  const calls = [];
+  const path = "steam/copy";
+  const dir = path + "/game";
+  Object.assign(state, {game:path, inventory:{managed:"1"}, busyMod:""});
+  window.__TAURI__.core.Channel = class {};
+  let verification, progress, outcome;
+  window.__TAURI__.core.invoke = async (command, args) => {
+    calls.push(command);
+    if (command === "steam_restore_dir") return dir;
+    if (command === "game_process") {
+      assert.deepEqual(args, {path, expectedDir:dir, action:"check"});
+      return false;
+    }
+    if (command === "restore_steam_game") {
+      assert.equal(args.path, path);
+      assert.equal(args.expectedDir, dir);
+      progress = args.progress;
+      progress.onmessage("waiting");
+      return verification.promise;
+    }
+    assert.equal(command, "cancel_steam_restore");
+    if (outcome === "cancel") verification.reject("steamRestoreCancelled");
+    return outcome === "cancel";
+  };
+  for (outcome of ["cancel", "lost race", "success"]) {
+    verification = Promise.withResolvers();
+    await promptSteamRestore();
+    const confirm = body.children.at(-1).children.at(-1).onclick();
+    await flush();
+    assert.equal(body.children[0].textContent, t("steamRestoreWaiting"));
+    await syncGameModsOnFocus();
+    assert.deepEqual(calls.splice(0), ["steam_restore_dir","game_process","restore_steam_game"]);
+    assert.deepEqual(state.inventory, {managed:"1"});
+    if (outcome !== "success") await body.children.at(-1).children.at(-1).onclick();
+    if (outcome !== "cancel") {
+      assert.equal(dialog.open,true);
+      progress.onmessage("cleaning");
+      assert.equal(body.children.length,1);
+      assert.equal(body.children[0].textContent,t("steamRestoreCleaning"));
+      if (outcome === "lost race") verification.reject("fileWriteError");
+      else verification.resolve({pckDir:dir, installed:{}, modStates:{}});
+    }
+    await confirm;
+    assert.deepEqual(calls.splice(0), outcome === "success" ? [] : ["cancel_steam_restore"]);
+    assert.equal(state.busyMod,"");
+    if (outcome === "cancel") assert.equal(dialog.open,false);
+    if (outcome === "lost race") {
+      assert.equal(body.children[0].textContent,t("fileWriteError"));
+      dialog.close();
+    }
+    if (outcome === "success") {
+      assert.equal(body.children[0].textContent,t("steamRestoreDone"));
+      assert.deepEqual(state.inventory,{});
+    }
+  }
+});

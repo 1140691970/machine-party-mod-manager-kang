@@ -4,6 +4,10 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.1.2-13 — 2026-11-20
+
+- Restore the original game from Settings. The manager waits for Steam verification, checks the game fingerprint, and removes managed mods. Interrupted cleanup can resume on the next scan.
+
 ## 0.1.2-12 — 2026-11-20
 
 - The manager asks before closing the selected running game for mod installation, updates or removal. App update prompts wait until the current dialog closes.

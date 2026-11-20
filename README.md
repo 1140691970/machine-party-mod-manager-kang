@@ -46,12 +46,12 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-12 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-12/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.1.1 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/setup.exe) · [Preview v0.1.2-13 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.2-13/setup.exe) | NSIS installer, signed in-app updates |
 | macOS | Apple Silicon | [Stable v0.1.1 (`MachineParty-aarch64.app.tar.gz`)](https://machineparty.ailaogong.men/v1/app-downloads/0.1.1/MachineParty-aarch64.app.tar.gz) | Catalog browsing & signed updates |
 
 On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive and move the `.app` to a writable Applications folder.
 
-**Machine Party on Steam is Windows-only; the `0.1.2-12` workspace adds Windows `v2.1.2` adapters for all eight catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
+**Machine Party on Steam is Windows-only; the `0.1.2-13` workspace adds Windows `v2.1.2` adapters for all eight catalogued mods and awaits full physical Windows hardware acceptance.** macOS packages are ad hoc signed and not Apple-notarised, and Windows installers are unsigned unless code signing is configured. Installed copies check silently for updates at startup, show an indicator dot in Settings, and open a non-forcing update dialog with release notes when a newer release exists. See [releasing and verification](docs/en/development/releasing.md).
 
 ## Getting started
 
@@ -65,6 +65,8 @@ On Windows, run the NSIS installer. On Apple Silicon Mac, extract the archive an
 | Settings | In-app update prompt |
 | --- | --- |
 | ![Settings](docs/images/screenshot-settings.png) | ![In-app update prompt](docs/images/screenshot-update.png) |
+
+**v0.1.2-13** · Settings → Restore the Steam original
 
 The update prompt illustrates a simulated upgrade from 0.1.2-11 to 0.1.2-12.
 
@@ -87,7 +89,7 @@ See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance
 
 ## Release notes
 
-**v0.1.2-12** · The manager asks before closing the selected running game for mod installation, updates or removal. App update prompts wait until the current dialog closes. Roller Carnival v0.1.4 refreshes the arena and countdown. Player Spotlight v0.1.0 adds a local overhead light that toggles with F8. Lobby Bots v0.2.2 supports Disco Dodge. [Full changelog](CHANGELOG.md).
+**v0.1.2-13** · Restore the original game from Settings. The manager waits for Steam verification, checks the game fingerprint, and removes managed mods. Interrupted cleanup can resume on the next scan. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

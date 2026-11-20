@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const INVENTORY_FILE: &str = "installations.json";
+pub(crate) const INVENTORY_FILE: &str = "installations.json";
 
 /// Installed versions keyed by the catalog installation key for one game copy.
 pub type Installed = BTreeMap<String, String>;
@@ -51,6 +51,14 @@ fn normalize_keys(mods: &mut Installed) {
             }
         }
     }
+}
+
+pub(crate) fn installed_copies(config_dir: &Path) -> Result<BTreeMap<PathBuf, Installed>, String> {
+    let (mut copies, _) = read_inventory(config_dir)?;
+    for mods in copies.values_mut() {
+        normalize_keys(mods);
+    }
+    Ok(copies)
 }
 
 pub fn installed_versions(config_dir: &Path, game: &Path) -> Result<Installed, String> {

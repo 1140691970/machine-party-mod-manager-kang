@@ -1,3 +1,5 @@
+pub mod steam_restore;
+
 mod prepare;
 pub mod update;
 
@@ -5339,6 +5341,246 @@ print("Patched")
         assert!(!loader_mod_dir(&dir, &item).exists());
         assert!(dir.join(pck_loader::LOADER_SIDECAR).is_file());
         assert_eq!(fs::read(link.join("main.gd")).unwrap(), b"player mod");
+    }
+
+    #[test]
+    fn steam_restore_cleans_a_recorded_legacy_delta_after_steam_replaces_the_pck() {
+        let root = tempfile::tempdir().unwrap();
+        let vanilla = build_synthetic_pck();
+        let (game, dir, baseline) = setup_synthetic_game(root.path(), &vanilla);
+        let zip = make_fake_package_zip(b"FAKE_EXE", b"FAKE_PAYLOAD");
+        let path = root.path().join("overtime.zip");
+        fs::write(&path, &zip).unwrap();
+        let old = synthetic_overtime_entry(&baseline, &zip, true);
+        let config = root.path().join("config");
+        let runner = FakeCliRunner {
+            vanilla_bytes: vanilla.clone(),
+            vanilla_sha: baseline.sha256.clone(),
+            fault: FakeFault::None,
+            calls: RefCell::new(Vec::new()),
+        };
+        install_from_zip(
+            &config,
+            &game,
+            &path,
+            &root.path().join("stage"),
+            &old,
+            std::slice::from_ref(&old),
+            &runner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let mut current = crate::catalog::entry("overtime").unwrap();
+        current.adapter.as_mut().unwrap().baseline = old.adapter.unwrap().baseline;
+        steam_restore::restore(&config, &game, &dir, &[current], &UnlockedCheck, || {
+            assert!(dir.join(RESTORE_DAT).is_file());
+            fs::write(dir.join("Machine Party.pck"), vanilla).unwrap();
+            Ok(())
+        })
+        .unwrap();
+        assert!(!dir.join(RESTORE_DAT).exists());
+        assert_eq!(
+            file_fingerprint(&dir.join("Machine Party.pck")).unwrap(),
+            baseline
+        );
+        assert!(
+            get_transaction(&config, &game, "overtime")
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn interrupted_steam_cleanup_resumes_through_another_spelling_of_the_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let vanilla = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game, dir, baseline) = setup_synthetic_game(root.path(), &vanilla);
+        // Keep the spelling used to install distinct from the Steam registration.
+        let alias = root.path().join("via");
+        fs::create_dir(&alias).unwrap();
+        let alias = alias.join("..").join(game.file_name().unwrap());
+        assert_ne!(alias, game);
+        let config = root.path().join("config");
+        let bytes = build_test_zip(&[
+            (
+                "mod.json",
+                br#"{"id":"machineparty_plus","entry":"main.gd"}"#,
+                true,
+            ),
+            ("main.gd", b"managed", true),
+        ]);
+        let item = make_loader_entry_from_catalog("machineparty-plus", &bytes, &baseline);
+        let items = std::slice::from_ref(&item);
+        let zip = root.path().join("source.zip");
+        fs::write(&zip, bytes).unwrap();
+        install_from_zip(
+            &config,
+            &alias,
+            &zip,
+            &root.path().join("stage"),
+            &item,
+            items,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+
+        struct InterruptAfterRemoval(PathBuf);
+        impl GameLockCheck for InterruptAfterRemoval {
+            fn ensure_unlocked(&self, _: &Path, _: &Path) -> Result<(), String> {
+                if self.0.exists() {
+                    Ok(())
+                } else {
+                    Err("gameRunning".into())
+                }
+            }
+        }
+        let owned = loader_mod_dir(&dir, &item).join("main.gd");
+        let lock = InterruptAfterRemoval(owned.clone());
+        assert_eq!(
+            steam_restore::restore(&config, &game, &dir, items, &lock, || {
+                fs::write(dir.join("Machine Party.pck"), &vanilla).unwrap();
+                Ok(())
+            })
+            .unwrap_err(),
+            "gameRunning"
+        );
+        assert!(!owned.exists());
+        assert!(steam_restore::pending(&config, &dir).unwrap());
+        assert!(
+            get_transaction(&config, &alias, &item.id)
+                .unwrap()
+                .is_some()
+        );
+        let manifest = owned.with_file_name("mod.json");
+        let original = fs::read(&manifest).unwrap();
+        fs::write(&manifest, b"edited after interruption").unwrap();
+        assert!(
+            steam_restore::recover(&config, &game, items, &UnlockedCheck)
+                .unwrap_err()
+                .contains("gameUpdatedOrModified")
+        );
+        assert_eq!(fs::read(&manifest).unwrap(), b"edited after interruption");
+        fs::write(&manifest, original).unwrap();
+        assert!(steam_restore::recover(&config, &game, items, &UnlockedCheck).unwrap());
+        assert!(!steam_restore::recover(&config, &alias, items, &UnlockedCheck).unwrap());
+        assert!(!owned.parent().unwrap().exists());
+        assert!(
+            get_transaction(&config, &alias, &item.id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            inventory::installed_versions(&config, &alias)
+                .unwrap()
+                .is_empty()
+        );
+        inventory::record_installed(&config, &alias, "orphan", "v1").unwrap();
+        assert_eq!(
+            steam_restore::restore(&config, &game, &dir, items, &UnlockedCheck, || panic!(
+                "must keep unaccounted installations"
+            ))
+            .unwrap_err(),
+            "missingTransaction"
+        );
+    }
+
+    #[test]
+    fn steam_restore_keeps_owned_files_until_success_and_preserves_manual_mods() {
+        let root = tempfile::tempdir().unwrap();
+        let vanilla = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game, dir, baseline) = setup_synthetic_game(root.path(), &vanilla);
+        let config = root.path().join("config");
+        let bytes = build_test_zip(&[
+            (
+                "mod.json",
+                br#"{"id":"machineparty_plus","entry":"main.gd"}"#,
+                true,
+            ),
+            ("main.gd", b"extends Node", true),
+        ]);
+        let item = make_loader_entry_from_catalog("machineparty-plus", &bytes, &baseline);
+        let mods = std::slice::from_ref(&item);
+        let zip = root.path().join("release.zip");
+        fs::write(&zip, bytes).unwrap();
+        install_from_zip(
+            &config,
+            &game,
+            &zip,
+            &root.path().join("stage"),
+            &item,
+            mods,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let manual = dir.join("mods/manual");
+        fs::create_dir(&manual).unwrap();
+        fs::write(manual.join("keep.gd"), b"player").unwrap();
+        let owned = loader_mod_dir(&dir, &item).join("main.gd");
+        let restore = |verify: &dyn Fn() -> Result<(), String>| {
+            steam_restore::restore(&config, &game, &dir, mods, &UnlockedCheck, verify)
+        };
+        assert_eq!(
+            restore(&|| Err("steamRestoreUnconfirmed".into())).unwrap_err(),
+            "steamRestoreUnconfirmed"
+        );
+        assert_eq!(restore(&|| Ok(())).unwrap_err(), "baselineMismatch");
+        struct Relaunched(std::cell::Cell<bool>);
+        impl GameLockCheck for Relaunched {
+            fn ensure_unlocked(&self, _: &Path, _: &Path) -> Result<(), String> {
+                if self.0.get() {
+                    Err("gameRunning".into())
+                } else {
+                    Ok(())
+                }
+            }
+        }
+        let relaunched = Relaunched(false.into());
+        assert_eq!(
+            steam_restore::restore(&config, &game, &dir, mods, &relaunched, || {
+                relaunched.0.set(true);
+                Ok(())
+            })
+            .unwrap_err(),
+            "gameRunning"
+        );
+        assert!(owned.is_file());
+        assert!(get_transaction(&config, &game, &item.id).unwrap().is_some());
+        assert!(
+            restore(&|| {
+                fs::write(dir.join("Machine Party.pck"), &vanilla).unwrap();
+                fs::write(&owned, b"player edit").unwrap();
+                Ok(())
+            })
+            .unwrap_err()
+            .contains("gameUpdatedOrModified")
+        );
+        assert_eq!(fs::read(&owned).unwrap(), b"player edit");
+        fs::write(&owned, b"extends Node").unwrap();
+        restore(&|| Ok(())).unwrap();
+        assert!(!owned.parent().unwrap().exists());
+        assert!(!dir.join(pck_loader::LOADER_SIDECAR).exists());
+        assert_eq!(fs::read(manual.join("keep.gd")).unwrap(), b"player");
+        assert!(
+            inventory::installed_versions(&config, &game)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(get_transaction(&config, &game, &item.id).unwrap().is_none());
+        assert_eq!(
+            file_fingerprint(&dir.join("Machine Party.pck")).unwrap(),
+            baseline
+        );
+        assert!(
+            fs::read_dir(backup_dir_for(&config, &game, "_steam_restore"))
+                .unwrap()
+                .any(|e| e
+                    .unwrap()
+                    .path()
+                    .join("mods/machineparty-plus/main.gd")
+                    .is_file())
+        );
     }
 
     #[test]
