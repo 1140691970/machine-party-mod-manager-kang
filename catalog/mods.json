@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.8-mpml1",
+  "revision": "2026-11-20.9-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -126,18 +126,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
       "image": "roller-carnival",
-      "version": "v0.1.6",
+      "version": "v0.1.7",
       "releaseNotes": {
-        "version": "v0.1.6",
-        "zh-CN": "接入多小游戏共存注册中心，现可与泡泡爆破（Bubble Blitz）及未来更多自研小游戏同时安装并在默认、自定义歌单、街机与本地同屏模式中共存。",
-        "zh-TW": "接入多小遊戲共存註冊中心，現可與泡泡爆破（Bubble Blitz）及未來更多自研小遊戲同時安裝並在預設、自訂歌單、街機與本機同螢幕模式中共存。",
-        "en": "Adopts the shared Multi-Minigame Coexistence Hub so Roller Carnival can stay installed alongside Bubble Blitz and future first-party minigames across Default, Custom Playlist, Arcade, and Local play."
+        "version": "v0.1.7",
+        "zh-CN": "支持在官方在线房间中自动驱动房间机器人（Lobby Bots）跳蹲躲避滚筒，并与泡泡爆破（Bubble Blitz）等自研小游戏无缝共存。",
+        "zh-TW": "支援在官方線上房間中自動驅動房間機器人（Lobby Bots）跳蹲閃避滾筒，並與泡泡爆破（Bubble Blitz）等自研小遊戲無縫共存。",
+        "en": "Enables automatic jump/crouch AI for Lobby Bots in official online matches while staying fully compatible with the Multi-Minigame Coexistence Hub."
       },
       "package": {
-        "assetId": "1018",
-        "filename": "roller-carnival-0.1.6.zip",
-        "size": 151540,
-        "sha256": "df5ee64c9862706b2909265c518aa27e920cdf373fd491177f371bae8c9638f2",
+        "assetId": "1021",
+        "filename": "roller-carnival-0.1.7.zip",
+        "size": 151774,
+        "sha256": "7d1c7329d3e836ed4dc889c94e99692d24d644954c4dba003cc41f3795d16809",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],

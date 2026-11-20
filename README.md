@@ -80,7 +80,7 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Author CLI payload → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Native MPML |
-| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.6` | Mechanical carnival dodge minigame | Native MPML |
+| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.7` | Mechanical carnival dodge minigame | Native MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | Add or remove ready bots in online rooms. | Native MPML |
 | [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
 | [Player Spotlight](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | Local-only overhead industrial spotlight on your own character across 3D minigames | Native MPML |

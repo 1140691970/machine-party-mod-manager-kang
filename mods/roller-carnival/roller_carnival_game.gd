@@ -892,7 +892,12 @@ func _step_players(delta: float) -> void:
 			p["knockback_remaining"] = float(p["knockback_remaining"]) - dx
 			p["knockback_timer"] = float(p["knockback_timer"]) - step_t
 
-		if not _hosted_in_official_game and int(p["id"]) > 0:
+		var is_ai_seat: bool = (not _hosted_in_official_game and int(p["id"]) > 0)
+		if not is_ai_seat and _hosted_in_official_game and multiplayer.is_server():
+			var nid: int = int(p["network_id"])
+			if nid != 1 and not multiplayer.get_peers().has(nid):
+				is_ai_seat = true
+		if is_ai_seat:
 			var ai := _compute_ai_action(p)
 			var held := int(ai.crouch) | (int(ai.jump) << 1)
 			_begin_action(p, held & ~int(p.ai_held))
