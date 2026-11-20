@@ -15,7 +15,7 @@ use crate::{
 pub const LOADER_SIDECAR: &str = "Machine Party.pck.modloader.json";
 pub const EXTERNAL_LOADER_EXE: &str = "MachinePartyModLoader.exe";
 pub const MANAGED_BY: &str = "machine-party-mod-manager";
-pub const LOADER_VERSION: &str = "4";
+pub const LOADER_VERSION: &str = "5";
 
 const BOOTSTRAP_SRC: &str = include_str!("../assets/mpm_bootstrap.gd");
 const PCK_MAGIC: &[u8; 4] = b"GDPC";
@@ -49,6 +49,17 @@ pub struct ManagedLoaderState {
     pub dir_field_base: u64,
     pub patched_size: u64,
     pub patched_sha256: String,
+}
+
+/// Loader state reported to the UI for a selected game copy.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LoaderStatus {
+    pub kind: String,
+    pub installed_version: Option<String>,
+    pub target_version: String,
+    pub needs_upgrade: bool,
+    pub can_reload: bool,
 }
 
 // During an upgrade the PCK rename and marker rename cannot be one filesystem operation.
@@ -599,12 +610,92 @@ fn truncate_and_restore_header(
     Ok(())
 }
 
+/// Inspects the loader state for `pck_dir` without modifying any files.
+pub fn inspect_loader(
+    pck_dir: &Path,
+    current_pck: &FileFingerprint,
+) -> Result<LoaderStatus, String> {
+    let target_version = LOADER_VERSION.to_string();
+    if external_loader_present(pck_dir)? {
+        return Ok(LoaderStatus {
+            kind: "external".into(),
+            installed_version: None,
+            target_version,
+            needs_upgrade: false,
+            can_reload: false,
+        });
+    }
+    let Some(marker) = read_managed_marker(pck_dir)? else {
+        return Ok(LoaderStatus {
+            kind: "none".into(),
+            installed_version: None,
+            target_version,
+            needs_upgrade: false,
+            can_reload: false,
+        });
+    };
+    if current_pck.size != marker.patched_size
+        || !current_pck
+            .sha256
+            .eq_ignore_ascii_case(&marker.patched_sha256)
+    {
+        return Ok(LoaderStatus {
+            kind: "modified".into(),
+            installed_version: Some(marker.loader_version),
+            target_version,
+            needs_upgrade: false,
+            can_reload: false,
+        });
+    }
+    let pck_path = pck_dir.join("Machine Party.pck");
+    let bootstrap_matches = PckArchive::open(&pck_path)
+        .ok()
+        .and_then(|pck| pck.read_file(BOOTSTRAP_RES).ok().flatten())
+        .is_some_and(|got| got == BOOTSTRAP_SRC.as_bytes());
+    let needs_upgrade = marker.loader_version != LOADER_VERSION || !bootstrap_matches;
+    Ok(LoaderStatus {
+        kind: "managed".into(),
+        installed_version: Some(marker.loader_version),
+        target_version,
+        needs_upgrade,
+        can_reload: true,
+    })
+}
+
 /// Ensures the built-in autoload bootstrap is injected into `Machine Party.pck`.
 /// Leaves external MPML installations untouched (`Ok(None)`).
 pub fn ensure_loader_installed(
     pck_dir: &Path,
     backup_pck: &Path,
     baseline: &BaselineSpec,
+    before_write: impl FnOnce() -> Result<(), String>,
+) -> Result<Option<ManagedLoaderState>, String> {
+    ensure_loader_inner(pck_dir, backup_pck, baseline, false, before_write)
+}
+
+/// Reloads or upgrades an already-installed managed loader without touching any mods.
+pub fn reload_managed_loader(
+    pck_dir: &Path,
+    backup_pck: &Path,
+    baseline: &BaselineSpec,
+    force: bool,
+    before_write: impl FnOnce() -> Result<(), String>,
+) -> Result<ManagedLoaderState, String> {
+    if external_loader_present(pck_dir)? {
+        return Err("externalLoaderPresent".into());
+    }
+    if read_managed_marker(pck_dir)?.is_none() {
+        return Err("loaderNotInstalled".into());
+    }
+    ensure_loader_inner(pck_dir, backup_pck, baseline, force, before_write)?
+        .ok_or_else(|| "externalLoaderPresent".into())
+}
+
+fn ensure_loader_inner(
+    pck_dir: &Path,
+    backup_pck: &Path,
+    baseline: &BaselineSpec,
+    force: bool,
     before_write: impl FnOnce() -> Result<(), String>,
 ) -> Result<Option<ManagedLoaderState>, String> {
     if external_loader_present(pck_dir)? {
@@ -623,7 +714,8 @@ pub fn ensure_loader_installed(
         let Some(got_boot) = check.read_file(BOOTSTRAP_RES)? else {
             return Err("gameUpdatedOrModified".into());
         };
-        if got_boot == BOOTSTRAP_SRC.as_bytes() {
+        if !force && marker.loader_version == LOADER_VERSION && got_boot == BOOTSTRAP_SRC.as_bytes()
+        {
             return Ok(previous);
         }
         FileFingerprint {
@@ -1272,5 +1364,80 @@ mod tests {
         let restored = restore_managed_loader(&pck_dir, &backup_pck, || Ok(())).unwrap();
         assert_eq!(restored, vanilla_fp);
         assert!(!sidecar_path(&pck_dir).exists());
+    }
+
+    #[test]
+    fn inspect_and_reload_managed_loader_handles_upgrade_force_and_external() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pck_dir = tmp.path().join("game");
+        fs::create_dir_all(&pck_dir).unwrap();
+        let pck_path = pck_dir.join("Machine Party.pck");
+        let backup_pck = tmp.path().join("backup.pck");
+        fs::write(&pck_path, build_synthetic_pck_v3(false, true)).unwrap();
+        let vanilla_fp = file_fingerprint(&pck_path).unwrap();
+        let baseline = BaselineSpec {
+            file: "Machine Party.pck".into(),
+            size: vanilla_fp.size,
+            sha256: vanilla_fp.sha256.clone(),
+        };
+
+        // Vanilla copy has no loader and refuses reload.
+        let none = inspect_loader(&pck_dir, &vanilla_fp).unwrap();
+        assert_eq!(none.kind, "none");
+        assert!(!none.needs_upgrade);
+        assert!(!none.can_reload);
+        assert_eq!(
+            reload_managed_loader(&pck_dir, &backup_pck, &baseline, true, || Ok(())).unwrap_err(),
+            "loaderNotInstalled"
+        );
+
+        // Install managed loader and verify up-to-date status.
+        let installed = ensure_loader_installed(&pck_dir, &backup_pck, &baseline, || Ok(()))
+            .unwrap()
+            .unwrap();
+        let patched_fp = file_fingerprint(&pck_path).unwrap();
+        let current = inspect_loader(&pck_dir, &patched_fp).unwrap();
+        assert_eq!(current.kind, "managed");
+        assert_eq!(current.installed_version.as_deref(), Some(LOADER_VERSION));
+        assert!(!current.needs_upgrade);
+        assert!(current.can_reload);
+
+        // Simulate an older marker version -> needs_upgrade = true, reload upgrades it cleanly.
+        let mut old_marker = installed.clone();
+        old_marker.loader_version = "4".into();
+        fs::write(
+            sidecar_path(&pck_dir),
+            serde_json::to_vec_pretty(&old_marker).unwrap(),
+        )
+        .unwrap();
+        let outdated = inspect_loader(&pck_dir, &patched_fp).unwrap();
+        assert!(outdated.needs_upgrade);
+        assert_eq!(outdated.installed_version.as_deref(), Some("4"));
+        assert_eq!(outdated.target_version, LOADER_VERSION);
+
+        let upgraded =
+            reload_managed_loader(&pck_dir, &backup_pck, &baseline, false, || Ok(())).unwrap();
+        assert_eq!(upgraded.loader_version, LOADER_VERSION);
+        let after = inspect_loader(&pck_dir, &file_fingerprint(&pck_path).unwrap()).unwrap();
+        assert!(!after.needs_upgrade);
+
+        // Forced reload invokes before_write and succeeds even when already up to date.
+        let mut called = false;
+        reload_managed_loader(&pck_dir, &backup_pck, &baseline, true, || {
+            called = true;
+            Ok(())
+        })
+        .unwrap();
+        assert!(called);
+
+        // External loader takes precedence and blocks reload.
+        fs::write(pck_dir.join(EXTERNAL_LOADER_EXE), b"ext").unwrap();
+        let ext = inspect_loader(&pck_dir, &file_fingerprint(&pck_path).unwrap()).unwrap();
+        assert_eq!(ext.kind, "external");
+        assert!(!ext.can_reload);
+        assert_eq!(
+            reload_managed_loader(&pck_dir, &backup_pck, &baseline, true, || Ok(())).unwrap_err(),
+            "externalLoaderPresent"
+        );
     }
 }

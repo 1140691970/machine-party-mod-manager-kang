@@ -230,6 +230,7 @@ pub struct CopyValidation {
     pub repair: BTreeMap<String, (PathBuf, Option<String>)>,
     pub installed: inventory::Installed,
     pub mod_states: BTreeMap<String, String>,
+    pub loader: pck_loader::LoaderStatus,
 }
 
 /// Reconciled state of a game copy after restart, interruption, or Steam update.
@@ -2595,6 +2596,7 @@ pub fn validate_game_mods(
         };
         mod_states.insert(item.id.clone(), state.to_owned());
     }
+    let loader = pck_loader::inspect_loader(&pck_dir, &current_pck)?;
     Ok(CopyValidation {
         pck_path: pck_dir.join("Machine Party.pck"),
         pck_dir,
@@ -2603,11 +2605,50 @@ pub fn validate_game_mods(
         repair,
         installed,
         mod_states,
+        loader,
     })
+}
+
+/// Reloads or upgrades the built-in loader for `game_root` without touching installed mods.
+pub fn reload_loader(
+    config_dir: &Path,
+    game_root: &Path,
+    mods: &[ModEntry],
+    expected_dir: Option<&Path>,
+    force: bool,
+    lock_check: &dyn GameLockCheck,
+) -> Result<CopyValidation, String> {
+    let pck_dir = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
+    if let Some(expected) = expected_dir
+        && pck_dir != expected
+    {
+        return Err("statusUnavailable".into());
+    }
+    let baseline = mods
+        .iter()
+        .find_map(|item| {
+            item.adapter
+                .as_ref()
+                .filter(|a| a.auto_loader)
+                .map(|a| &a.baseline)
+        })
+        .ok_or("unsupportedMod")?;
+    let pck_path = pck_dir.join(&baseline.file);
+    lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+    let pre_pck = file_fingerprint(&pck_path)?;
+    check_space(&pck_dir, pre_pck.size)?;
+    check_space(config_dir, pre_pck.size)?;
+    let loader_backup_dir = backup_dir_for(config_dir, game_root, "_mpm_loader");
+    let loader_backup_pck = loader_backup_dir.join(&baseline.file);
+    pck_loader::reload_managed_loader(&pck_dir, &loader_backup_pck, baseline, force, || {
+        lock_check.ensure_unlocked(&pck_dir, &pck_path)
+    })?;
+    scan_copy(config_dir, game_root, mods, true)
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 struct ScanStamp {
+    loader_version: String,
     catalog: Vec<ModEntry>,
     files: BTreeMap<PathBuf, Option<(String, u64, std::time::SystemTime)>>,
 }
@@ -2667,6 +2708,7 @@ fn scan_stamp(config: &Path, root: &Path, mods: &[ModEntry]) -> Result<ScanStamp
         files.insert(path, stamp);
     }
     Ok(ScanStamp {
+        loader_version: pck_loader::LOADER_VERSION.into(),
         catalog: mods.to_vec(),
         files,
     })

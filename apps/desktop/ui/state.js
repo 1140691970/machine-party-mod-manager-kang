@@ -24,7 +24,8 @@ export const state = {
   checking: false,
   installing: false,
   busyMod: "",
-  checkResult: ""
+  checkResult: "",
+  loaderNote: null
 };
 
 export const t = key => messages[key]?.[locales.indexOf(state.locale)];

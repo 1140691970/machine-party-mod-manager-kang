@@ -1,6 +1,7 @@
 import { chooseGame, gameCopies, findGames, installedVersions, saveGame, validateGameMods } from "./bridge.js";
 import { $, button, closeDialog, element, show } from "./dom.js";
 import { confirmGameExit } from "./game-exit-dialog.js";
+import { maybeAutoUpgradeLoader } from "./loader-upgrade.js";
 import { render, state, t } from "./state.js";
 
 let generation = 0;
@@ -17,6 +18,9 @@ export function applyValidation(validation, path) {
   state.lastScan = validation;
   state.scan = "ready";
   render();
+  if (validation?.loader?.needsUpgrade) {
+    void maybeAutoUpgradeLoader(validation, path, applyValidation);
+  }
 }
 
 export function syncGameModsOnFocus() {
@@ -64,6 +68,7 @@ async function loadGame(path) {
     state.modStates = {};
     state.pckDir = "";
     state.lastScan = null;
+    state.loaderNote = null;
   }
   state.game = path;
   await syncGameMods();

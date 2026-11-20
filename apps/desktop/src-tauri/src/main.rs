@@ -28,6 +28,7 @@ fn main() {
             commands::cancel_steam_restore,
             commands::installed_versions,
             commands::validate_game_mods,
+            commands::reload_loader,
             commands::game_copies,
             commands::download_mod,
             commands::cancel_download,

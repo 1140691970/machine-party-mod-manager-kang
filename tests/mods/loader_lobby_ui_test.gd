@@ -42,7 +42,31 @@ func _run() -> void:
 	root.add_child(loader)
 	await process_frame
 
-	expect(loader.loader_version() == "4", "loader_version should be 4")
+	expect(loader.loader_version() == "5", "loader_version should be 5")
+
+	# Reproduce MachineParty-Plus VoiceHUD: added to /root via call_deferred during startup
+	# BEFORE entering the lobby, initially hidden, and turned visible once inside the lobby.
+	var voice_hud := CanvasLayer.new()
+	voice_hud.name = "MPSB_VoiceHUD"
+	voice_hud.layer = 45
+	voice_hud.visible = false
+	var voice_box := VBoxContainer.new()
+	voice_box.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	voice_box.offset_left = -230
+	voice_box.offset_right = -12
+	voice_box.offset_top = 12
+	var mute_btn := Button.new()
+	mute_btn.text = "MUTE MIC"
+	mute_btn.custom_minimum_size = Vector2(140, 32)
+	var deafen_btn := Button.new()
+	deafen_btn.text = "DEAFEN"
+	deafen_btn.custom_minimum_size = Vector2(140, 32)
+	voice_box.add_child(mute_btn)
+	voice_box.add_child(deafen_btn)
+	voice_hud.add_child(voice_box)
+	root.add_child.call_deferred(voice_hud)
+	await process_frame
+	await process_frame
 
 	# Build a synthetic vanilla lobby scene (with vanilla buttons already present before entering tree).
 	var lobby_script: GDScript = _make_lobby_script()
@@ -181,10 +205,24 @@ func _run() -> void:
 	await _pump(loader, 2)
 	expect(absf(bots_toolbar.offset_top - 24.0) <= 1.0, "lobby-bots should snap back to offset_top=24 when MachineParty+ hides (got %s)" % bots_toolbar.offset_top)
 
-	# Pinned mod test: re-show MachineParty+ and add a third-party mod that forces itself back to y=24.
+	# Deferred startup root layer (MachineParty-Plus VoiceHUD) becomes visible in lobby:
+	# VoiceHUD stays at y=12 and lobby-bots shifts cleanly below it even though VoiceHUD was added via call_deferred before lobby!
+	voice_hud.visible = true
+	await _pump(loader, 2)
+	var voice_rect: Rect2 = loader._effective_content_rect(voice_box)
+	var bots_rect_voice: Rect2 = loader._effective_content_rect(bots_toolbar)
+	expect(voice_rect.size.y > 40.0, "Deferred VoiceHUD must be tracked and have valid content rect")
+	expect(absf(voice_box.offset_top - 12.0) <= 1.0, "VoiceHUD should stay at its original offset_top=12")
+	expect(not voice_rect.intersects(bots_rect_voice), "Deferred root VoiceHUD and lobby-bots must not overlap: %s vs %s" % [voice_rect, bots_rect_voice])
+	expect(bots_rect_voice.position.y >= voice_rect.end.y + 10.0, "lobby-bots should shift below VoiceHUD")
+	expect(not bots_rect_voice.intersects(ready_rect), "Shifted lobby-bots must also clear vanilla Ready button below VoiceHUD")
+	voice_hud.visible = false
+	await _pump(loader, 2)
+	expect(absf(bots_toolbar.offset_top - 24.0) <= 1.0, "lobby-bots should snap back after VoiceHUD hides")
+
+	# Pinned mod test: re-show MachineParty+ and simulate a mod forcing itself back to y=24.
 	plus_layer.visible = true
 	await _pump(loader, 2)
-	# Simulate bots_toolbar forcing itself back to offset_top=24 (as if a mod overwrote it in _process).
 	bots_toolbar.offset_top = 24.0
 	await _pump(loader, 2)
 	expect(bool(bots_state["pinned"]), "Mod that overwrites its own offset_top should be detected as pinned")

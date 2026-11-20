@@ -4,7 +4,7 @@ extends Node
 ## Loaded first as `autoload/ModLoader` (`*res://modloader/bootstrap.gd`) so
 ## script overrides and resource registrations execute before game scripts load.
 
-const LOADER_VERSION := "4"
+const LOADER_VERSION := "5"
 const API_VERSION := 2
 const LOG_PATH := "user://modloader.log"
 const LOBBY_SCENE_SCRIPT := "res://scenes/lobby/scripts/lobby_scene.gd"
@@ -51,6 +51,7 @@ var _watching: bool = false
 var _log_lines: PackedStringArray = PackedStringArray()
 
 # Lobby UI de-conflictor state (active only while in lobby).
+var _root_snapshot_done: bool = false
 var _vanilla_root_ids: Dictionary = {}
 var _mod_root_layers: Array = []
 var _lobby_node: Node = null
@@ -214,15 +215,14 @@ func _on_tree_ready() -> void:
 	if root != null:
 		for child in root.get_children():
 			_vanilla_root_ids[child.get_instance_id()] = true
+	_root_snapshot_done = true
 	for meta in mods:
 		var mod_node = meta.get("node")
 		if mod_node != null and is_instance_valid(mod_node) and mod_node.has_method("_mod_ready"):
 			mod_node.call("_mod_ready", self)
 	if root != null:
 		for child in root.get_children():
-			if not _vanilla_root_ids.has(child.get_instance_id()) and (child is CanvasLayer or child is Control):
-				if not _mod_root_layers.has(child):
-					_mod_root_layers.append(child)
+			_maybe_record_mod_root_layer(child)
 
 
 func _read_json_dict(path: String) -> Dictionary:
@@ -360,6 +360,8 @@ func _ensure_tree_watcher() -> void:
 func _on_tree_node_added(node: Node) -> void:
 	if node == null or not is_instance_valid(node):
 		return
+	if _root_snapshot_done:
+		_maybe_record_mod_root_layer(node)
 	var scr = node.get_script()
 	var spath: String = (scr as Script).resource_path if scr is Script else ""
 	if spath == LOBBY_SCENE_SCRIPT:
@@ -444,6 +446,21 @@ func has_api(n) -> bool:
 
 # --- Lobby UI de-conflictor (zero-touch for all mods, never moves vanilla UI) ---
 
+func _maybe_record_mod_root_layer(node: Node) -> void:
+	if not (node is CanvasLayer or node is Control):
+		return
+	var tree: SceneTree = get_tree()
+	if tree == null or node.get_parent() != tree.root:
+		return
+	if _vanilla_root_ids.has(node.get_instance_id()) or node == tree.current_scene:
+		return
+	var sf: String = node.scene_file_path
+	if not sf.is_empty() and not sf.begins_with("res://mod"):
+		return
+	if not _mod_root_layers.has(node):
+		_mod_root_layers.append(node)
+
+
 func _begin_lobby_ui_guard(lobby_node: Node) -> void:
 	_end_lobby_ui_guard()
 	_lobby_node = lobby_node
@@ -464,6 +481,11 @@ func _begin_lobby_ui_guard(lobby_node: Node) -> void:
 
 func _end_lobby_ui_guard() -> void:
 	set_process(false)
+	for raw in _lobby_mod_roots:
+		if raw is Control and is_instance_valid(raw):
+			var cid: int = (raw as Control).get_instance_id()
+			if _lobby_ui_state.has(cid):
+				_apply_control_shift(raw as Control, _lobby_ui_state[cid] as Dictionary, 0.0, 0.0)
 	var root: Window = get_tree().root if get_tree() != null else null
 	if root != null and root.size_changed.is_connected(_queue_lobby_layout):
 		root.size_changed.disconnect(_queue_lobby_layout)
@@ -770,8 +792,10 @@ func _layout_lobby_mod_ui() -> void:
 		var rect: Rect2 = _effective_content_rect(ctrl)
 		if rect.size.x <= 1.0 or rect.size.y <= 1.0:
 			continue
-		# Skip fullscreen modals, dim backdrops, or wide banners.
-		if rect.size.x > vp_rect.size.x * UI_MAX_VIEWPORT_RATIO or rect.size.y > vp_rect.size.y * UI_MAX_VIEWPORT_RATIO:
+		# Skip fullscreen modals, dim backdrops, or full-width banners (but allow tall narrow sidebars).
+		var too_wide: bool = rect.size.x > vp_rect.size.x * UI_MAX_VIEWPORT_RATIO
+		var too_tall: bool = rect.size.y > vp_rect.size.y * UI_MAX_VIEWPORT_RATIO
+		if (too_wide and too_tall) or rect.size.x > vp_rect.size.x * 0.75 or rect.size.y > vp_rect.size.y * 0.85:
 			continue
 		if not bool(st["initialized"]):
 			st["initialized"] = true

@@ -45,7 +45,7 @@ Every first-party mod lives in `mods/<id>/`, where `<id>` matches `^[a-z0-9-]+$`
 
 ## 3. Built-in loader API and game-integration rules
 
-The built-in bootstrap (`LOADER_VERSION = "4"`, `API_VERSION = 2`) mounts as `autoload/ModLoader` (`*res://modloader/bootstrap.gd`) before game scripts execute. External `MachinePartyModLoader.exe` shares the same API v2 surface.
+The built-in bootstrap (`LOADER_VERSION = "5"`, `API_VERSION = 2`) mounts as `autoload/ModLoader` (`*res://modloader/bootstrap.gd`) before game scripts execute. External `MachinePartyModLoader.exe` shares the same API v2 surface.
 
 ### Lifecycle
 

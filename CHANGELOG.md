@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.2 — 2026-11-20
+
+- Built-in mod loader v5 tracks deferred startup HUD layers (such as MachineParty+ voice controls) so overlapping lobby mod buttons separate reliably without moving vanilla buttons.
+- Settings now shows the built-in loader version and adds a Reload loader button. After an app update, the manager automatically upgrades an outdated built-in loader once the game is closed.
+
 ## 0.2.1 — 2026-11-20
 
 - Built-in mod loader v4 automatically separates overlapping mod buttons in the lobby (such as MachineParty+ and Lobby Bots) without modifying mods or moving vanilla game buttons.

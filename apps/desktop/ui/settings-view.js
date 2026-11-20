@@ -1,8 +1,9 @@
 import { checkApp, showRelease } from "./app-update.js";
 import { isDesktop, openProject } from "./bridge.js";
 import { $, button, element, tag } from "./dom.js";
-import { detectGame, pickGame } from "./game-folder.js";
+import { applyValidation, detectGame, pickGame } from "./game-folder.js";
 import { locales } from "./languages.js";
+import { formatLoaderNote, runManualLoaderReload } from "./loader-upgrade.js";
 import { render, setLocale, state, t } from "./state.js";
 
 import { promptSteamRestore } from "./steam-restore.js";
@@ -95,10 +96,62 @@ function appPanel() {
   return panel;
 }
 
+function loaderPanel() {
+  const panel = element("section", "", "panel");
+  const row = element("div", "", "panel-row");
+  const info = element("div", "", "panel-info");
+  const heading = element("div", "", "panel-heading");
+  heading.append(element("h2", t("loaderTitle")));
+  const loader = state.scan === "ready" ? state.lastScan?.loader : null;
+  let desc = !state.game
+    ? t("unset")
+    : state.scan === "failed"
+      ? (t(state.scanError) || state.scanError || t("statusUnavailable"))
+      : t("checking");
+  if (loader) {
+    if (loader.kind === "managed") {
+      const badgeText = loader.needsUpgrade
+        ? `v${loader.installedVersion || "?"} → v${loader.targetVersion}`
+        : `v${loader.installedVersion || loader.targetVersion}`;
+      const badge = tag(badgeText);
+      badge.classList.add("tag-mono");
+      heading.append(badge);
+      desc = loader.needsUpgrade
+        ? formatLoaderNote({key: "loaderNeedsUpgrade", from: loader.installedVersion || "?", to: loader.targetVersion})
+        : formatLoaderNote({key: "loaderUpToDate", version: loader.installedVersion || loader.targetVersion});
+    } else if (loader.kind === "external") {
+      desc = t("loaderExternal");
+    } else if (loader.kind === "modified") {
+      desc = t("loaderModified");
+    } else {
+      if (loader.targetVersion) {
+        const badge = tag(`v${loader.targetVersion}`);
+        badge.classList.add("tag-mono");
+        heading.append(badge);
+      }
+      desc = t("loaderNone");
+    }
+  }
+  info.append(heading, element("p", desc, "panel-value"));
+  const action = button(
+    t("loaderReload"),
+    () => runManualLoaderReload(applyValidation),
+    loader?.needsUpgrade ? "primary" : "secondary",
+    "refresh"
+  );
+  action.disabled = !state.game || !loader?.canReload || Boolean(state.busyMod) || state.installing;
+  row.append(info, action);
+  panel.append(row);
+  const note = formatLoaderNote(state.loaderNote);
+  if (note) panel.append(element("p", note, "panel-note"));
+  return panel;
+}
+
 export function renderSettings(content, applyLocale) {
   const page = element("div", "", "settings");
   page.append(languagePanel(applyLocale), folderPanel());
   if (isDesktop) {
+    page.append(loaderPanel());
     const panel = element("section", "", "panel");
     const row = element("div", "", "panel-row");
     const info = element("div", "", "panel-info");
