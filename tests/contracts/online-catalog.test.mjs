@@ -14,6 +14,15 @@ const catalogStore = {PACKAGES:{get:async key => {
 const serve = (url, env = catalogStore, init) => worker.fetch(new Request(url, init), env);
 const catalogUrl = "https://machineparty.ailaogong.men/v1/catalog.json?inventory=id&prepare=1";
 
+test("all remote catalogs omit Broadcast 8P and Eight-player multiplayer", async () => {
+  for (const query of ["", "?inventory=id", "?inventory=id&prepare=1"]) {
+    const response = await serve(catalogUrl.split("?")[0] + query);
+    const {mods} = await response.json();
+    assert.ok(mods.some(mod => mod.id === "overtime"));
+    assert.ok(mods.every(mod => !["broadcast-8p-freecam", "binary1936-8p"].includes(mod.id)));
+  }
+});
+
 test("the client loads the Worker snapshot and retains it across failed refreshes", async () => {
   const storage = {getItem() {return this.data;}, setItem(_, value) {this.data = value;}};
   assert.equal(cachedCatalog(storage), null);
@@ -96,6 +105,7 @@ test("the public gateway forwards catalog requests to the catalog service", asyn
 
 test("validCatalog rejects unsafe adapter profiles", () => {
   const snapshot = compatibleSnapshot();
+  snapshot.mods.push({...snapshot.mods[0], ...previous["binary1936-8p"], id:"legacy-cli", order:99, repo:"test/legacy-cli"});
   assert.ok(validCatalog(snapshot));
   const cliIdx = snapshot.mods.findIndex(mod => mod.adapter?.kind === "upstream-cli");
   assert.ok(cliIdx >= 0);

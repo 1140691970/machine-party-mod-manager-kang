@@ -4243,9 +4243,24 @@ print("Patched")
         let v1 = validate_game_mods(&config_dir, &game_root, &mods).unwrap();
         assert_eq!(v1.mod_states["broadcast-8p-freecam"], "installed");
 
-        let mut converted = crate::catalog::entry(&broadcast.id).unwrap();
-        converted.adapter.as_mut().unwrap().baseline =
-            broadcast.adapter.as_ref().unwrap().baseline.clone();
+        let mut converted = broadcast.clone();
+        converted.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(b"replacement"));
+        converted.adapter = Some(
+            serde_json::from_value(serde_json::json!({
+                "kind": "loader-files",
+                "platforms": ["windows"],
+                "target": "pckDir",
+                "touches": ["mods"],
+                "exclusive": "loader",
+                "autoLoader": true,
+                "baseline": broadcast.adapter.as_ref().unwrap().baseline,
+                "requiredFiles": ["mod.json", "main.gd", "overlay.zip"],
+                "upstreamUninstall": false,
+                "sourceRule": "broadcast-tree-v1",
+                "conflictGroup": "eight-player"
+            }))
+            .unwrap(),
+        );
         let current = vec![converted.clone()];
         assert_eq!(
             validate_game_mods(&config_dir, &game_root, &current)
@@ -5780,10 +5795,25 @@ print("Patched")
         let b_zip_bytes = build_test_zip(&[("patcher.ps1", b"# ps", true)]);
         let b_zip = root.join("broadcast.zip");
         fs::write(&b_zip, &b_zip_bytes).unwrap();
-        let mut broadcast =
-            crate::catalog::legacy_entry(&crate::catalog::entry("broadcast-8p-freecam").unwrap())
-                .unwrap();
-        broadcast.verified = true;
+        let retired_entry = |id: &str, repo: &str, order| {
+            let item = ModEntry {
+                id: id.into(),
+                repo: repo.into(),
+                order,
+                inventory_by_id: false,
+                legacy_inventory_repos: Vec::new(),
+                verified: true,
+                version: None,
+                package: None,
+                adapter: None,
+            };
+            crate::catalog::legacy_entry(&item).unwrap()
+        };
+        let mut broadcast = retired_entry(
+            "broadcast-8p-freecam",
+            "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher",
+            3,
+        );
         broadcast.package.as_mut().unwrap().size = b_zip_bytes.len() as u64;
         broadcast.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(&b_zip_bytes));
         broadcast.adapter.as_mut().unwrap().baseline = BaselineSpec {
@@ -5795,9 +5825,7 @@ print("Patched")
         let p_zip_bytes = build_test_zip(&[("install.py", b"# py", true)]);
         let p_zip = root.join("b8p.zip");
         fs::write(&p_zip, &p_zip_bytes).unwrap();
-        let mut b8p =
-            crate::catalog::legacy_entry(&crate::catalog::entry("binary1936-8p").unwrap()).unwrap();
-        b8p.verified = true;
+        let mut b8p = retired_entry("binary1936-8p", "Binary1936/machine-party-8p", 4);
         b8p.package.as_mut().unwrap().size = p_zip_bytes.len() as u64;
         b8p.package.as_mut().unwrap().sha256 = hex::encode(Sha256::digest(&p_zip_bytes));
         b8p.adapter.as_mut().unwrap().baseline = BaselineSpec {

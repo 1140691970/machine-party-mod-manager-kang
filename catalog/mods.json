@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.5-mpml1",
+  "revision": "2026-11-20.6-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -118,128 +118,6 @@
         "en": "Runs through the mod loader (configured automatically by the manager) and coexists with loader mods such as Overtime and Roller Carnival. Both players need the mod for voice chat."
       },
       "aliases": ["plus", "mpml"]
-    },
-    {
-      "id": "broadcast-8p-freecam",
-      "category": "tool",
-      "order": 3,
-      "repo": "Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher",
-      "version": "v0.91",
-      "releaseNotes": {
-        "version": "v0.91",
-        "zh-CN": "支持一名导播用自由镜头跟拍八名玩家，四支双人队伍轮换上场。可自动建房，并使用 2K 直播窗口。",
-        "zh-TW": "支援一名導播用自由鏡頭跟拍八名玩家，四支雙人隊伍輪流上場。可自動開房，並使用 2K 直播視窗。",
-        "en": "One director can follow eight players with a free camera as four pairs take turns. This release also supports automatic lobby creation and a 2K broadcast window."
-      },
-      "package": {
-        "assetId": "517871491",
-        "filename": "MachineParty_Broadcast8P_Freecam_OneClick_Patcher_v0_91_BuiltIn120Fps.zip",
-        "size": 21037309,
-        "sha256": "988b5068c0d4f054a4654b965628ca666d7ebf4e65b6a1cb60f8615a85c3f7ac",
-        "mirrorApproved": true
-      },
-      "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-13",
-      "adapter": {
-        "kind": "loader-files",
-        "platforms": [
-          "windows"
-        ],
-        "target": "pckDir",
-        "touches": [
-          "mods"
-        ],
-        "exclusive": "loader",
-        "autoLoader": true,
-        "baseline": {
-          "file": "Machine Party.pck",
-          "size": 634798100,
-          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
-        },
-        "requiredFiles": [
-          "mod.json",
-          "main.gd",
-          "overlay.zip"
-        ],
-        "upstreamUninstall": false,
-        "conflictGroup": "eight-player",
-        "sourceRule": "broadcast-tree-v1"
-      },
-      "verified": true,
-      "name": {"zh-CN": "Broadcast 8P Freecam", "zh-TW": "Broadcast 8P Freecam", "en": "Broadcast 8P Freecam"},
-      "summary": {
-        "zh-CN": "八人团播、四队轮换与导播自由镜头。",
-        "zh-TW": "八人團播、四隊輪換與導播自由鏡頭。",
-        "en": "Eight players, rotating teams and a free camera for the director."
-      },
-      "detail": {
-        "zh-CN": "管理器会将作者原包转成加载器模组。每份游戏副本可选用 Overtime、八人导播或 Binary1936 八人模组其中一种。",
-        "zh-TW": "管理器會將作者原包轉成載入器模組。每份遊戲副本可選用 Overtime、八人導播或 Binary1936 八人模組其中一種。",
-        "en": "The manager prepares the author package for the built-in loader. Choose one of Overtime, Broadcast 8P or Binary1936 8P per game copy."
-      },
-      "aliases": ["直播", "导播", "導播", "觀戰", "八人"]
-    },
-    {
-      "id": "binary1936-8p",
-      "category": "expansion",
-      "order": 4,
-      "repo": "Binary1936/machine-party-8p",
-      "version": "v1.5",
-      "releaseNotes": {
-        "version": "v1.5",
-        "zh-CN": "修复 5–8 人房间的座位错位。在 Chisel Gauntlet 的记忆阶段，所有玩家都能正面看到大屏幕。请同房玩家一起更新至 v1.5。",
-        "zh-TW": "修正 5–8 人房間的座位錯位。在 Chisel Gauntlet 的記憶階段，所有玩家都能從正面看到大螢幕。請同房玩家一起更新至 v1.5。",
-        "en": "Corrected seat placement in lobbies of 5–8 players. Everyone in those lobbies now gets a front-on view of the screen during the Chisel Gauntlet memory phase. Update the whole lobby to v1.5."
-      },
-      "package": {
-        "assetId": "520133712",
-        "filename": "machine-party-8p-mod.zip",
-        "size": 32387456,
-        "sha256": "6031425e58d434190ae2b62a8557cecaef1d057ce030acb03dd02c327d7baac4",
-        "noticeFile": "NOTICE.md",
-        "mirrorApproved": true
-      },
-      "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-13",
-      "adapter": {
-        "kind": "loader-files",
-        "platforms": [
-          "windows"
-        ],
-        "target": "pckDir",
-        "touches": [
-          "mods"
-        ],
-        "exclusive": "loader",
-        "autoLoader": true,
-        "baseline": {
-          "file": "Machine Party.pck",
-          "size": 634798100,
-          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
-        },
-        "requiredFiles": [
-          "mod.json",
-          "main.gd",
-          "overlay.zip",
-          "NOTICE.md"
-        ],
-        "upstreamUninstall": false,
-        "conflictGroup": "eight-player",
-        "sourceRule": "binary-tree-v1"
-      },
-      "verified": true,
-      "name": {"zh-CN": "八人联机模组", "zh-TW": "八人連線模組", "en": "Eight-player multiplayer"},
-      "summary": {
-        "zh-CN": "将在线游戏扩展至八人。",
-        "zh-TW": "將線上遊戲擴充至八人。",
-        "en": "Expands online play to eight players."
-      },
-      "detail": {
-        "zh-CN": "管理器会将作者原包转成加载器模组。每份游戏副本可选用 Overtime、八人导播或 Binary1936 八人模组其中一种。",
-        "zh-TW": "管理器會將作者原包轉成載入器模組。每份遊戲副本可選用 Overtime、八人導播或 Binary1936 八人模組其中一種。",
-        "en": "The manager prepares the author package for the built-in loader. Choose one of Overtime, Broadcast 8P or Binary1936 8P per game copy."
-      },
-      "aliases": ["8p", "八人聯機", "多人"]
     },
     {
       "id": "roller-carnival",

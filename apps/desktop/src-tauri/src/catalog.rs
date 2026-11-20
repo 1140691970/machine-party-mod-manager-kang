@@ -470,12 +470,10 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-13").len(), 8);
+        assert_eq!(preview_entries("0.1.2-13").len(), 6);
         for id in [
             "overtime",
             "machineparty-plus",
-            "broadcast-8p-freecam",
-            "binary1936-8p",
             "roller-carnival",
             "lobby-bots",
             "standalone-hd",
@@ -542,23 +540,7 @@ mod tests {
         assert_eq!(plus_adapter.exclusive, "loader");
         assert!(plus_adapter.auto_loader);
 
-        let broadcast = entry("broadcast-8p-freecam").expect("broadcast entry present");
-        let broadcast_adapter = broadcast.adapter.as_ref().unwrap();
-        assert_eq!(
-            broadcast_adapter.source_rule.as_deref(),
-            Some("broadcast-tree-v1")
-        );
-        assert_eq!(
-            entry("binary1936-8p")
-                .unwrap()
-                .adapter
-                .unwrap()
-                .source_rule
-                .as_deref(),
-            Some("binary-tree-v1")
-        );
-        let entries = all_entries();
-        assert_eq!(entries.len(), 8);
+        assert_eq!(all_entries().len(), 6);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
         assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller

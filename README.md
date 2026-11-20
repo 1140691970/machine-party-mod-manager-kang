@@ -80,8 +80,6 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Author CLI payload → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Native MPML |
-| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | Eight players, rotating teams and director free camera | Author resource tree → MPML |
-| [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | `v1.5` | Expands online play to eight players | Author resource tree → MPML |
 | [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.5` | Mechanical carnival dodge minigame | Native MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | Add or remove ready bots in online rooms. | Native MPML |
 | [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
