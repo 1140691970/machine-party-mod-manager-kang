@@ -4,20 +4,20 @@
 
 ## Inclusion guide
 
-**Current state**　The repository has a [submission form](../../../.github/ISSUE_TEMPLATE/mod-submission.yml) that appears under New issue once merged to the default branch. Release selection and R2 staging are manual. The catalog Worker publishes the reviewed snapshot.
+To recommend a mod or request a version update, use the [submission form](https://github.com/JamesGZM/machine-party-mod-manager/issues/new?template=mod-submission.yml). A maintainer reviews the upstream release and prepares the catalog change.
 
 [Online mod catalog](../architecture/ADR-006-online-catalog.md)
 
 | Step | Who | What happens and what it produces |
 | --- | --- | --- |
 | 1. Submit | Anyone, including maintainers | Under Issues → New issue choose the mod submission form and give the author repository, release and purpose. A mod without a Release can still be a candidate. Submitters never edit Markdown or JSON. |
-| 2. Triage and asset selection | Maintainer + automation | The one-click installer verifies the original release ZIP against its catalog size and SHA-256. Rust prepares the MPML directory in staging. Overtime uses its CLI payload manifest and retains the upstream load-order, version and vanilla-script checks. Broadcast and Binary1936 use their resource trees. MachineParty+, Roller Carnival and Lobby Bots already ship in loader format. |
-| 3. Generate the draft | Automation | Download the selected assets to staging, compute SHA-256, record upstream tag, asset ID and length, and create or update a single draft PR. The only structured source today is `catalog/mods.json`; once the flow exists it may be split into one `catalog/mods/*.json` per mod that generates the same snapshot format. Mods without release files stay candidates. Automation only reads submitted data and packages and never executes submitted content. |
+| 2. Select the asset | Maintainer | Check the author, release tag, installation method, required loader and redistribution terms. Select a specific release file. |
+| 3. Prepare the catalog PR | Maintainer or contributor | Record the release tag, asset ID, filename, size and SHA-256 in `catalog/mods.json`. Link the submission and its acceptance evidence in the PR. |
 | 4. Verify for publishing | Maintainer | Record the licence and Windows tests using the checklist below, confirming game compatibility, install, uninstall and offline restore. Check each dependency. Add results to the draft; CI validates fields, hashes, dependencies and duplicate IDs. Without evidence the entry stays a candidate. |
 | 5. Approve | Repository owner | After merging the draft, choose a specific main commit and approve the additions, updates and withdrawals in the production environment. Merging and production deployment are separate. |
 | 6. Distribute and verify | Release automation | Re-verify originals against approved hashes, write storable packages to private R2 (identical hashes are reused), deploy the Worker catalog only once assets are readable, then check revision and downloads from the production entry. If upstream replaced a file or assets are incomplete, stop and keep the old catalog. Players see the new version on their next refresh. |
 
-**Routine maintenance.** New versions keep the existing mod ID and catalog order and repeat selection and acceptance; the published version stays in effect until the new one passes. Withdrawals go through the same owner approval, removing catalog eligibility and the old download entry while keeping local uninstall. If verification fails after deployment, follow the [rollback process](delivery.md). The first release can collect submissions through the form before automatic PR generation is enabled; per-mod Markdown research is kept for background and does not take part in publishing.
+**Routine maintenance.** New versions keep the existing mod ID and catalog order and repeat selection and acceptance; the published version stays in effect until the new one passes. Withdrawals go through the same owner approval, removing catalog eligibility and the old download entry while keeping local uninstall. If verification fails after deployment, follow the [rollback process](delivery.md).
 
 ## Game baseline
 
@@ -25,14 +25,14 @@ Machine Party (Steam App ID 4108000) officially supports 2–4 players, online c
 
 ## Candidates
 
-As of 2026-11-18 the following come from documentation and upstream code research and await team testing on real hardware. Download counts are historical snapshots of the named GitHub Release files, used to gauge demand.
+Use these upstream sources to verify compatibility and licensing for the selected release.
 
-| Candidate | Features and downloads | Integration and licence to-dos |
+| Candidate | Features | Integration and licence to-dos |
 | --- | --- | --- |
-| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | Eight players online and locally. v1.7 regular package 2,855, CLI package 1,215, MPML package 335 downloads. | The one-click installer verifies the original release ZIP against its catalog size and SHA-256. Rust prepares the MPML directory in staging. Overtime uses its CLI payload manifest and retains the upstream load-order, version and vanilla-script checks. Broadcast and Binary1936 use their resource trees. MachineParty+, Roller Carnival and Lobby Bots already ship in loader format. [MIT](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/v1.7/LICENSE) |
-| [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | Public lobbies, voice and text chat. v2.1.0 mod ZIP 1,917 downloads. | The mod is MIT; separately check the [MPML](https://github.com/Krunk-theduck/MachinePartyModLoader) version, first install flow and relaying licence. Test room codes and unmodded players joining; voice chat needs both sides installed. |
-| [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | Eight players online. v1.5 mod ZIP 5,297 downloads. | Upstream relies on Steam verification to restore; test the app's own backup, restore and unknown-copy detection. The files covered by MIT follow the author's [NOTICE](https://github.com/Binary1936/machine-party-8p/blob/main/NOTICE.md). |
-| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | One director and eight contestants with rotating teams and a free camera. Downloads unverified. | The script has install, verify and uninstall entries. Focus on existing backups; confirm per-file licensing before deciding on relaying. No explicit open-source licence is visible on the repository home page. [Patcher source](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher/blob/main/patcher.ps1) |
+| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | Eight players online and locally. | The one-click installer verifies the original release ZIP against its catalog size and SHA-256. Rust prepares the MPML directory in staging. Overtime uses its CLI payload manifest and retains the upstream load-order, version and vanilla-script checks. Broadcast and Binary1936 use their resource trees. MachineParty+, Roller Carnival and Lobby Bots already ship in loader format. [MIT](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/v1.7/LICENSE) |
+| [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | Public lobbies, voice and text chat. | The mod is MIT; separately check the [MPML](https://github.com/Krunk-theduck/MachinePartyModLoader) version, first install flow and relaying licence. Test room codes and unmodded players joining; voice chat needs both sides installed. |
+| [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | Eight players online. | Upstream relies on Steam verification to restore; test the app's own backup, restore and unknown-copy detection. The files covered by MIT follow the author's [NOTICE](https://github.com/Binary1936/machine-party-8p/blob/main/NOTICE.md). |
+| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | One director and eight contestants with rotating teams and a free camera. | The script has install, verify and uninstall entries. Focus on existing backups; confirm per-file licensing before deciding on relaying. No explicit open-source licence is visible on the repository home page. [Patcher source](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher/blob/main/patcher.ps1) |
 
 ## Acceptance checklist (per version)
 

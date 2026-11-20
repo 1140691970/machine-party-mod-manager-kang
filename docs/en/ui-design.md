@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../zh-CN/ui-design.md) · [繁體中文](../zh-TW/ui-design.md)
 
-This describes the current desktop UI and marks what is not implemented yet. See the [current screenshot](../images/screenshot-catalog.png); the original concept is [ui-reference.png](../images/ui-reference.png). Redesigns update this page directly instead of appending superseding sections.
+This describes the current desktop UI and marks what is not implemented yet. See the [current screenshot](../images/screenshot-catalog.png). Redesigns update this page directly instead of appending superseding sections.
 
 ## Visual style: Machine Party
 

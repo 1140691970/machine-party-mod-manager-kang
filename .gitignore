@@ -3,6 +3,9 @@ target/
 gen/
 dist/
 node_modules/
+.godot/
+.wrangler/
+__pycache__/
 
 # Playwright snapshots and test reports
 .playwright-cli/

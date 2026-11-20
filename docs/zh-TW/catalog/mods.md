@@ -4,20 +4,20 @@
 
 ## 收錄操作手冊
 
-**目前進度**　倉庫已有[投稿表單範本](../../../.github/ISSUE_TEMPLATE/mod-submission.yml)，合入 GitHub 預設分支後才會出現在 New issue。目前由維護者選擇 Release 並上傳 R2，目錄 Worker 發布已審核的快照。
+推薦模組或申請版本更新，請填寫[投稿表單](https://github.com/JamesGZM/machine-party-mod-manager/issues/new?template=mod-submission.yml)。維護者審核上游版本並準備目錄變更。
 
 [線上模組目錄](../architecture/ADR-006-online-catalog.md)
 
 | 步驟 | 誰操作 | 做什麼、完成後得到什麼 |
 | --- | --- | --- |
 | 1. 投稿 | 任何人，含維護者 | 在 Issues → New issue 選「模組收錄或版本更新」，填作者倉庫、指定版本和用途。沒有 Release 仍可作為候選。投稿者無需編輯 Markdown 或 JSON。 |
-| 2. 初審與選檔 | 維護者＋自動流程 | 一鍵安裝先以目錄大小與 SHA-256 核對作者發行 ZIP，再由 Rust 在暫存區準備 MPML 目錄。Overtime 讀取 CLI 包中的 payload 清單，保留上游的載入時序、版本與原版腳本指紋檢查。Broadcast 和 Binary1936 讀取資源樹。MachineParty+、滾筒嘉年華與房間機器人已採載入器格式。 |
-| 3. 產生收錄草案 | 自動流程 | 下載選定資產至暫存區計算 SHA-256，記錄上游標籤、資產 ID、長度，建立或更新同一份草案 PR。目前唯一結構化來源是 `catalog/mods.json`；流程接通後擬拆為每個模組一個 `catalog/mods/*.json`，再生成同格式的目錄快照。無發行檔者留在候選。程式僅讀取投稿資料與套件，不執行投稿內容。 |
+| 2. 選擇檔案 | 維護者 | 核對作者、發行標籤、安裝方式、所需載入器與再分發授權，選定具體發行檔。 |
+| 3. 準備目錄 PR | 維護者或貢獻者 | 在 `catalog/mods.json` 記錄發行標籤、資產 ID、檔名、大小與 SHA-256，在 PR 附上投稿及驗收紀錄。 |
 | 4. 核實能否發布 | 維護者 | 按下方驗收單記錄授權及 Windows 實測，確認遊戲相容、安裝、卸載與離線還原。依賴逐個核對。將結果補入草案，CI 驗證欄位、雜湊、依賴及重複 ID。缺證據時保留候選狀態。 |
 | 5. 批准上線 | 倉庫擁有者 | 合併草案後選擇 main 的指定提交，在 production 環境核對本次新增／更新／撤回項目並批准。合併與正式部署分開。 |
 | 6. 分發並驗證 | 自動發布工作 | 按已批准的雜湊重新校驗原檔，將允許留存的套件寫入私有 R2（相同雜湊可重用），確認資產可讀後才部署 Worker 目錄，再從正式入口核對修訂號與下載內容。若上游已換檔或資產未備齊，停止發布並保留舊目錄。玩家下次刷新即可看到新版本。 |
 
-**日常維護。** 新版沿用既有模組 ID 與收錄序號，重跑選檔與驗收；原已發布版本在新版通過前繼續生效。撤回版本時走同一個擁有者批准流程，同步撤回目錄資格及舊下載入口，保留本機卸載。部署後驗證失敗依[發布回滾流程](delivery.md)處理。首版可先用表單收件，待流程接通後再啟用自動產生 PR；逐模組的 Markdown 調查用於留存背景，不參與發布。
+**日常維護。** 新版沿用既有模組 ID 與收錄序號，重跑選檔與驗收；原已發布版本在新版通過前繼續生效。撤回版本時走同一個擁有者批准流程，同步撤回目錄資格及舊下載入口，保留本機卸載。部署後驗證失敗依[發布回滾流程](delivery.md)處理。
 
 ## 遊戲基線
 
@@ -25,14 +25,14 @@ Machine Party（Steam App ID 4108000）官方標示支援 2–4 人、線上合�
 
 ## 候選清單
 
-截至 2026-11-18，以下均為文件與上游程式碼調查，等待團隊實機驗證。下載次數為指定 GitHub Release 檔案的歷史快照，供評估需求使用。
+審核選定版本時，可參考下列上游來源核對相容性及授權。
 
-| 候選 | 功能與下載觀察 | 整合與授權待辦 |
+| 候選 | 功能 | 整合與授權待辦 |
 | --- | --- | --- |
-| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | 八人線上及本機擴充。v1.7 一般包 2,855 次，CLI 包 1,215 次，MPML 包 335 次。 | 一鍵安裝先以目錄大小與 SHA-256 核對作者發行 ZIP，再由 Rust 在暫存區準備 MPML 目錄。 [MIT](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/v1.7/LICENSE) |
-| [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | 公開房間、語音及文字聊天。v2.1.0 模組 ZIP 1,917 次。 | 模組採 MIT；另核對 [MPML](https://github.com/Krunk-theduck/MachinePartyModLoader) 的版本、首次安裝流程及中轉授權。測房間代碼與原版玩家加入；語音聊天需雙方安裝。 |
-| [Binary1936 八人模組](https://github.com/Binary1936/machine-party-8p) | 線上八人。v1.5 模組 ZIP 5,297 次。 | 上游仰賴 Steam 驗證還原，須測 App 自行備份、還原與辨識未知副本。MIT 適用檔案以作者 [NOTICE](https://github.com/Binary1936/machine-party-8p/blob/main/NOTICE.md) 為準。 |
-| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | 一位導播加八名參賽者，四隊輪換及自由鏡頭。下載量未核實。 | 安裝腳本有 install、verify、uninstall 入口。重點測既有備份；確認具體檔案授權後再決定中轉。公開倉庫首頁未見明確開源授權。[補丁原始碼](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher/blob/main/patcher.ps1) |
+| [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | 八人線上及本機擴充。 | 一鍵安裝先以目錄大小與 SHA-256 核對作者發行 ZIP，再由 Rust 在暫存區準備 MPML 目錄。 [MIT](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/v1.7/LICENSE) |
+| [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | 公開房間、語音及文字聊天。 | 模組採 MIT；另核對 [MPML](https://github.com/Krunk-theduck/MachinePartyModLoader) 的版本、首次安裝流程及中轉授權。測房間代碼與原版玩家加入；語音聊天需雙方安裝。 |
+| [Binary1936 八人模組](https://github.com/Binary1936/machine-party-8p) | 線上八人。 | 上游仰賴 Steam 驗證還原，須測 App 自行備份、還原與辨識未知副本。MIT 適用檔案以作者 [NOTICE](https://github.com/Binary1936/machine-party-8p/blob/main/NOTICE.md) 為準。 |
+| [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | 一位導播加八名參賽者，四隊輪換及自由鏡頭。 | 安裝腳本有 install、verify、uninstall 入口。重點測既有備份；確認具體檔案授權後再決定中轉。公開倉庫首頁未見明確開源授權。[補丁原始碼](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher/blob/main/patcher.ps1) |
 
 ## 收錄驗收單（每個版本填寫）
 

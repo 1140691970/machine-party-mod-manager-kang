@@ -2,7 +2,7 @@
 
 [English](../en/ui-design.md) · **简体中文** · [繁體中文](../zh-TW/ui-design.md)
 
-本文描述桌面端当前的界面规格，并标出尚未实现的部分。当前界面见[截图](../images/screenshot-catalog.zh-CN.png)，最初的概念图为 [ui-reference.png](../images/ui-reference.png)。界面改版会直接更新本文，不追加“取代上文”的段落。
+本文描述桌面端当前的界面规格，并标出尚未实现的部分。当前界面见[截图](../images/screenshot-catalog.zh-CN.png)。界面改版会直接更新本文，不追加“取代上文”的段落。
 
 ## 视觉风格：机械派对
 
