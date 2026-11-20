@@ -1059,29 +1059,26 @@ static func _build_fallback_character(parent: Node3D, suit_color: Color) -> void
 
 
 static func build_bubble_icon() -> ImageTexture:
-	var size: int = 128
-	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.08, 0.11, 0.16, 1.0))
-
-	var center := Vector2(64.0, 66.0)
-	for y in range(size):
-		for x in range(size):
-			var p := Vector2(float(x), float(y))
-			var d: float = p.distance_to(center)
-			if x < 5 or y < 5 or x >= size - 5 or y >= size - 5:
-				img.set_pixel(x, y, Color(0.24, 0.84, 1.0, 1.0))
-				continue
-			if (absf(p.x - center.x) < 12.0 and absf(p.y - center.y) < 52.0) or (absf(p.y - center.y) < 12.0 and absf(p.x - center.x) < 52.0):
-				img.set_pixel(x, y, Color(0.18, 0.68, 0.94, 1.0))
-			if d < 34.0:
-				var rim: float = clampf(d / 34.0, 0.0, 1.0)
-				var col := Color(0.32, 0.88, 1.0, 1.0).lerp(Color(0.10, 0.42, 0.86, 1.0), rim * 0.72)
-				if d > 29.0:
-					col = Color(0.84, 0.98, 1.0, 1.0)
-				img.set_pixel(x, y, col)
-			if p.distance_to(Vector2(50.0, 50.0)) < 8.5:
-				img.set_pixel(x, y, Color(0.95, 1.0, 1.0, 1.0))
-			if absf(p.x - center.x) < 10.0 and y >= 22 and y <= 33:
-				img.set_pixel(x, y, Color(0.96, 0.74, 0.18, 1.0))
-
-	return ImageTexture.create_from_image(img)
+	## Authentic Machine Party 256x256 monochrome (#000 / #e5e5e5) CRT silhouette icon
+	## matching stock minigames and Roller Carnival in Custom Playlist & Intermission Picker.
+	var image := Image.new()
+	image.load_svg_from_string("""
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+	  <rect width="256" height="256" fill="#000"/>
+	  <g fill="#e5e5e5">
+	    <!-- Cross blast rays behind bomb -->
+	    <path d="M118 14h20l-4 42h-12zM118 200h20l-4 42h-12zM14 118l42 4v12l-42 4zM200 122l42-4v20l-42-4z"/>
+	    <!-- Diagonal sparks -->
+	    <path d="M48 48l28 20-8 8-20-28zM208 48l-20 28-8-8 28-20zM48 208l20-28 8 8-28 20zM208 208l-28-20 8-8 20 28z"/>
+	    <!-- Industrial pressure bomb canister -->
+	    <circle cx="128" cy="140" r="56" stroke="#000" stroke-width="10"/>
+	    <rect x="104" y="68" width="48" height="22" rx="6" stroke="#000" stroke-width="8"/>
+	    <!-- Hazard band cutouts -->
+	    <rect x="74" y="132" width="108" height="16" fill="#000"/>
+	    <rect x="82" y="136" width="92" height="8" fill="#e5e5e5"/>
+	    <!-- Lit fuse & spark star -->
+	    <path d="M128 68c0-18 16-24 28-28" fill="none" stroke="#e5e5e5" stroke-width="10" stroke-linecap="round"/>
+	    <polygon points="168,20 174,34 190,34 177,43 182,58 168,49 154,58 159,43 146,34 162,34"/>
+	  </g>
+	</svg>""")
+	return ImageTexture.create_from_image(image)

@@ -5,7 +5,7 @@
 ![泡泡爆破小游戏图示](../../apps/desktop/ui/images/bubble-blitz.png)
 
 - **模组 ID**：`bubble-blitz`
-- **版本**：`0.1.0`（目录清单对应 `v0.1.0`）
+- **版本**：`0.1.1`（目录清单对应 `v0.1.1`）
 - **授权**：`GPL-3.0-only`
 - **目标游戏版本**：Steam Windows `v2.1.2`
 - **开发与打包规范**：[自研模组开发、测试、接入与打包规范](../../docs/zh-CN/development/mod-development.md) · [ADR-009](../../docs/zh-CN/architecture/ADR-009-bundled-first-party-mods.md) · [ADR-015](../../docs/zh-CN/architecture/ADR-015-multi-minigame-hub.md)

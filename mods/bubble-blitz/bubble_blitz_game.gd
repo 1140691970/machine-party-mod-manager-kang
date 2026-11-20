@@ -313,16 +313,19 @@ func _setup_hud() -> void:
 		_kill_feed_label.add_theme_font_override("font", term_font)
 	_hud_layer.add_child(_kill_feed_label)
 
-	# Local-player-only CRT status bar at the bottom center.
+	# Local-player-only compact CRT status bar, auto-centered across all resolutions & UI scales.
+	var stats_center := CenterContainer.new()
+	stats_center.anchor_left = 0.0
+	stats_center.anchor_right = 1.0
+	stats_center.anchor_top = 1.0
+	stats_center.anchor_bottom = 1.0
+	stats_center.offset_top = -46.0
+	stats_center.offset_bottom = -8.0
+	stats_center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_layer.add_child(stats_center)
+
 	_stats_panel = PanelContainer.new()
-	_stats_panel.anchor_left = 0.5
-	_stats_panel.anchor_right = 0.5
-	_stats_panel.anchor_top = 1.0
-	_stats_panel.anchor_bottom = 1.0
-	_stats_panel.offset_left = -430.0
-	_stats_panel.offset_right = 430.0
-	_stats_panel.offset_top = -54.0
-	_stats_panel.offset_bottom = -12.0
+	_stats_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.03, 0.06, 0.04, 0.86)
 	sb.border_color = Color(0.42, 0.88, 0.48, 0.90)
@@ -334,20 +337,20 @@ func _setup_hud() -> void:
 	sb.corner_radius_top_right = 4
 	sb.corner_radius_bottom_left = 4
 	sb.corner_radius_bottom_right = 4
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	sb.content_margin_top = 5
-	sb.content_margin_bottom = 5
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
 	_stats_panel.add_theme_stylebox_override("panel", sb)
-	_hud_layer.add_child(_stats_panel)
+	stats_center.add_child(_stats_panel)
 
 	_stats_label = Label.new()
 	_stats_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_stats_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_stats_label.add_theme_font_size_override("font_size", 21)
+	_stats_label.add_theme_font_size_override("font_size", 16)
 	_stats_label.add_theme_color_override("font_color", Color(0.76, 1.0, 0.76))
 	_stats_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_stats_label.add_theme_constant_override("outline_size", 5)
+	_stats_label.add_theme_constant_override("outline_size", 4)
 	if term_font != null:
 		_stats_label.add_theme_font_override("font", term_font)
 	_stats_panel.add_child(_stats_label)
@@ -573,22 +576,22 @@ func _update_local_stats_hud() -> void:
 	var needle_on: bool = bool(p["has_needle"])
 
 	if is_zhs:
-		_stats_label.text = "血量 %s   |   炸弹 %d/%d   |   范围 %d格   |   移速 Lv.%d   |   踢弹: %s   |   救命针: %s" % [
+		_stats_label.text = "血量 %s | 炸弹 %d/%d | 范围 %d | 移速 Lv.%d | 踢弹:%s | 救命针:%s" % [
 			hp_str, avail_bombs, max_bombs, rng_val, spd_lv,
-			"已获得" if kick_on else "无",
-			"已携带" if needle_on else "无",
+			"有" if kick_on else "无",
+			"有" if needle_on else "无",
 		]
 	elif is_zh:
-		_stats_label.text = "血量 %s   |   炸彈 %d/%d   |   範圍 %d格   |   移速 Lv.%d   |   踢彈: %s   |   救命針: %s" % [
+		_stats_label.text = "血量 %s | 炸彈 %d/%d | 範圍 %d | 移速 Lv.%d | 踢彈:%s | 救命針:%s" % [
 			hp_str, avail_bombs, max_bombs, rng_val, spd_lv,
-			"已取得" if kick_on else "無",
-			"已攜帶" if needle_on else "無",
+			"有" if kick_on else "無",
+			"有" if needle_on else "無",
 		]
 	else:
-		_stats_label.text = "HP %s   |   BOMB %d/%d   |   RANGE %d   |   SPD Lv.%d   |   KICK: %s   |   NEEDLE: %s" % [
+		_stats_label.text = "HP %s | BOMB %d/%d | RNG %d | SPD Lv.%d | KICK:%s | NEEDLE:%s" % [
 			hp_str, avail_bombs, max_bombs, rng_val, spd_lv,
 			"ON" if kick_on else "OFF",
-			"READY" if needle_on else "NONE",
+			"YES" if needle_on else "NO",
 		]
 
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.7-mpml1",
+  "revision": "2026-11-20.8-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -404,18 +404,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "image": "bubble-blitz",
-      "version": "v0.1.0",
+      "version": "v0.1.1",
       "releaseNotes": {
-        "version": "v0.1.0",
-        "zh-CN": "全新 3D 泡泡堂×炸弹人结合版派对小游戏：每人 3 滴血（最后 1 血进水泡困住、撞破淘汰），4 套随机多变地图含工业传送带，支持 2–16 人动态缩放并与滚筒嘉年华共存。联机时所有玩家需安装同版模组。",
-        "zh-TW": "全新 3D 泡泡堂×炸彈人結合版派對小遊戲：每人 3 滴血（最後 1 血進水泡困住、撞破淘汰），4 套隨機多變地圖含工業傳送帶，支援 2–16 人動態縮放並與滾筒嘉年華共存。連線時所有玩家須安裝同版模組。",
-        "en": "New 3D hybrid Crazy Arcade + Bomberman party minigame: 3 HP each (final hit traps in a bubble to bump-pop), 4 randomized arena themes including industrial conveyors, 2–16 player scaling, and full coexistence with Roller Carnival. All online players need the same version."
+        "version": "v0.1.1",
+        "zh-CN": "修复底部个人属性 HUD 在不同分辨率下被截断的问题（改为自适应居中紧凑显示），并将游戏内歌单与过场 15 格 CRT 图标重绘为与原版一致的 256×256 黑底单色剪影规范。",
+        "zh-TW": "修正底部個人屬性 HUD 在不同解析度下被截斷的問題（改為自適應置中精簡顯示），並將遊戲內歌單與過場 15 格 CRT 圖示重繪為與原版一致的 256×256 黑底單色剪影規範。",
+        "en": "Fixes the bottom personal stats HUD clipping on scaled viewports with an auto-centered compact bar, and updates the in-game playlist/CRT picker icon to the authentic 256×256 monochrome black-and-white silhouette style."
       },
       "package": {
-        "assetId": "1019",
-        "filename": "bubble-blitz-0.1.0.zip",
-        "size": 158213,
-        "sha256": "544f0ddfaa54da53e93d4735100cf01a5d545e199226fe799a077054565ae627",
+        "assetId": "1020",
+        "filename": "bubble-blitz-0.1.1.zip",
+        "size": 158546,
+        "sha256": "01f87deef04802304a0588e9959594ee2b2d5f9ffac0d83e369b21c2052939cd",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
