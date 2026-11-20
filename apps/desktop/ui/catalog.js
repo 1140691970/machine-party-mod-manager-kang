@@ -1,6 +1,14 @@
 // Pure helpers over catalog/mods.json entries.
+import { locales } from "./languages.js";
 
 export const inventoryKey = mod => (mod.inventoryById || mod.legacyInventoryRepos?.length) ? mod.id : mod.repo;
+
+export function releaseNotesFor(mod, locale) {
+  const notes = mod.releaseNotes;
+  if (!notes || notes.version !== mod.version) return "";
+  const text = notes[locale];
+  return typeof text === "string" ? text.trim() : "";
+}
 
 export function sortMods(catalog, bundled = []) {
   // Disk records use the identity rules shipped with this desktop build, even offline.
@@ -13,12 +21,6 @@ export function sortMods(catalog, bundled = []) {
   }).sort((a, b) => a.order - b.order);
 }
 
-export function searchText(mod) {
-  return [...Object.values(mod.name), mod.repo, ...mod.aliases, ...Object.values(mod.summary)]
-    .join(" ")
-    .toLowerCase();
-}
-
 export function installedRows(inventory, online, bundled) {
   const byRepo = new Map([...bundled, ...online].map(mod => [inventoryKey(mod), mod]));
   return Object.entries(inventory)
@@ -27,5 +29,6 @@ export function installedRows(inventory, online, bundled) {
 }
 
 export function visibleMods(mods, {query}) {
-  return mods.filter(mod => searchText(mod).includes(query));
+  const term = query.trim().toLowerCase();
+  return mods.filter(mod => locales.some(locale => mod.name[locale].toLowerCase().includes(term)));
 }

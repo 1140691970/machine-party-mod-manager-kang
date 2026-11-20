@@ -6,4 +6,4 @@ A preview could display a newly published mod while requiring a new desktop buil
 
 Fresh installs, upgrades and disk scans use the same authorized release. The first signed description of an online-only ID is retained and reverified for offline inspection and removal. Only the active approvals authorize installing that online package. Existing installation records and backups remain compatible.
 
-Installed offers a catalog refresh. A newer compatible release shows **Update to**; the confirmation shows both versions and the game path. Cancel closes the dialog before any download. Catalog tests cover a new ID and rejected adapters. Transaction tests cover replacement and recovery.
+Refresh the mod list in Mod catalog. A newer compatible release shows **Update to**; the confirmation shows both versions and includes release notes when the signed catalog supplies them for the target version and the player’s language. Cancel closes the dialog before any download. Catalog tests cover a new ID and rejected adapters. Transaction tests cover replacement and recovery.

@@ -55,7 +55,7 @@ try {
   assert.deepEqual(await app.evaluate('window.__TAURI__.core.invoke("cached_packages")'), {});
   await app.command("Network.enable");
   await app.command("Network.setBlockedURLs",{urls:["*/v1/catalog.json*"]});
-  await app.evaluate('localStorage.removeItem("online-catalog-mpml-v1")');
+  await app.evaluate('localStorage.removeItem("online-catalog-mpml-v1"); localStorage.removeItem("online-catalog-mpml-v1-proof")');
   await app.command("Page.reload");
   await until(() => app.evaluate('document.querySelector(".list-status button") && !document.querySelector("article")'), "Remote catalog failure");
   await shot("catalog-unavailable");
@@ -73,8 +73,11 @@ try {
   await until(() => app.evaluate('window.checkingPainted'), "Startup verification status");
   console.log("Saved record visible after navigation (ms):", await app.evaluate("window.checkingPainted"));
   await app.command("Page.removeScriptToEvaluateOnNewDocument", {identifier:checking.identifier});
-  await until(() => app.evaluate('document.querySelector("article")?.innerText.includes("遊戲檔案已變更")'), "Unknown PCK is protected despite stale inventory");
+  await until(() => app.evaluate('document.querySelector("article .card-actions button")?.textContent === "查看原因"'), "Stale inventory offers details");
+  await app.evaluate('document.querySelector("article .card-actions button").click()');
+  await until(() => app.evaluate('document.querySelector("dialog[open]")?.innerText.includes("偵測到遊戲已更新或存在未知修改")'), "Unknown PCK is protected despite stale inventory");
   await shot("game-files-changed");
+  await app.evaluate('document.querySelector("#close").click()');
   // A user-requested full check updates the status before starting disk I/O.
   await app.evaluate('void import("./game-folder.js").then(m=>m.syncGameMods(true))');
   await shot("checking");
@@ -82,6 +85,33 @@ try {
   await shot("narrow-150pct");
   const hash = await app.evaluate('window.__TAURI__.core.invoke("validate_game_mods",{path:localStorage.getItem("game-path")}).then(x=>x.pckSha256)');
   assert.match(hash,/^[0-9a-f]{64}$/);
+
+  // Exercise both views with one synthetic scan after the real disk checks.
+  const version = await app.evaluate(`(async () => {
+    const {state} = await import("./state.js");
+    const {syncGameMods, applyValidation} = await import("./game-folder.js");
+    await syncGameMods();
+    const mod = state.mods.find(item => item.id === "overtime");
+    applyValidation({...state.lastScan, installed:{[mod.repo]:"v1.6"},
+      modStates:{...state.lastScan.modStates, [mod.id]:"installed"}}, state.game);
+    return mod.version;
+  })()`);
+  const view = async page => app.evaluate(`(() => {
+    document.querySelector('[data-page="${page}"]').click();
+    const card = [...document.querySelectorAll("article")].find(el => el.querySelector(".card-title")?.textContent === "Overtime");
+    return {
+      actions: card && [...card.querySelectorAll(".card-actions button")].filter(b => b.checkVisibility()).map(b => b.innerText.trim()),
+      refresh: document.querySelector("#refresh-catalog").checkVisibility(),
+      checkUpdates: [...document.querySelectorAll("main button")].some(b => b.checkVisibility() && b.textContent.trim() === "檢查模組更新")
+    };
+  })()`);
+  assert.deepEqual(await view("catalog"), {actions:["更新至 " + version], refresh:true, checkUpdates:false});
+  assert.deepEqual(await view("installed"), {actions:["解除安裝"], refresh:false, checkUpdates:false});
+  await view("catalog");
+  await app.evaluate('document.querySelector("article .card-title a").click()');
+  await app.evaluate('[...document.querySelectorAll("#dialogBody button")].find(b => b.textContent === "解除安裝").click()');
+  assert.match(await app.evaluate('document.querySelector("#dialogTitle").innerText'), /解除安裝.*Overtime.*v1\.6/);
+  assert.equal(await app.evaluate('document.querySelector("#dialogBody").innerText.includes(localStorage.getItem("game-path"))'), false);
   console.log("Verified native Windows catalog, restart checks and narrow layout");
 } catch (error) {
   console.error("WebView state:", await app.evaluate(`({

@@ -59,6 +59,7 @@ test("an online-only approved mod can be installed, updated and removed after re
   const row = {disk:"vanilla", game:"copy", scan:"ready", bundled:false, approved:true, version:"v2"};
   assert.equal(catalogAction(row), "install");
   assert.equal(catalogAction({...row, disk:"installed", installed:true, local:"v1"}), "updateMod");
+  assert.equal(catalogAction({...row, page:"installed", disk:"installed", installed:true, local:"v1"}), "uninstall");
   assert.equal(catalogAction({...row, disk:"installed", installed:true, local:"v2"}), "uninstall");
   assert.equal(catalogAction({...row, disk:"installed", installed:true, local:"v1", approved:false}), "uninstall");
   assert.equal(catalogAction({...row, approved:false}), "review");

@@ -38,6 +38,19 @@ test("translated policies exist at the root", async () => {
   for (const policy of policies) await access(path.join(root, policy));
 });
 
+test("all three README mod tables match the repository catalog", async () => {
+  const catalog = JSON.parse(await readFile(path.join(root, "catalog/mods.json"), "utf8"));
+  const expected = catalog.mods.toSorted((a, b) => a.order - b.order).map(mod => {
+    const url = "https://github.com/" + mod.repo;
+    return [mod.repo === catalog.repo ? url + "/tree/main/mods/" + mod.id : url, mod.version];
+  });
+  for (const file of ["README.md", "docs/readme/README.zh-CN.md", "docs/readme/README.zh-TW.md"]) {
+    const source = await readFile(path.join(root, file), "utf8");
+    const rows = source.matchAll(/^\| \[[^\]]+\]\((https:\/\/github\.com\/[^)]+)\) \| `([^`]+)` \|/gm);
+    assert.deepEqual(Array.from(rows, ([, url, version]) => [url, version]), expected, file);
+  }
+});
+
 test("each guide links to its counterparts and marks its own language", async () => {
   for (const language of languages) {
     for (const file of guides[language]) {

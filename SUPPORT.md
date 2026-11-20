@@ -9,7 +9,12 @@
 
 ## Updating one installed mod
 
-Close the game, open **Installed**, and select **Check mod updates**. For an available update, select **Update to**, review the installed version, target version and game copy, then select **Confirm update** to begin. If a package fails verification, the previous version stays installed. After an interrupted replacement, close the game and reopen the manager to recover the recorded version. The mod’s details also offer **Uninstall**.
+Close the game before updating a mod.
+
+- **Windows preview 0.1.2-11** — Open **Installed** and select **Check mod updates**. Select **Update to**, check the versions and the game copy, then select **Confirm update**. This version shows the game path in the confirmation.
+- **Development build shown below** — Open **Mod catalog** and select **Refresh mod list**. Select **Update to**, check the versions and any release notes, then select **Confirm update**. If a refresh adds or revises notes in your language while the dialog is open, review the revised text and confirm again.
+
+If package verification fails, the previous version stays installed. After an interrupted replacement, close the game and reopen the manager to recover the recorded version. The details for a mod with an available update also offer **Uninstall** in the catalog.
 
 ![Updating one installed mod](docs/images/screenshot-mod-update.png)
 

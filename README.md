@@ -27,16 +27,16 @@ Browse hand-curated mods for [Machine Party](https://store.steampowered.com/app/
 </div>
 
 <p align="center">
-  <img src="docs/images/screenshot-catalog.png" width="100%" alt="Machine Party Mod Manager catalog view showing six v2.1.2 preview entries">
+  <img src="docs/images/screenshot-catalog.png" width="100%" alt="Mod catalog with version and category tags">
 </p>
 
-<p align="center"><sub>Desktop catalog UI displaying all six <code>v2.1.2</code> Windows preview entries.</sub></p>
+<p align="center"><sub>The catalog shows each mod’s version and category.</sub></p>
 
 ## At a glance
 
 | Curated mod catalog | Verified backups & restore | Mirror access & signed updates |
 | --- | --- | --- |
-| Search names, multiplayer notes and aliases in Simplified Chinese, Traditional Chinese and English across all catalogued mods. | Checks running processes, game fingerprints and mutual-exclusion conflicts before editing files, keeping per-copy backups for offline uninstall. | Syncs the online catalog and approved packages via the project's Cloudflare Worker without needing GitHub; silent signed app updates include release notes. |
+| Search mod titles in Simplified Chinese, Traditional Chinese and English across all catalogued mods. | Checks running processes, game fingerprints and mutual-exclusion conflicts before editing files, keeping per-copy backups for offline uninstall. | Syncs the online catalog and approved packages via the project's Cloudflare Worker without needing GitHub; silent signed app updates include release notes. |
 
 Automatic Steam detection · Offline cache & restore · Trilingual UI (简体中文 / 繁體中文 / English)
 
@@ -70,20 +70,23 @@ The update prompt illustrates a simulated upgrade from 0.1.2-6 to 0.1.2-7.
 
 ## Catalogued mods
 
+The table lists the versions in this repository’s [catalog](catalog/mods.json). The manager offers them after the corresponding catalog revision is published.
+
 | Mod | Version | Summary | Adapter & `v2.1.2` status |
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Author CLI payload → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Native MPML |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | Eight players, rotating teams and director free camera | Author resource tree → MPML |
 | [Binary1936 eight-player mod](https://github.com/Binary1936/machine-party-8p) | `v1.5` | Expands online play to eight players | Author resource tree → MPML |
-| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.1` | Mechanical carnival dodge minigame | Native MPML |
-| [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.1.4` | Add or remove ready bots in online rooms. | Native MPML |
+| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.3` | Mechanical carnival dodge minigame | Native MPML |
+| [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | Add or remove ready bots in online rooms. | Native MPML |
+| [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 
 ## Release notes
 
-Windows preview **0.1.2-11** can install Standalone HD from the signed catalog and asks for confirmation before updating a mod. This catalog includes Roller Carnival v0.1.2 and Lobby Bots v0.1.5. [Full changelog](CHANGELOG.md).
+Windows preview **0.1.2-11** can install Standalone HD from the signed catalog and asks for confirmation before updating a mod. At the time of that preview release, the catalog included Roller Carnival v0.1.2 and Lobby Bots v0.1.5. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

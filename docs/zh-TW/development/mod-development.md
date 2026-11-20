@@ -98,16 +98,32 @@
    - 填寫 `supportedGameVersions` 與對應桌面版號的 `windowsPreview`，在通過 Tier 3 前一律保持 `"verified": false`。
    - 設定 `adapter`：`kind: "loader-files"`、`platforms: ["windows"]`、`target: "pckDir"`、`touches: ["mods"]`、`exclusive: "loader"`、`autoLoader: true`、`upstreamUninstall: false`、原版 `baseline` 指紋與逐一對應打包檔案的 `requiredFiles`。
    - 提供完整的 `zh-CN`、`zh-TW`、`en` 三語 `name`、`summary`、`detail` 與搜尋 `aliases`。
-4. 同步更新 [`mods/README.md`](../../../mods/README.md) 索引表。
+   - 將 `category` 設為 `expansion`、`game`、`tool` 或 `graphics`。`releaseNotes` 為選填。提供時，將 `version` 設為條目版本，並填寫已有的翻譯。彈窗只顯示玩家目前語言的說明。若連線需要全員升級，可在說明中提醒。
+4. 同步更新 [`mods/README.md`](../../../mods/README.md) 索引表。在[英文](../../../README.md)、[簡中](../../readme/README.zh-CN.md)、[繁中](../../readme/README.zh-TW.md)首頁的模組表中，依目錄順序加入該模組與版本。
 5. 不會有任何介面特例：所有目錄模組使用完全相同的卡片樣式、詳情版面與 Worker 下載 → 校驗 → 安裝彈窗流程。
+
+版本資料範例
+
+```json
+{
+  "version": "v1.2.0",
+  "category": "game",
+  "releaseNotes": {
+    "version": "v1.2.0",
+    "zh-CN": "修复第二回合计分重复的问题。",
+    "zh-TW": "修正第二回合重複計分的問題。",
+    "en": "Fixed scores being counted twice in round two."
+  }
+}
+```
 
 ## 6. 確定性 ZIP 打包與 R2 / Worker 部署流程
 
 - **跨平台確定性打包**：[`scripts/pack-mod.mjs`](../../../scripts/pack-mod.mjs) 依字典序收集非排除檔案，採用 `ZIP_STORED`（method `0`）與固定 DOS 時間戳記（`1980-01-01 00:00:00`）產生封存檔，確保 macOS、Linux 與 Windows 產生完全相同的位元組與 SHA-256。
 - **CI 自動上傳 R2 與部署 Worker**：執行 `.github/workflows/catalog-worker.yml` 時，會自動跑 `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`、將缺少的 `packages/sha256/<sha256>.zip` 上傳至 R2（`machine-party-mods`）、驗證全部 `mirrorApproved` 套件的 R2 `ContentLength`，接著上傳 `catalog/revisions/<revision>.json`、部署 `services/catalog-worker` 並以 `HEAD /v1/downloads/...` 確認線上端點回傳 200。
-- **更新既有自研模組**：調升 `mods/<id>/mod.json` 版本號後，重新執行 `node scripts/pack-mod.mjs <id>`，更新 `catalog/mods.json`（`revision`、`version`、`package.assetId`/`filename`/`size`/`sha256`）與 `mods/<id>/README.md`，推送至 `main` 後執行 `Deploy mod catalog Worker` 即可（僅更新桌面用戶端本身時再依[發布管理器更新](releasing.md)流程辦理）。
+- **更新既有自研模組** — 調升 `mods/<id>/mod.json` 的版本號，執行 `node scripts/pack-mod.mjs <id>` 取得新檔名、大小與 SHA-256。在 `catalog/mods.json` 更新套件資料（含 `assetId`）、目錄修訂號與模組版本。若有舊版說明，請更新或移除。同步更新模組 README、[模組索引](../../../mods/README.md)及[英文](../../../README.md)、[簡中](../../readme/README.zh-CN.md)、[繁中](../../readme/README.zh-TW.md)首頁表格的版本。推送至 `main` 後執行 `Deploy mod catalog Worker`。更新桌面用戶端時請參閱[發布管理器更新](releasing.md)。
 
-若管理器已收錄這個原生 MPML 模組，可設 `"updateChannel": "preview"` 將新版提供給 Windows 測試版玩家。目錄部署流程會簽署這次修訂。支援單模組更新的管理器可從「已安裝」升級現有安裝，通過 Steam 驗收後再設 `"verified": true`。詳見 [ADR-012](../architecture/ADR-012-single-mod-updates.md)。
+若管理器已收錄這個原生 MPML 模組，可設 `"updateChannel": "preview"` 將新版提供給 Windows 測試版玩家。目錄部署流程會簽署這次修訂。開發版在「模組目錄」點選「更新至」，核對版本後確認。Windows 預覽版 0.1.2-11 的操作步驟見[支援指南](../SUPPORT.md)。通過 Steam 驗收後再設 `"verified": true`。詳見 [ADR-012](../architecture/ADR-012-single-mod-updates.md)。
 
 ## 延伸閱讀
 

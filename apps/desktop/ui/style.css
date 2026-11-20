@@ -126,6 +126,19 @@ main {
   gap: var(--space-4);
   margin-bottom: var(--space-6);
 }
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+@media (prefers-reduced-motion: no-preference) {
+  #refresh-catalog[aria-busy="true"] .icon {
+    animation: catalog-spin 800ms linear infinite;
+  }
+}
+@keyframes catalog-spin {
+  to { transform: rotate(360deg); }
+}
 .page-head h1 {
   font: 800 var(--text-display) / 1.1 var(--font-display);
   letter-spacing: 0.2px;
@@ -185,7 +198,7 @@ main {
   position: absolute;
   inset: var(--space-2) var(--space-2) auto;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-start;
   gap: var(--space-2);
 }

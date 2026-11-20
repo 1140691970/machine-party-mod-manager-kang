@@ -27,16 +27,16 @@
 </div>
 
 <p align="center">
-  <img src="../images/screenshot-catalog.zh-TW.png" width="100%" alt="Machine Party 模組管理器目錄介面，顯示六個 v2.1.2 測試版條目">
+  <img src="../images/screenshot-catalog.zh-TW.png" width="100%" alt="模組目錄與封面右上角的版本及分類標籤">
 </p>
 
-<p align="center"><sub>桌面端目錄介面，顯示全部七個 <code>v2.1.2</code> Windows 測試版條目。</sub></p>
+<p align="center"><sub>模組目錄顯示各模組的收錄版本與分類。</sub></p>
 
 ## 一目了然
 
 | 精選收錄模組 | 校驗備份，安全還原 | 鏡像加速與簽章更新 |
 | --- | --- | --- |
-| 支援簡體中文、繁體中文與英文別名搜尋、連線說明與作者首頁入口，涵蓋目錄內全部模組。 | 修改檔案前先檢查遊戲程序、基線指紋與互斥衝突；依遊戲副本保留可校驗備份，支援離線卸載還原。 | 目錄同步與已授權安裝包優先經專案 Cloudflare Worker 取得，不依賴連線 GitHub；應用更新附簽章驗證與更新說明。 |
+| 支援簡體中文、繁體中文與英文名稱搜尋、連線說明與作者首頁入口，涵蓋目錄內全部模組。 | 修改檔案前先檢查遊戲程序、基線指紋與互斥衝突；依遊戲副本保留可校驗備份，支援離線卸載還原。 | 目錄同步與已授權安裝包優先經專案 Cloudflare Worker 取得，不依賴連線 GitHub；應用更新附簽章驗證與更新說明。 |
 
 Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文 / English 三語介面
 
@@ -70,20 +70,23 @@ Windows 下載後執行 NSIS 安裝程式即可；Apple Silicon Mac 解壓封存
 
 ## 已收錄模組
 
+下表列出這份[專案目錄](../../catalog/mods.json)的版本。對應的目錄修訂發布後，管理器才會提供這些版本。
+
 | 模組 | 版本 | 簡介 | 適配方式與 `v2.1.2` 狀態 |
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | 最多 8 人線上或本機同玩 | 作者 CLI 資源清單 → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公開房間、語音與文字聊天 | 原生 MPML |
 | [Broadcast 8P Freecam](https://github.com/Lnksoul/MachineParty_Broadcast8P_Freecam_Patcher) | `v0.91` | 八人團播、四隊輪換與導播自由鏡頭 | 作者資源目錄 → MPML |
 | [八人連線模組](https://github.com/Binary1936/machine-party-8p) | `v1.5` | 將線上遊戲擴充至 8 人 | 作者資源目錄 → MPML |
-| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.1` | 機械狂歡躲避小遊戲 | 原生 MPML |
-| [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.1.4` | 房主可加入或移除預設就緒的測試機器人。 | 原生 MPML |
+| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.3` | 機械狂歡躲避小遊戲 | 原生 MPML |
+| [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可加入或移除預設就緒的測試機器人。 | 原生 MPML |
+| [獨立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | 提高 3D 渲染清晰度，保留視窗模式與 HUD 配置 | 原生 MPML |
 
 驗收清單、上游授權邊界與互斥群組規則詳見[候選模組與收錄規範](../zh-TW/catalog/mods.md)。
 
 ## 更新紀錄
 
-Windows 測試版 **0.1.2-11** 支援從簽章目錄安裝獨立高清，並在更新模組前請求確認。目錄包含滾筒嘉年華 v0.1.2 與房間機器人 v0.1.5。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
+Windows 測試版 **0.1.2-11** 支援從簽章目錄安裝獨立高清，並在更新模組前請求確認。該測試版發布時，目錄包含滾筒嘉年華 v0.1.2 與房間機器人 v0.1.5。 [完整更新紀錄](../zh-TW/CHANGELOG.md)。
 
 ## 文件
 

@@ -21,6 +21,15 @@ test("MPML lobby bot seats, ready state, scores and cleanup", {skip: !available 
   assert.match(output, /Lobby Bots checks passed/);
 });
 
+test("Disco Dodge decisions use reachable matching tiles before shoving", {skip: !available && "Godot unavailable"}, () => {
+  const result = spawnSync(godot, ["--headless", "--path", local("../../mods/lobby-bots"),
+    "--script", local("./disco_decisions.gd")], {encoding: "utf8", timeout: 20000});
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 0, output);
+  assert.doesNotMatch(output, /SCRIPT ERROR|ERROR:/);
+  assert.match(output, /Disco decisions passed/);
+});
+
 const vanilla = process.env.MACHINE_PARTY_SOURCE || local("../../.agent/mod-dev/decompiled");
 const pit = join(vanilla, "minigames/escalator_pit");
 test("native Escalator Pit settles two rounds with the same bots", {
@@ -45,11 +54,32 @@ test("native Escalator Pit settles two rounds with the same bots", {
 [node name="Player" type="Node3D"]
 script = ExtResource("1")
 `);
+  runFixture(dir, /Native Escalator Pit settlement passed/);
+});
+
+function runFixture(dir, success) {
   for (const args of [["--editor", "--import"], ["--script", "res://run.gd", "--fixed-fps", "60"]]) {
     const result = spawnSync(godot, ["--headless", "--path", dir, ...args], {encoding: "utf8", timeout: 20000});
     const output = result.stdout + result.stderr;
     assert.equal(result.status, 0, output);
     assert.doesNotMatch(output, /SCRIPT ERROR|ERROR:/);
-    if (args.includes("--script")) assert.match(output, /Native Escalator Pit settlement passed/);
+    if (args.includes("--script")) assert.match(output, success);
   }
+}
+
+const discoPlayer = "minigames/disco_dodge/components/player/scripts/disco_dodge_player.gd";
+test("Disco Dodge bot navigates missing tiles and lands a native shove", {
+  skip: !available ? "Godot unavailable" : !existsSync(join(vanilla, discoPlayer)) && "local game source unavailable"
+}, async t => {
+  const dir = await mkdtemp(join(tmpdir(), "lobby-bots-disco-"));
+  t.after(() => rm(dir, {recursive: true, force: true}));
+  await mkdir(join(dir, "minigames/disco_dodge/components/player/scripts"), {recursive: true});
+  await copyFile(join(vanilla, discoPlayer), join(dir, discoPlayer));
+  for (const name of ["main.gd", "project.godot"]) {
+    await copyFile(local("../../mods/lobby-bots/" + name), join(dir, name));
+  }
+  for (const name of ["base.gd", "tile.gd", "run.gd"]) {
+    await copyFile(local("./disco/" + name), join(dir, name));
+  }
+  runFixture(dir, /Native Disco Dodge bot checks passed/);
 });

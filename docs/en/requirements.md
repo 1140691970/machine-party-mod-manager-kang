@@ -6,7 +6,7 @@
 
 The home page shows the catalog the team has verified and published. Each entry shows its name, author, purpose, author project page, supported game version, installable version, local state and primary action. When upstream publishes a new release, only versions that pass team verification become installable.
 
-- Search runs locally against catalogued names, authors, summaries and maintainer-curated Simplified Chinese, Traditional Chinese and English aliases. Clearing the query restores the full catalog. With no results it shows "No matching mods".
+- Search matches any part of a Simplified Chinese, Traditional Chinese or English mod title locally, ignoring case. Clearing the query restores the full catalog. With no results it shows "No matching mods".
 - Order depends only on a fixed catalog sequence number. Searches, updates, renames and star counts keep relative order. Whether newest or oldest entries come first will be decided when the home page is final.
 - The product has no filters, rankings or GitHub-wide search. Mod information comes from GitHub; the team decides inclusion, compatibility and installable versions.
 - The app, search, install and uninstall are free. Mod details link to the author so players can read the original instructions.
@@ -31,5 +31,5 @@ With exactly one valid Steam copy, actions are available immediately. Without on
 2. Using only the app, a player installs verified Overtime, launches from Steam, sees the matching version and completes a round.
 3. After one offline uninstall, the original PCK matches its pre-install SHA-256 and the unmodified game starts again.
 4. Simulated download failure, interrupted writes and a Steam update all show the real state on next launch, and an old backup never overwrites a newer game.
-5. Alias matches still appear in catalog order. Opening an author page and installing are separate actions.
+5. Partial title matches still appear in catalog order. Opening an author page and installing are separate actions.
 6. Players in mainland China with no proxy, no app cache and no GitHub access obtain the catalog from the production Worker. Previously synced players can search the cache offline; a first offline launch offers retry and access to local installations. Catalog and package downloads are verified separately following the [three-carrier acceptance plan](catalog/delivery.md).

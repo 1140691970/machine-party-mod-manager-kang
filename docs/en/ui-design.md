@@ -11,7 +11,7 @@ Taken from the game's wine-red overalls and brass machinery: deep wine backgroun
 - **Brand**: the gear badge mark, a cream masked face inside a brass gear on a rounded wine plate. The UI uses `apps/desktop/ui/images/logo.svg`; the app icon source is `apps/desktop/artwork/app-icon.svg` (with macOS padding). Run `npx --yes --package @tauri-apps/cli@2.12.5 tauri icon ../artwork/app-icon.svg -o /tmp/icons` in `apps/desktop/src-tauri` and copy only the desktop sizes into `icons/`.
 - **Design tokens**: colours, fonts, type scale, spacing, radii, shadows and motion are all defined in `apps/desktop/ui/tokens.css`. Components and layout reference variables only and add no new colour values.
   - Backgrounds from dark to light: sidebar `--wine-900`, main area `--wine-850`, cards `--wine-800`, hover `--wine-750`; the selected navigation item uses `--wine-600`.
-  - The accent is brass `--brass-500`, used for primary buttons, links and the "Update available" tag; success is a pale green and warnings a warm orange.
+  - The accent is brass `--brass-500`, used for primary buttons and links; success is a pale green and warnings a warm orange.
   - Titles and the brand use a condensed bold face (Avenir Next Condensed / Bahnschrift Condensed), body text uses system UI fonts and version numbers use a monospaced font.
 - **Shared components** (`components.css`, created by `dom.js` and `icons.js`):
   - Button `button(text, action, variant, icon)`: `primary` raised brass, `secondary` outlined, `ghost` without fill and `link` text link; card buttons add `btn-block` to fill the width.
@@ -25,26 +25,15 @@ Taken from the game's wine-red overalls and brass machinery: deep wine backgroun
 ## Layout
 
 - **Sidebar**: the mark with `MACHINE PARTY` and the "Mod Manager" subtitle at the top. Primary navigation "Mod catalog" and "Installed", each with an icon and at least 44px high; the selected item has a wine fill and a brass icon. "Settings" at the bottom shows a small red `.update-dot` when a newer manager release is available.
-- **Header**: a condensed page title and subtitle on the left; on the catalog page a pill search box on the right with the placeholder "Search mods, authors or keywords".
+- **Header**: a condensed page title and subtitle on the left; on the catalog page a pill search box on the right with the placeholder "Search mod titles". The refresh button beside the catalog title spins while the list reloads.
 - **Content**: an equal-height card grid that fills the available width, with a minimum card width of about 280px. Settings is a vertical list of panels up to 720px wide.
 - **Narrow windows (≤760px)**: the sidebar collapses to the mark and icons, the header stacks vertically and search takes the full width.
 
 ## Mod card
 
-1. **Cover (16:9)**: the catalog version at top left ("Version unlisted" when absent) and the state tag at top right: "Test release" (`isPreview`) for Windows preview entries before verification, "Update available" on brass, "Matches catalog" in green, "Local version is newer" and "Check versions" in warm orange, and the default dark tag otherwise. A skeleton shows until the image loads; without an image, or when it fails, a wine gradient title cover is shown. No text is overlaid on images.
-2. **Title and summary**: the title is a link that opens details, followed by a one-line summary of its purpose and multiplayer requirements, then `Game version · v2.1.2` (or compatibility unconfirmed). When the manager has an install record, "Local · version" and "Catalog · version" follow.
-3. **Footer**: one full-width button. The author page link lives in details, not on the card.
-
-| Local vs catalog | State tag | Primary button |
-| --- | --- | --- |
-| No install record | "Unverified" / "Test release" (for unverified / Windows preview) | "Install" (opens install dialog for Windows preview, or explains pending verification) |
-| Same version | "Matches catalog" | "Uninstall" |
-| Local older, new version unverified | "Update pending verification", existing install kept | "Update" (explains it becomes available after verification) |
-| Local older, new version verified | "Update available" | "Update" |
-| Local newer | "Local version is newer", existing install kept | "Uninstall" |
-| Either version unknown or not comparable, or records unreadable | "Check versions", never replaced automatically | "Check versions" (opens details) |
-
-On Windows preview, all five `v2.1.2` catalog entries run real step-by-step install and uninstall dialogs (download from the Worker/R2 mirror or reuse cache; then verify SHA-256, back up, apply or restore, read-back verify, retry on failure, and report mutual-exclusion conflicts). On macOS or for unverified versions, actions explain the status without modifying game files.
+1. The 16:9 cover groups the catalog version and category at the top right. The catalog supplies the category. The interface translates Expansion, Game, Tool and Graphics. An absent or unknown category leaves the version on its own. The cover shows a skeleton while loading and falls back to the title on a wine gradient.
+2. The title opens details. The summary and supported game version appear below. Managed installations also show the local and catalog versions.
+3. The catalog offers an update when the installed version is eligible. Installed uses the uninstall action for that same mod. Scan or repair issues lead to the existing recovery actions.
 
 ## Details dialog
 

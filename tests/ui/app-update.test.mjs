@@ -16,7 +16,11 @@ function makeDom() {
     className: "",
     textContent: "",
     type: "",
+    value: "",
+    style: {setProperty() {}},
+    classList: {add() {}},
     children: [],
+    get isConnected() { return body.children.includes(this); },
     get childElementCount() { return this.children.length; },
     matches: sel => sel === ".btn" && tag === "button",
     append(...items) { this.children.push(...items); },
@@ -117,4 +121,64 @@ test("queued background update waits until an active dialog closes", async () =>
   assert.equal(dialog.open, true);
   assert.match(title.textContent, /0\.3\.0/);
   dialog.close();
+});
+
+async function openModUpdate(releaseNotes) {
+  const {body} = makeDom();
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const {renderModList} = await import("../../apps/desktop/ui/catalog-view.js");
+  const name = {en:"Example", "zh-TW":"範例", "zh-CN":"示例"};
+  const mod = {id:"example", repo:"org/example", version:"v2", name, summary:name,
+    package:{sha256:"same"}, releaseNotes};
+  const scan = {installed:{[mod.repo]:"v1"}, modStates:{example:"installed"}, pckDir:"copy"};
+  const calls = [];
+  Object.assign(state, {locale:"en", game:"copy", mods:[mod], updateTargets:[mod], scan:"ready",
+    inventory:scan.installed, modStates:scan.modStates, packages:{example:"same"}});
+  window.__TAURI__.core.invoke = async command => {
+    calls.push(command);
+    if (command === "game_copies") return ["copy"];
+    if (command === "installed_versions") return scan.installed;
+    if (command === "validate_game_mods") return scan;
+    if (command === "update_mod") return {...scan, installed:{[mod.repo]:"v2"}};
+    assert.equal(command, "verify_package");
+  };
+  const content = document.createElement("main");
+  renderModList(content);
+  const card = content.children[0].children[0];
+  await card.children.find(el => el.className === "card-actions").children[0].onclick();
+  const notes = () => body.children.find(el => el.className === "release-notes")?.textContent;
+  const confirm = () => body.children.at(-1).children.at(-1).onclick();
+  calls.length = 0;
+  return {body, calls, confirm, notes, mod, state};
+}
+
+test("a mod update can be confirmed without notes for its version and language", async () => {
+  for (const releaseNotes of [undefined, {version:"v2", "zh-TW":"更新"}, {version:"v2", en:"  "}, {version:"v1", en:"Old"}]) {
+    const {body, calls, confirm} = await openModUpdate(releaseNotes);
+    assert.deepEqual(body.children.map(el => el.tag), ["p", "div"]);
+    assert.equal(body.children[0].textContent, "v1 → v2");
+    await confirm();
+    assert.deepEqual(calls, ["verify_package", "update_mod"]);
+  }
+});
+
+test("a mod update requires fresh confirmation for new or revised notes", async () => {
+  const {calls, confirm, notes, mod, state} = await openModUpdate();
+  assert.equal(notes(), undefined);
+  for (const en of ["Everyone must update", "Everyone must restart"]) {
+    state.mods = [{...mod, releaseNotes:{version:mod.version, en}}];
+    await confirm();
+    assert.equal(notes(), en);
+    assert.deepEqual(calls, []);
+  }
+  state.mods[0].releaseNotes["zh-TW"] = "請重新啟動";
+  await confirm();
+  assert.deepEqual(calls, ["verify_package", "update_mod"]);
+});
+
+test("withdrawing optional notes does not require another confirmation", async () => {
+  const {calls, confirm, mod, state} = await openModUpdate({version:"v2", en:"First notes"});
+  state.mods = [{...mod, releaseNotes:undefined}];
+  await confirm();
+  assert.deepEqual(calls, ["verify_package", "update_mod"]);
 });

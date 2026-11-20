@@ -23,12 +23,19 @@ class Bots extends "res://main.gd":
 
 class Network extends Node:
 	signal on_peer_connected(id)
-	var active_backend := {"lobby_id": 123, "connected_players": {1: {}}, "self_data": {"customization": [0, 0, 0]}}
+	var active_backend := {"lobby_id": 123, "connected_players": {1: {}}, "self_data": {"customization": ["tophat", "sunglasses", "blue"]}}
 	var max_player_count := 4
 
 class GlobalsFixture extends Node:
+	const suit_colors = ["red", "blue", "green", "yellow", "purple"]
 	var allow_singleplayer := false
 	var local_game := false
+
+class OutfitAssigner:
+	var outfit := ["", "", ""]
+	func assign_hat(value): outfit[0] = value
+	func assign_glasses(value): outfit[1] = value
+	func assign_suit_color(value): outfit[2] = value
 
 class Handler extends Control:
 	signal start_pressed
@@ -37,6 +44,7 @@ class Handler extends Control:
 	var root: Control = self
 	var players: Array[Node3D] = []
 	var nametags: Array[Label3D] = []
+	var customization_assigners := []
 
 class Lobby extends Node:
 	var lobby_handler := Handler.new()
@@ -67,6 +75,7 @@ class Brief extends Node:
 
 class Game extends Node:
 	signal player_game_ready(id)
+	var minigame: Node
 	var total_score_by_network_id := {1: 0}
 	var game_score_by_network_id := {1: 0}
 	var round_score_by_network_id := {1: 0}
@@ -77,6 +86,9 @@ class Round extends Node:
 	signal minigame_ready
 	var players_loaded: Array[int] = []
 	func player_loaded(_id): pass
+
+class DiscoArena extends Node:
+	var active_players := {}
 
 var junk_override := GDScript.new()
 var failed := false
@@ -122,6 +134,7 @@ func run():
 		lobby.add_child(model)
 		lobby.lobby_handler.players.append(model)
 		lobby.lobby_handler.nametags.append(tag)
+		lobby.lobby_handler.customization_assigners.append(OutfitAssigner.new())
 	lobby.add_child(lobby.lobby_handler)
 	lobby.lobby_handler.size = Vector2(640, 360)
 	lobby.loading = true
@@ -151,8 +164,16 @@ func run():
 		bots.add_button.pressed.emit()
 	expect(bots.bots.size() == 3 and bots.steam.limit == 1, "host plus three bots fills room")
 	var ids := bots.bots.keys()
+	var original_outfits := bots.outfits.duplicate(true)
+	var seen := [net.active_backend.self_data.customization]
+	for id in ids:
+		var outfit: Array = bots.outfits[id]
+		expect(not seen.has(outfit) and GlobalsFixture.suit_colors.has(outfit[2]), "bot has a distinct native outfit")
+		expect(outfit[0] != "maska_helmet" or outfit[1] == "", "full-face helmet excludes glasses")
+		seen.append(outfit)
 	bots.rows.get_child(1).get_child(1).pressed.emit()
 	expect(bots.bots.keys() == [ids[0], ids[2]] and bots.steam.limit == 2, "remove just selected seat")
+	expect(not bots.outfits.has(ids[1]), "removed bot releases its outfit")
 	bots.steam.members = 2
 	bots._process(0)
 	expect(bots.add_button.disabled, "Steam member occupies last seat before game handshake")
@@ -170,6 +191,7 @@ func run():
 	expect(net.active_backend.connected_players.has(77), "human cannot be removed as bot")
 	bots._process(0)
 	expect(lobby.lobby_handler.nametags[2].text == "Bot 1" and lobby.lobby_handler.nametags[3].text == "Bot 3", "native preview retains the selected bot identity")
+	expect(lobby.lobby_handler.customization_assigners[2].outfit == original_outfits[ids[0]] and lobby.lobby_handler.customization_assigners[3].outfit == original_outfits[ids[2]], "outfits follow bots when their seats move")
 	if OS.get_cmdline_user_args().size() > 0:
 		await process_frame
 		await RenderingServer.frame_post_draw
@@ -183,6 +205,8 @@ func run():
 	bots._node_added(game)
 	root.add_child(game)
 	expect(players.player_presences.size() == 2 and game.total_score_by_network_id.size() == 3, "independent presences and scores")
+	for id in bots.bots:
+		expect(players.player_presences[id].customization == original_outfits[id], "in-game presence keeps the lobby outfit")
 	for i in 2:
 		var brief = game.intermission_manager.screen_briefing
 		brief.players_ready = {1: false, ids[0]: false, ids[2]: false}
@@ -242,6 +266,7 @@ func check_remote_roster():
 	while guest.bots.is_empty() and Time.get_ticks_msec() < deadline:
 		await process_frame
 	expect(guest.bots == host.bots and not guest.bots.is_empty(), "late join receives current roster")
+	expect(guest.outfits == host.outfits and guest.outfits.size() == 1, "late join receives the host-selected outfit")
 	guest._add()
 	expect(guest.bots.size() == 1, "client cannot add")
 	if not guest.bots.is_empty():
@@ -263,11 +288,13 @@ func check_remote_roster():
 	while guest.bots.is_empty() and Time.get_ticks_msec() < deadline:
 		await process_frame
 	expect(guest.bots == host.bots and guest.bots.size() == 1, "reconnected guest receives the existing bot")
+	expect(guest.outfits == host.outfits, "reconnection restores the same outfit")
 	host._remove(host.bots.keys()[0])
 	deadline = Time.get_ticks_msec() + 3000
 	while not guest.bots.is_empty() and Time.get_ticks_msec() < deadline:
 		await process_frame
 	expect(guest.bots.is_empty(), "host removal replicates")
+	expect(guest.outfits.is_empty(), "host removal clears the guest outfit")
 	var host_arena = junk_override.new()
 	var guest_arena = junk_override.new()
 	host_arena.name = "JunkPlatform"
@@ -286,11 +313,15 @@ func check_remote_roster():
 
 func check_disco(bots, ids: Array):
 	var survivors: Array = bots.bots.keys()
+	var arena := DiscoArena.new()
+	bots.game.add_child(arena)
+	bots.game.minigame = arena
 	var script = load(get_script().resource_path.get_base_dir().path_join("disco_player_fixture.gd"))
 	script.take_over_path(bots.DISCO_PLAYER)
 	for id in survivors.duplicate():
 		var actor = script.new()
 		actor.player_presence = {"network_id": id}
+		arena.active_players[id] = actor
 		root.add_child(actor)
 		actor.set_multiplayer_authority(id)
 		actor.set_physics_process(false)
@@ -298,12 +329,17 @@ func check_disco(bots, ids: Array):
 		actor.falls = id == ids[0]
 		actor.died.connect(func(dead_id): survivors.erase(dead_id))
 		bots._node_added(actor)
+	var falling = arena.active_players[ids[0]]
+	var rival = arena.active_players[ids[2]]
+	falling.shove_area.overlaps.append(rival)
 	bots._physics_process(0)
+	expect(falling.players_in_shove_proximity == [rival], "host tracks a live target during shove wind-up")
 	for actor in bots.disco_actors:
 		expect(actor.get_multiplayer_authority() == 1 and actor.is_physics_processing() and not actor.is_processing(), "host simulates bot physics without input")
 	await physics_frame
 	await physics_frame
 	expect(survivors == [ids[2]], "after host elimination, a falling bot leaves one survivor")
+	expect(falling.players_in_shove_proximity.is_empty(), "elimination cancels the pending shove target")
 	for actor in bots.disco_actors.duplicate(): actor.free()
 
 func check_junk(bots, players):

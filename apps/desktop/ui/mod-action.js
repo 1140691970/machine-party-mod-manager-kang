@@ -20,11 +20,11 @@ export function modAction({managed, verified, game, scan, disk, update}) {
   return "review";
 }
 
-export function catalogAction({disk, scan, game, installed, approved, bundled, local, version}) {
+export function catalogAction({page = "catalog", disk, scan, game, installed, approved, bundled, local, version}) {
   const removal = Boolean(game && installed);
   return modAction({
     managed:removal || approved || bundled, verified:removal || approved,
-    disk, scan, game, update:approved && versionState(local, version, true) === "available"
+    disk, scan, game, update:page === "catalog" && approved && versionState(local, version, true) === "available"
   });
 }
 

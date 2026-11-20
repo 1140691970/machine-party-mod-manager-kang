@@ -9,12 +9,13 @@ const FIRST_ID := 2147483647
 
 # Keys identify participants throughout the session, values are stable display numbers.
 var bots: Dictionary[int, int] = {}
+var outfits: Dictionary[int, Array] = {}
 var lobby: Node
 var game: Node
 var panel: VBoxContainer
 var add_button: Button
 var rows: VBoxContainer
-var shown_seats: Dictionary[int, int] = {}
+var shown_seats: Dictionary[int, Array] = {}
 var match_seats: Array[int] = []
 var locked := false
 var base_limit := 0
@@ -152,6 +153,22 @@ func _reserve(count: int) -> bool:
 func _has_space() -> bool:
 	return junk_override_ready and _humans() + bots.size() < _capacity()
 
+func _random_outfit() -> Array:
+	var used := outfits.values()
+	var choices: Array[Array] = []
+	var colors: Array = get_node("/root/Globals").suit_colors
+	var host: Array = _network().active_backend.self_data.customization
+	# Native characters render blue when a saved suit color is missing.
+	used.append([host[0], host[1], host[2] if colors.has(host[2]) else "blue"])
+	for hat in ["", "beer_hat", "cap_blade", "tophat", "traffic_cone", "maska_helmet", "drill_sgt_hat", "hard_hat"]:
+		# The native wardrobe disallows glasses with the full-face helmet.
+		for glasses in ([""] if hat == "maska_helmet" else ["", "sunglasses", "reading_glasses"]):
+			for color in colors:
+				var outfit := [hat, glasses, color]
+				if not used.has(outfit):
+					choices.append(outfit)
+	return choices.pick_random()
+
 func _add() -> void:
 	if not _can_edit() or not _has_space():
 		return
@@ -161,11 +178,13 @@ func _add() -> void:
 	while bots.values().has(number) or _network().active_backend.connected_players.has(FIRST_ID - number):
 		number += 1
 	bots[FIRST_ID - number] = number
+	outfits[FIRST_ID - number] = _random_outfit()
 	_changed()
 
 func _remove(id: int) -> void:
 	if _can_edit() and bots.has(id) and _reserve(bots.size() - 1):
 		bots.erase(id)
+		outfits.erase(id)
 		_changed()
 
 func _changed() -> void:
@@ -177,12 +196,13 @@ func _changed() -> void:
 	elif bots.is_empty():
 		_restore_singleplayer()
 	lobby.update_player_list()
-	_sync_roster.rpc(bots)
+	_sync_roster.rpc(bots, outfits)
 	_draw_rows()
 
 @rpc("authority", "call_remote", "reliable")
-func _sync_roster(roster: Dictionary[int, int]) -> void:
+func _sync_roster(roster: Dictionary[int, int], appearances: Dictionary[int, Array]) -> void:
 	bots.assign(roster)
+	outfits.assign(appearances)
 	_draw_rows()
 
 func _draw_rows() -> void:
@@ -214,7 +234,7 @@ func _connect_network() -> void:
 
 func _peer_connected(id: int) -> void:
 	if multiplayer.is_server() and not bots.is_empty():
-		_sync_roster.rpc_id(id, bots)
+		_sync_roster.rpc_id(id, bots, outfits)
 
 func _game_ready(node: Node) -> void:
 	game = node
@@ -222,8 +242,8 @@ func _game_ready(node: Node) -> void:
 	if not multiplayer.is_server() or bots.is_empty():
 		return
 	var players = get_node("/root/PlayerManager")
-	var outfit: Array = _network().active_backend.self_data.customization
 	for id in bots:
+		var outfit: Array = outfits[id]
 		var presence = players.add_player(id, outfit.duplicate())
 		_configure_presence(id, players.get_path_to(presence), bots[id], outfit)
 		game.total_score_by_network_id[id] = 0
@@ -287,10 +307,16 @@ func _show_lobby_seats() -> void:
 			if shown_seats.erase(seat) and id < 0:
 				handler.players[seat].visible = false
 			continue
-		if shown_seats.get(seat) != id or not handler.players[seat].visible:
+		var appearance := [id, outfits[id]]
+		if shown_seats.get(seat) != appearance or not handler.players[seat].visible:
+			var assigner = handler.customization_assigners[seat]
+			var outfit: Array = outfits[id]
+			assigner.assign_hat(outfit[0])
+			assigner.assign_glasses(outfit[1])
+			assigner.assign_suit_color(outfit[2])
 			handler.nametags[seat].text = "Bot %d" % bots[id]
 			handler.players[seat].visible = true
-			shown_seats[seat] = id
+			shown_seats[seat] = appearance
 
 func _process(_delta: float) -> void:
 	if is_instance_valid(lobby) and is_instance_valid(panel):
@@ -307,6 +333,104 @@ func _process(_delta: float) -> void:
 		for id in bots:
 			if brief.players_ready.get(id, true) == false:
 				brief.set_ready_rpc.rpc(id, true)
+
+# Disco spawns a rectangular grid centred on the origin, in tiles[z][x] order.
+class DiscoBrain:
+	var think_in := 0.0
+	var shove_in := 0.0
+	var waypoint := Vector3.ZERO
+
+	func cell(arena, pos: Vector3) -> Vector2i:
+		return Vector2i(floori(pos.x / arena.tile_size + arena.tile_rows * 0.5),
+			floori(pos.z / arena.tile_size + arena.tile_columns * 0.5))
+
+	func tile_at(arena, index: Vector2i):
+		if index.y < 0 or index.y >= arena.tiles.size():
+			return null
+		var row: Array = arena.tiles[index.y]
+		if index.x < 0 or index.x >= row.size():
+			return null
+		return row[index.x]
+
+	func solid(tile) -> bool:
+		return tile != null and not tile.armed and not tile.is_tile_removed_from_play and not tile.collision_shape.disabled
+
+	func decide(actor, arena, number: int) -> void:
+		var pos: Vector3 = actor.global_position
+		var start := cell(arena, pos)
+		var current = tile_at(arena, start)
+		waypoint = pos
+		if current == null or arena.active_players.size() < 2:
+			return
+		var rival = null
+		for other in arena.active_players.values():
+			if other != actor and other.active and (rival == null or pos.distance_squared_to(other.global_position) < pos.distance_squared_to(rival.global_position)):
+				rival = other
+		if rival == null:
+			return
+		var symbol := -1
+		for i in arena.display1_symbols.size():
+			if arena.display1_symbols[i].visible:
+				symbol = i
+				break
+		var safe_here: bool = solid(current) and (symbol < 0 or current.symbol_index == symbol)
+		if safe_here and shove_in <= 0.0 and actor.players_in_shove_proximity.has(rival):
+			var direction: Vector3 = rival.global_position - pos
+			if Vector2(direction.x, direction.z).length_squared() > 0.0001:
+				actor.visuals.rotation.y = atan2(-direction.x, -direction.z)
+				actor.shove()
+				shove_in = 0.85 + 0.1 * (number % 3)
+				return
+
+		# Remember the first step to each reachable tile. Escape via the shortest
+		# route; once safe, only cross matching tiles to approach another player.
+		var queue := [start]
+		var first_step := {start: start}
+		var best := start
+		var best_distance := INF
+		var rival_cell := cell(arena, rival.global_position)
+		for index: Vector2i in queue:
+			var tile = tile_at(arena, index)
+			if solid(tile) and (symbol < 0 or tile.symbol_index == symbol):
+				var distance := index.distance_squared_to(rival_cell)
+				if distance < best_distance:
+					best = index
+					best_distance = distance
+				if not safe_here or distance == 0:
+					break
+			for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var next: Vector2i = index + offset
+				if first_step.has(next):
+					continue
+				var adjacent = tile_at(arena, next)
+				if not solid(adjacent):
+					continue
+				if safe_here and symbol >= 0 and adjacent.symbol_index != symbol:
+					continue
+				first_step[next] = next if index == start else first_step[index]
+				queue.append(next)
+		if safe_here and start == rival_cell:
+			waypoint = rival.global_position
+		elif best != start or safe_here:
+			waypoint = tile_at(arena, first_step[best]).global_position
+
+	func tick(actor, arena, number: int, delta: float) -> void:
+		# Native shove() resolves hits after its wind-up, using this same list.
+		actor.players_in_shove_proximity.clear()
+		var participants: Array = arena.active_players.values()
+		for body in actor.shove_area.get_overlapping_bodies():
+			if body != actor and participants.has(body) and body.active:
+				actor.players_in_shove_proximity.append(body)
+		shove_in -= delta
+		think_in -= delta
+		if actor.shoved or actor.shoving:
+			return
+		if think_in <= 0.0:
+			decide(actor, arena, number)
+			think_in = 0.14 + 0.04 * (number % 3)
+		var direction: Vector3 = waypoint - actor.global_position
+		direction.y = 0.0
+		actor.movement_input = direction.normalized() if direction.length() > 0.18 else Vector3.ZERO
 
 # Junk Platform disables remote characters' physics. Run the idle movement and
 # fall checks on the host so its keyboard never drives a bot.
@@ -331,6 +455,12 @@ func _physics_process(delta: float) -> void:
 				actor.set_multiplayer_authority(1)
 			# Disco reads input in _process; its physics callback handles gravity, shoves and falls.
 			actor.set_physics_process(multiplayer.is_server())
+			if multiplayer.is_server() and actor.active and is_instance_valid(game.minigame):
+				if not actor.has_meta(&"lobby_bots_disco_brain"):
+					actor.set_meta(&"lobby_bots_disco_brain", DiscoBrain.new())
+					# The native shove coroutine reads this list after its wind-up.
+					actor.died.connect(func(_id): actor.players_in_shove_proximity.clear())
+				actor.get_meta(&"lobby_bots_disco_brain").tick(actor, game.minigame, bots[presence.network_id], delta)
 	for actor in junk_actors:
 		var p = actor.player_presence
 		if p == null or not bots.has(p.network_id):
@@ -361,5 +491,6 @@ func _reset() -> void:
 	match_seats.clear()
 	_restore_singleplayer()
 	bots.clear()
+	outfits.clear()
 	game = null
 	lobby = null

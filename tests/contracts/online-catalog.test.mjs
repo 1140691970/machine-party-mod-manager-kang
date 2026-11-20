@@ -4,7 +4,7 @@ import test from "node:test";
 import gateway from "../../services/update-worker/app-updates.mjs";
 import worker from "../../services/catalog-worker/catalog.mjs";
 import snapshot from "../../catalog/mods.json" with {type: "json"};
-import {cachedCatalog, downloadUrl, loadCatalog, restoreCatalogProof, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
+import {cachedCatalog, downloadUrl, loadCatalog, restoreCatalog, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
 
 const compatibleSnapshot = () => ({...snapshot,mods:snapshot.mods.map(m=>({...m,...previous[m.id]}))});
 const catalogStore = {PACKAGES:{get:async key => {
@@ -25,6 +25,38 @@ test("the client loads the Worker snapshot and retains it across failed refreshe
   assert.ok(!validCatalog({...snapshot, mods: [...snapshot.mods, snapshot.mods[0]]}));
   const response = await serve(catalogUrl);
   assert.equal((await serve(catalogUrl, {}, {headers: {"If-None-Match":response.headers.get("etag")}})).status, 304);
+});
+
+test("offline desktop release notes come from the document that was reverified", async () => {
+  const key = "online-catalog-mpml-v1";
+  const old = structuredClone(snapshot);
+  old.mods[0].releaseNotes = {version:old.mods[0].version, en:"Outdated notes for the same package"};
+  const document = JSON.stringify(snapshot);
+  const cache = new Map([[key, JSON.stringify(old)],
+    [key + "-proof", JSON.stringify({document, signature:"test-signature"})]]);
+  const storage = {getItem:k => cache.get(k) ?? null};
+  const verify = (raw, signature) => {
+    assert.equal(raw, document);
+    assert.equal(signature, "test-signature");
+  };
+  assert.deepEqual(await restoreCatalog(storage, verify), snapshot);
+  cache.delete(key);
+  assert.deepEqual(await restoreCatalog(storage, verify), snapshot);
+  cache.set(key, JSON.stringify(old));
+  const reject = () => { throw Error("catalogInvalid"); };
+  for (const proof of [cache.get(key + "-proof"), null, "bad JSON"]) {
+    cache.set(key + "-proof", proof);
+    const fallback = await restoreCatalog(storage, reject);
+    assert.deepEqual(fallback.mods.map(m => m.id), snapshot.mods.map(m => m.id));
+    assert.ok(fallback.mods.every(m => !("releaseNotes" in m)));
+  }
+  assert.deepEqual(await restoreCatalog(storage), old);
+});
+
+test("a desktop refresh without a signature keeps browsing available without release notes", async () => {
+  const catalog = await loadCatalog({}, () => Response.json(snapshot), (_, signature) => assert.equal(signature, ""));
+  assert.equal(catalog.mods.length, snapshot.mods.length);
+  assert.ok(catalog.mods.every(m => !("releaseNotes" in m)));
 });
 
 test("each download resolves only its approved version and R2 key", async () => {
@@ -177,7 +209,7 @@ test("only the full catalog carries the proof for its exact bytes, including ove
     called++;
   };
   assert.deepEqual(await loadCatalog(local, request, authorize), snapshot);
-  await restoreCatalogProof(local, authorize);
+  assert.deepEqual(await restoreCatalog(local, authorize), snapshot);
   assert.equal(called, 2);
   const prior = new Map(storage);
   await assert.rejects(loadCatalog(local, request, () => { throw Error("catalogInvalid"); }), /catalogInvalid/);

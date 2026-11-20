@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { installedRows, searchText, sortMods, visibleMods } from "../../apps/desktop/ui/catalog.js";
-import { locales } from "../../apps/desktop/ui/languages.js";
+import { installedRows, releaseNotesFor, sortMods, visibleMods } from "../../apps/desktop/ui/catalog.js";
+import { locales, messages } from "../../apps/desktop/ui/languages.js";
 import { listFirstPartyMods, packMod } from "../../scripts/pack-mod.mjs";
 
 const catalog = JSON.parse(await readFile(new URL("../../catalog/mods.json", import.meta.url), "utf8"));
@@ -15,11 +15,27 @@ test("every catalog entry has a stable identity and complete translations", () =
     assert.match(mod.id, /^[a-z0-9-]+$/);
     assert.match(mod.repo, /^[\w.-]+\/[\w.-]+$/);
     assert.ok(Number.isInteger(mod.order) && mod.order > 0);
+    assert.ok(["expansion", "game", "tool", "graphics"].includes(mod.category), mod.id);
+    assert.equal(messages["category_" + mod.category].filter(Boolean).length, locales.length);
     assert.equal(typeof mod.verified, "boolean");
     assert.ok(Array.isArray(mod.aliases));
+    if (mod.releaseNotes != null) {
+      assert.equal(mod.releaseNotes.version, mod.version);
+      for (const locale of locales) {
+        if (locale in mod.releaseNotes) assert.equal(typeof mod.releaseNotes[locale], "string", mod.id + " " + locale);
+      }
+    }
     for (const field of ["name", "summary", "detail"])
       assert.deepEqual(Object.keys(mod[field]).sort(), [...locales].sort(), `${mod.id}.${field}`);
   }
+});
+
+test("update notes come from the selected release and locale", () => {
+  const mod = {version: "v2", releaseNotes: {version: "v2", en: "Changes", "zh-TW": "更新內容"}};
+  assert.equal(releaseNotesFor(mod, "zh-TW"), "更新內容");
+  assert.equal(releaseNotesFor(mod, "zh-CN"), "");
+  assert.equal(releaseNotesFor({...mod, version: "v3"}, "en"), "");
+  assert.equal(releaseNotesFor({version: "v1"}, "en"), "");
 });
 
 test("images referenced by the catalog ship with the UI", async () => {
@@ -27,16 +43,22 @@ test("images referenced by the catalog ship with the UI", async () => {
     await readFile(new URL(`../../apps/desktop/ui/images/${mod.image}.png`, import.meta.url));
 });
 
-test("search keeps catalog order and matches names, aliases and every language", () => {
+test("search matches partial translated titles only and preserves catalog order", () => {
   const mods = sortMods(catalog);
-  const ids = (query, inventory = {}) =>
-    visibleMods(mods, {page: "catalog", query, inventory}).map(mod => mod.id);
-  assert.deepEqual(ids(""), mods.map(mod => mod.id));
-  assert.deepEqual(ids("mpml"), ["machineparty-plus"]);
-  assert.deepEqual(ids("eight-player"), ["binary1936-8p"]);
-  assert.deepEqual(ids("直播"), ["broadcast-8p-freecam"]);
-  assert.deepEqual(ids("nothing-matches"), []);
-  assert.ok(searchText(mods[0]).includes("darkjadestone"));
+  const ids = query => visibleMods(mods, {query}).map(mod => mod.id);
+  assert.deepEqual(ids("  "), mods.map(mod => mod.id));
+  assert.deepEqual(ids("  ErTiM  "), ["overtime"]);
+  assert.deepEqual(ids("滚筒"), ["roller-carnival"]);
+  assert.deepEqual(ids("嘉年華"), ["roller-carnival"]);
+  assert.deepEqual(ids("er"), mods.filter(mod => ["overtime", "binary1936-8p", "roller-carnival"].includes(mod.id)).map(mod => mod.id));
+  for (const query of ["mpml", "darkjadestone", "直播", "nothing-matches"]) assert.deepEqual(ids(query), []);
+});
+
+test("search ignores extra fields in a remote title", () => {
+  const [entry] = catalog.mods;
+  const mod = {...entry, name: {...entry.name, ja: null, de: "Überstunden"}};
+  assert.deepEqual(visibleMods([mod], {query: "über"}), []);
+  assert.deepEqual(visibleMods([mod], {query: "overtime"}), [mod]);
 });
 
 test("the installed page lists only mods recorded for the selected copy", () => {

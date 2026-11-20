@@ -8,7 +8,7 @@ import { icon } from "./icons.js";
 import { renderSettings } from "./settings-view.js";
 import { onRender, state, t } from "./state.js";
 
-import { cachedCatalog, loadCatalog, restoreCatalogProof } from "./online-catalog.js";
+import { loadCatalog, restoreCatalog } from "./online-catalog.js";
 
 let catalogStatus = "catalogLoading";
 let catalogError = "";
@@ -20,8 +20,11 @@ function applyLocale() {
   setAppTitle(document.title);
   $(".brand").setAttribute("aria-label", document.title);
   $(".brand small").textContent = t("manager");
-  $("input").placeholder = t("search");
-  $("input").setAttribute("aria-label", t("search"));
+  $("#search input").placeholder = t("search");
+  $("#search input").setAttribute("aria-label", t("search"));
+  const refresh = $("#refresh-catalog");
+  refresh.title = t("refreshCatalog");
+  refresh.setAttribute("aria-label", refresh.title);
   $("#close").setAttribute("aria-label", t("close"));
   for (const el of document.querySelectorAll("[data-page]")) {
     el.title = t(el.dataset.page);
@@ -49,17 +52,17 @@ function render() {
   $("h1").textContent = t(state.page);
   $("#subtitle").textContent = state.page === "settings" ? "" : t(state.page + "Sub");
   $("#search").hidden = state.page !== "catalog";
+  const refresh = $("#refresh-catalog");
+  const loading = catalogStatus === "catalogLoading";
+  refresh.hidden = state.page !== "catalog";
+  refresh.disabled = loading || Boolean(state.busyMod);
+  refresh.setAttribute("aria-busy", String(loading));
   const content = $("#content");
   content.replaceChildren();
   content.className = state.page === shownPage ? "" : "entering";
   shownPage = state.page;
   if (state.page === "settings") renderSettings(content, applyLocale);
   else {
-    if (state.page === "installed" && !catalogStatus) {
-      const check = button(t("checkModUpdates"), refreshCatalog, "secondary", "refresh");
-      check.disabled = Boolean(state.busyMod) || state.scan === "checking";
-      content.append(check);
-    }
     if (catalogStatus) {
       const status = element("section", "", "list-status" + (state.mods.length ? " compact" : ""));
       status.setAttribute("role", "status");
@@ -76,14 +79,12 @@ const previousPage = sessionStorage.getItem("page");
 if (["installed", "settings"].includes(previousPage)) state.page = previousPage;
 onRender(render);
 state.appVersion = await appVersion();
-const cached = cachedCatalog(localStorage);
 const bundled = isDesktop ? await bundledCatalog() : {mods: []};
 state.pinned = bundled.mods;
 state.removalMods = bundled.removalMods ?? [];
 state.previewMod = bundled.previewMod ?? null;
 state.previewMods = bundled.previewMods ?? (bundled.previewMod ? [bundled.previewMod] : []);
 state.appRepo = bundled.repo || state.appRepo;
-state.mods = cached ? sortMods(cached, state.pinned) : [];
 
 async function authorize(document, signature) {
   state.updateTargets = await authorizeUpdates(document, signature);
@@ -91,21 +92,22 @@ async function authorize(document, signature) {
   const approved = new Set(state.updateTargets.map(mod => mod.id));
   state.removalMods.push(...JSON.parse(document).mods.filter(mod => approved.has(mod.id) && !known.has(mod.id)));
 }
-if (isDesktop) {
-  try { await restoreCatalogProof(localStorage, authorize); } catch { /* Refresh online. */ }
-}
+const verifyCatalog = isDesktop ? authorize : undefined;
+let catalog = await restoreCatalog(localStorage, verifyCatalog);
+state.mods = catalog ? sortMods(catalog, state.pinned) : [];
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
   catalogError = "";
   render();
   try {
-    state.mods = sortMods(await loadCatalog(localStorage, fetch, isDesktop ? authorize : undefined), state.pinned);
+    catalog = await loadCatalog(localStorage, fetch, verifyCatalog);
+    state.mods = sortMods(catalog, state.pinned);
     catalogStatus = "";
     if (isDesktop && state.game) void syncGameMods();
   } catch (error) {
     catalogError = error.message || String(error);
-    catalogStatus = cachedCatalog(localStorage) ? "catalogCached" : "catalogUnavailable";
+    catalogStatus = catalog ? "catalogCached" : "catalogUnavailable";
   }
   render();
 
@@ -117,7 +119,8 @@ document.querySelectorAll("[data-page]").forEach(el => el.onclick = () => {
   sessionStorage.setItem("page", state.page);
   render();
 });
-$("input").oninput = render;
+$("#search input").oninput = render;
+$("#refresh-catalog").onclick = refreshCatalog;
 $("#close").onclick = closeDialog;
 applyLocale();
 void refreshCatalog();

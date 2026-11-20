@@ -75,6 +75,27 @@ export function cachedCatalog(storage) {
   } catch { return null; }
 }
 
+// Legacy desktop caches can still be browsed when their signature is unavailable.
+function omitReleaseNotes(catalog) {
+  return {...catalog, mods:catalog.mods.map(({releaseNotes, ...mod}) => mod)};
+}
+
+export async function restoreCatalog(storage, authorize) {
+  if (!authorize) return cachedCatalog(storage);
+  try {
+    const proof = JSON.parse(storage.getItem(cacheKey + "-proof"));
+    if (typeof proof?.signature === "string" && proof.signature && typeof proof.document === "string") {
+      const catalog = JSON.parse(proof.document);
+      if (validCatalog(catalog)) {
+        await authorize(proof.document, proof.signature);
+        return catalog;
+      }
+    }
+  } catch { /* Fall back to the browsing cache. */ }
+  const cached = cachedCatalog(storage);
+  return cached && omitReleaseNotes(cached);
+}
+
 export async function loadCatalog(storage, request = fetch, authorize) {
   let catalog;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -89,6 +110,7 @@ export async function loadCatalog(storage, request = fetch, authorize) {
       if (authorize) {
         const signature = response.headers.get("X-Mod-Catalog-Signature") || "";
         await authorize(document, signature);
+        if (!signature) catalog = omitReleaseNotes(catalog);
         try { storage.setItem(cacheKey + "-proof", JSON.stringify({document,signature})); } catch { /* Optional offline cache. */ }
       }
       break;
@@ -108,9 +130,4 @@ export async function loadCatalog(storage, request = fetch, authorize) {
 
 export function downloadUrl(mod) {
   return origin + `/v1/downloads/${mod.id}/${mod.version}/${mod.package.assetId}`;
-}
-
-export async function restoreCatalogProof(storage, authorize) {
-  const proof = JSON.parse(storage.getItem(cacheKey + "-proof") || "null");
-  if (proof?.signature) await authorize(proof.document, proof.signature);
 }

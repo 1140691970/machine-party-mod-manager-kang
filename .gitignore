@@ -4,6 +4,11 @@ gen/
 dist/
 node_modules/
 
+# Playwright snapshots and test reports
+.playwright-cli/
+/playwright-report/
+/test-results/
+
 # Local agent memory, editor indexes and rules
 .agent/
 .cursor/

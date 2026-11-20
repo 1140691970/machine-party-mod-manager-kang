@@ -1,7 +1,7 @@
 import { downloadUrl } from "./online-catalog.js";
 import { installationProblem, catalogAction, uninstallEntry } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
-import { inventoryKey, installedRows, visibleMods } from "./catalog.js";
+import { inventoryKey, installedRows, releaseNotesFor, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
 import { applyValidation, syncGameMods, withGameCopy } from "./game-folder.js";
 import { render, state, t } from "./state.js";
@@ -24,11 +24,6 @@ const signedPackage = mod => isDesktop && state.updateTargets.some(item => match
 const removalEntry = mod => uninstallEntry(mod.id, state.modStates[mod.id], [...state.pinned, ...state.removalMods, ...state.updateTargets]);
 const approvedUpdate = mod => isDesktop && (signedPackage(mod)
   || (trustedPackage(mod) && (pinnedOf(mod).verified || isPreview(mod))));
-
-const statusTone = {
-  pending: "", release: "", waiting: "", same: "success",
-  available: "accent", newer: "warning", review: "warning"
-};
 
 function project(mod) {
   return button(mod.repo.split("/")[0], () => openProject(mod.repo), "link", "external");
@@ -117,7 +112,7 @@ function details(mod) {
   show(nameOf(mod), ...parts);
 }
 
-function cover(mod, name, status) {
+function cover(mod, name) {
   const box = element("div", "", "cover");
   const fallback = element("strong", name, "cover-title");
   box.append(fallback);
@@ -133,32 +128,43 @@ function cover(mod, name, status) {
   const tags = element("div", "", "cover-tags");
   const version = tag(mod.version || t("unlisted"));
   if (mod.version) version.classList.add("tag-mono");
-  const label = isPreview(mod) && status === "pending" ? "testRelease" : status;
-  tags.append(version, tag(t(label), statusTone[status]));
+  tags.append(version);
+  const category = t("category_" + mod.category);
+  if (category) tags.append(tag(category));
   box.append(tags);
   return box;
+}
+
+function confirmModUpdate(mod, revised = false) {
+  const path = state.game;
+  const dir = state.pckDir;
+  const from = state.inventory[inventoryKey(mod)];
+  const notes = releaseNotesFor(mod, state.locale);
+  show(t("updateMod") + " · " + nameOf(mod),
+    element("p", from + " → " + mod.version),
+    ...(notes ? [
+      element("strong", t(revised ? "modReleaseNotesChanged" : "modReleaseNotes")),
+      element("p", notes, "release-notes")
+    ] : []),
+    button(t("cancelModUpdate"), closeDialog),
+    button(t("confirmModUpdate"), () => {
+      const latest = state.mods.find(item => item.id === mod.id);
+      if (state.game !== path || state.pckDir !== dir || !latest || !matchesMod(latest, mod)
+          || state.inventory[inventoryKey(latest)] !== from)
+        return show(t("releaseChanged"), button(t("close"), closeDialog));
+      const latestNotes = releaseNotesFor(latest, state.locale);
+      if (latestNotes && latestNotes !== notes) return confirmModUpdate(latest, true);
+      if (currentAction(latest) !== "updateMod")
+        return show(t("releaseChanged"), button(t("close"), closeDialog));
+      return installDialog(latest, "updateMod");
+    }, "primary"));
 }
 
 function startInstall(mod, action) {
   return withGameCopy(() => {
     const migrate = action === "switch" && state.modStates[mod.id] === "legacyInstalled";
     if (!state.pckDir || (!migrate && currentAction(mod) !== action)) return details(mod);
-    if (action === "updateMod") {
-      const path = state.game;
-      const dir = state.pckDir;
-      const from = state.inventory[inventoryKey(mod)];
-      return show(t("updateMod") + " · " + nameOf(mod),
-        element("p", from + " → " + mod.version),
-        element("p", state.lastScan?.pckPath || dir, "file-detail"),
-        button(t("cancelModUpdate"), closeDialog),
-        button(t("confirmModUpdate"), () => {
-          const latest = state.mods.find(item => item.id === mod.id);
-          if (state.game !== path || state.pckDir !== dir || !latest || !matchesMod(latest, mod)
-              || state.inventory[inventoryKey(mod)] !== from || currentAction(latest) !== action)
-            return show(t("releaseChanged"), button(t("close"), closeDialog));
-          return installDialog(latest, action);
-        }, "primary"));
-    }
+    if (action === "updateMod") return confirmModUpdate(mod);
     if (action === "switch") {
       const removals = conflictingMods(mod);
       if (!removals.length) return details(mod);
@@ -198,7 +204,6 @@ async function installDialog(mod, action, removals = []) {
   });
   steps.setAttribute("aria-live", "polite");
   const bar = progress();
-  const location = element("p", state.lastScan?.pckPath || path, "file-detail");
   const dialog = $("dialog");
   const close = $("#close");
   let stage = 0;
@@ -214,7 +219,7 @@ async function installDialog(mod, action, removals = []) {
     render();
   };
   dialog.addEventListener("close", onClose);
-  show(title(action), ...(notice ? [notice] : []), steps, location, bar.el);
+  show(title(action), ...(notice ? [notice] : []), steps, bar.el);
   state.busyMod = mod.id;
   render();
   try {
@@ -244,7 +249,7 @@ async function installDialog(mod, action, removals = []) {
       if (state.scan !== "ready") throw state.scanError || "statusUnavailable";
       rows[stage].textContent = t("disk_" + state.modStates[mod.id]);
       if (state.modStates[mod.id] === "manualInstall") {
-        show(title("identifySuccess"), steps, location, button(t("adoptManual"), () => startInstall(mod, "adoptManual"), "primary"));
+        show(title("identifySuccess"), steps, button(t("adoptManual"), () => startInstall(mod, "adoptManual"), "primary"));
         return;
       }
     } else {
@@ -255,14 +260,14 @@ async function installDialog(mod, action, removals = []) {
       if (problem) throw problem;
       rows[stage].textContent = t("done");
     }
-    show(title(action + "Success"), steps, location);
+    show(title(action + "Success"), steps);
   } catch (error) {
     if (!ownsDialog()) return;
     const [key, ...detail] = String(error).split(": ");
     if (["downloadFirst", "packageCorrupt"].includes(key)) delete state.packages[mod.id];
     if (action === "updateMod" && key === "modUpdatedRescan") {
       rows[stage].textContent = t("done");
-      show(title("updateModSuccess"), steps, element("p", t(key)), location);
+      show(title("updateModSuccess"), steps, element("p", t(key)));
       if (state.game === path) await syncGameMods(true);
       return;
     }
@@ -275,7 +280,7 @@ async function installDialog(mod, action, removals = []) {
         retryButton = button(t("retry"), () => startInstall(mod, action), "primary");
         retryButton.disabled = true;
       }
-      show(title(action + "Failure"), message, steps, location, ...(retryButton ? [retryButton] : []));
+      show(title(action + "Failure"), message, steps, ...(retryButton ? [retryButton] : []));
     }
     if (stage === installStage && path && path === state.game) await syncGameMods(true);
     if (retryButton) retryButton.disabled = false;
@@ -292,7 +297,7 @@ async function installDialog(mod, action, removals = []) {
 
 function currentAction(mod) {
   return catalogAction({
-    disk:state.modStates[mod.id], scan:state.scan, game:state.game,
+    page:state.page, disk:state.modStates[mod.id], scan:state.scan, game:state.game,
     installed:removalEntry(mod), approved:approvedUpdate(mod), bundled:trustedPackage(mod),
     local:state.inventory[inventoryKey(mod)], version:mod.version
   });
@@ -312,7 +317,6 @@ function uninstallDialog(cardMod) {
   row.append(element("span", t("restoreStep")), status);
   steps.append(row);
   steps.setAttribute("aria-live", "polite");
-  const location = element("p", state.lastScan?.pckPath || target, "file-detail");
   const dialog = $("dialog");
   const close = $("#close");
   const preventCancel = event => event.preventDefault();
@@ -323,7 +327,7 @@ function uninstallDialog(cardMod) {
     status.textContent = t("working");
     close.disabled = true;
     dialog.addEventListener("cancel", preventCancel);
-    show(title("uninstall"), steps, location);
+    show(title("uninstall"), steps);
     render();
     try {
       const result = await uninstallMod(path, mod, target);
@@ -332,7 +336,7 @@ function uninstallDialog(cardMod) {
         throw result.modStates[mod.id] || "uninstallFailed";
       }
       status.textContent = t("done");
-      show(title("uninstallSuccess"), steps, location);
+      show(title("uninstallSuccess"), steps);
     } catch (error) {
       status.textContent = t("failed");
       const [key, ...detail] = String(error).split(": ");
@@ -343,7 +347,7 @@ function uninstallDialog(cardMod) {
         retryButton = button(t("retry"), run, "primary");
         retryButton.disabled = true;
       }
-      show(title("uninstallFailure"), message, steps, location, ...(retryButton ? [retryButton] : []));
+      show(title("uninstallFailure"), message, steps, ...(retryButton ? [retryButton] : []));
       if (state.game === path) await syncGameMods(true);
       if (retryButton) retryButton.disabled = false;
     } finally {
@@ -354,7 +358,7 @@ function uninstallDialog(cardMod) {
     }
   };
 
-  show(title("uninstall"), steps, location, button(t("uninstall"), run, "primary"));
+  show(title("uninstall"), steps, button(t("uninstall"), run, "primary"));
 }
 
 function primaryAction(mod) {
@@ -374,7 +378,6 @@ function primaryAction(mod) {
 function card(mod, index) {
   const name = nameOf(mod);
   const local = state.inventory[inventoryKey(mod)];
-  const status = state.scan === "failed" ? "review" : versionState(local, mod.version, mod.verified || approvedUpdate(mod));
   const item = element("article", "", "card");
   item.style.setProperty("--i", String(index));
 
@@ -386,10 +389,6 @@ function card(mod, index) {
   heading.append(link);
   body.append(heading, element("p", mod.summary[state.locale], "card-summary"));
   body.append(element("p", support(mod), "panel-note"));
-  const disk = state.modStates[mod.id];
-  const label = !state.game ? "" : state.scan === "checking" ? "checking" : state.scan === "failed" ? "retryCheck" : disk;
-  const summary = [cached(mod) && t("cached"), label && t("disk_" + label)].filter(Boolean);
-  if (summary.length) body.append(element("p", summary.join(" · "), "panel-note"));
   if (local !== undefined) {
     const versions = element("div", "", "comparison");
     versions.append(
@@ -401,7 +400,7 @@ function card(mod, index) {
 
   const footer = element("div", "", "card-actions");
   footer.append(primaryAction(mod));
-  item.append(cover(mod, name, status), body, footer);
+  item.append(cover(mod, name), body, footer);
   return item;
 }
 
@@ -416,7 +415,7 @@ export function renderModList(content) {
       row.append(body);
       return row;
     })
-    : visibleMods(state.mods, {query:$("input").value.trim().toLowerCase()}).map(card);
+    : visibleMods(state.mods, {query:$("#search input").value}).map(card);
   if (cards.length) {
     const grid = element("div", "", "grid");
     grid.append(...cards);

@@ -13,7 +13,7 @@ This directory holds GDScript mods authored in `machine-party-mod-manager`. Ever
 | ID | Name | Version | Package ZIP | Game Compatibility | Windows Verification | Documentation |
 | --- | --- | --- | --- | --- | --- | --- |
 | `roller-carnival` | Roller Carnival (滾筒嘉年華) | `0.1.3` | `roller-carnival-0.1.3.zip` | Steam `v2.1.2` | Pending physical Windows test | [mods/roller-carnival/README.md](roller-carnival/README.md) |
-| `lobby-bots` | Lobby Bots (房間機器人) | `0.1.5` | `lobby-bots-0.1.5.zip` | Steam `v2.1.2` | Pending physical Windows test | [Lobby Bots](lobby-bots/README.md) |
+| `lobby-bots` | Lobby Bots (房間機器人) | `0.2.2` | `lobby-bots-0.2.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Lobby Bots](lobby-bots/README.md) |
 | `standalone-hd` | Standalone HD (獨立高清) | `0.1.1` | `standalone-hd-0.1.1.zip` | Steam `v2.1.2` | Pending physical Windows test | [Standalone HD](standalone-hd/README.md) |
 
 ## Deterministic ZIP packaging rules

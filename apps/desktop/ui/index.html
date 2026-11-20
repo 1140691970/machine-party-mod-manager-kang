@@ -27,11 +27,14 @@
     <main>
       <header class="page-head">
         <div>
-          <h1></h1>
+          <div class="page-title">
+            <h1></h1>
+            <button id="refresh-catalog" class="btn btn-ghost btn-icon" data-icon="refresh" hidden></button>
+          </div>
           <p id="subtitle"></p>
         </div>
         <label id="search" class="field search" data-icon="search">
-          <input type="search" placeholder="搜索模组、作者或关键字" aria-label="搜索模组" />
+          <input type="search" placeholder="搜索模组名称" aria-label="搜索模组" />
         </label>
       </header>
       <div id="content"></div>

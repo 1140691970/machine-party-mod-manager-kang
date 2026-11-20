@@ -100,16 +100,32 @@ To publish a first-party mod into the catalog and R2/Worker pipeline:
    - Set `"supportedGameVersions"`, `"windowsPreview"` matching the current app preview build, and `"verified": false` until Tier 3 passes.
    - Configure `"adapter"`: `"kind": "loader-files"`, `"platforms": ["windows"]`, `"target": "pckDir"`, `"touches": ["mods"]`, `"exclusive": "loader"`, `"autoLoader": true`, `"upstreamUninstall": false`, verified `"baseline"` (`Machine Party.pck` size + SHA-256), and exact `"requiredFiles"` matching `pack-mod.mjs` output.
    - Provide complete `zh-CN`, `zh-TW`, and `en` text for `name`, `summary`, and `detail`, plus `aliases`.
-4. Update [`mods/README.md`](../../../mods/README.md) with the new mod row.
+   - Set `category` to `expansion`, `game`, `tool` or `graphics`. `releaseNotes` is optional. If supplied, set its `version` to the entry’s version and include text for the available languages. The dialog displays notes for the player’s language when present. Mention any multiplayer compatibility requirements in the notes you publish.
+4. Update [`mods/README.md`](../../../mods/README.md) with the new mod row. Add the mod and its catalog version to the [English](../../../README.md), [Simplified Chinese](../../readme/README.zh-CN.md) and [Traditional Chinese](../../readme/README.zh-TW.md) homepage tables, in catalog order.
 5. No UI special-casing is needed or used: every catalog mod displays the exact same cards, badges, details dialog, and Worker download -> verify -> install workflow.
+
+Version metadata example
+
+```json
+{
+  "version": "v1.2.0",
+  "category": "game",
+  "releaseNotes": {
+    "version": "v1.2.0",
+    "zh-CN": "修复第二回合计分重复的问题。",
+    "zh-TW": "修正第二回合重複計分的問題。",
+    "en": "Fixed scores being counted twice in round two."
+  }
+}
+```
 
 ## 6. Packaging and R2 / Worker deployment
 
 - **Deterministic ZIP build**: [`scripts/pack-mod.mjs`](../../../scripts/pack-mod.mjs) packs non-excluded runtime files in sorted lexicographical order using `ZIP_STORED` (method `0`) with fixed DOS timestamps (`1980-01-01 00:00:00`), guaranteeing identical SHA-256 hashes across macOS, Linux, and Windows.
 - **Automated Worker + R2 staging**: Dispatching `.github/workflows/catalog-worker.yml` runs `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`, uploads missing `packages/sha256/<sha256>.zip` objects to Cloudflare R2 (`machine-party-mods`), verifies every `mirrorApproved` package object size in R2, stages `catalog/revisions/<revision>.json`, deploys `services/catalog-worker`, and checks every live `/v1/downloads/<id>/<version>/<assetId>` HEAD response.
-- **Updating an existing mod**: Bump `version` in `mods/<id>/mod.json`, re-run `node scripts/pack-mod.mjs <id>` to update `catalog/mods.json` (`version`, `revision`, `package.assetId`/`filename`/`size`/`sha256`), update `mods/<id>/README.md`, push to `main`, and dispatch `Deploy mod catalog Worker`. Keep `"verified": false` during `windowsPreview` testing and set `"verified": true` only after Tier 3 passes; for desktop manager updates see [Releasing manager updates](releasing.md).
+- **Updating an existing mod** — Bump the version in `mods/<id>/mod.json`. Run `node scripts/pack-mod.mjs <id>` to read the new filename, size and SHA-256. Update the package metadata (including `assetId`), catalog revision and mod version in `catalog/mods.json`. Replace or remove any notes from the previous version. Update the mod README, the [mods index](../../../mods/README.md) and the version in the [English](../../../README.md), [Simplified Chinese](../../readme/README.zh-CN.md) and [Traditional Chinese](../../readme/README.zh-TW.md) homepage tables. Push to `main` and dispatch `Deploy mod catalog Worker`. For desktop manager updates, see [Releasing manager updates](releasing.md).
 
-For a native MPML release already known to the manager, set `"updateChannel": "preview"` to offer the new package to Windows preview users. The catalog workflow signs that revision. Clients with single-mod update support can then update an existing installation from **Installed**. Promote to `"verified": true` after Steam acceptance. See [ADR-012](../architecture/ADR-012-single-mod-updates.md).
+For a native MPML release already known to the manager, set `"updateChannel": "preview"` to offer the new package to Windows preview users. The catalog workflow signs that revision. In the development build, open **Mod catalog**, select **Update to**, review the versions and confirm. For Windows preview 0.1.2-11, follow the [support guide](../../../SUPPORT.md). Promote to `"verified": true` after Steam acceptance. See [ADR-012](../architecture/ADR-012-single-mod-updates.md).
 
 ## References
 
