@@ -541,7 +541,8 @@ mod tests {
         assert_eq!(plus_adapter.exclusive, "loader");
         assert!(plus_adapter.auto_loader);
 
-        assert_eq!(all_entries().len(), 7);
+        // 8 = 7 original entries + spike-ring (added 2026-11-21).
+        assert_eq!(all_entries().len(), 8);
         let roller = entry("roller-carnival").expect("roller-carnival entry present");
         assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
         let roller_pkg = roller

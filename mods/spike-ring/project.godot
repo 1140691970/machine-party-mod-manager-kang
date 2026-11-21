@@ -1,0 +1,23 @@
+; Standalone Godot 4.5.2 preview project for Spike Ring (尖刺圆环).
+; Excluded from the release ZIP by scripts/pack-mod.mjs (project.godot).
+; Windows local preview:
+;   Godot_v4.5.2-stable_win64.exe --headless --path mods/spike-ring -- --self-test
+;   Godot_v4.5.2-stable_win64.exe --path mods/spike-ring --windowed --resolution 1280x720
+
+config_version=5
+
+[application]
+
+config/name="Spike Ring"
+run/main_scene="res://spike_ring_scene.tscn"
+config/features=PackedStringArray("4.5", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+anti_aliasing/quality/msaa_3d=2

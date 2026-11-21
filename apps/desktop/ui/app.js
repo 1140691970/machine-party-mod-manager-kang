@@ -1,6 +1,6 @@
 import { checkApp } from "./app-update.js";
 import { authorizeUpdates, appVersion, bundledCatalog, cachedPackages, isDesktop, setAppTitle } from "./bridge.js";
-import { sortMods } from "./catalog.js";
+import { mergeBundled, sortMods } from "./catalog.js";
 import { renderModList } from "./catalog-view.js";
 import { $, button, closeDialog, element, hydrateIcons, show } from "./dom.js";
 import { detectGame, pickGame, syncGameMods, syncGameModsOnFocus } from "./game-folder.js";
@@ -94,7 +94,7 @@ async function authorize(document, signature) {
 }
 const verifyCatalog = isDesktop ? authorize : undefined;
 let catalog = await restoreCatalog(localStorage, verifyCatalog);
-state.mods = catalog ? sortMods(catalog, state.pinned) : [];
+state.mods = sortMods(mergeBundled(catalog, bundled), state.pinned);
 
 async function refreshCatalog() {
   catalogStatus = "catalogLoading";
@@ -102,7 +102,7 @@ async function refreshCatalog() {
   render();
   try {
     catalog = await loadCatalog(localStorage, fetch, verifyCatalog);
-    state.mods = sortMods(catalog, state.pinned);
+    state.mods = sortMods(mergeBundled(catalog, bundled), state.pinned);
     catalogStatus = "";
     if (isDesktop && state.game) void syncGameMods();
   } catch (error) {

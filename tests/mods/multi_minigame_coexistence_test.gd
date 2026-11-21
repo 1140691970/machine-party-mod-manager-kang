@@ -57,26 +57,32 @@ func _run() -> void:
 	var loader := MockLoader.new()
 	var roller = loader.compile(loader.dir_of("roller-carnival").path_join("main.gd")).new()
 	var bubble = loader.compile(loader.dir_of("bubble-blitz").path_join("main.gd")).new()
+	var spike = loader.compile(loader.dir_of("spike-ring").path_join("main.gd")).new()
 	root.add_child(roller)
 	root.add_child(bubble)
+	root.add_child(spike)
 
 	roller._mod_init(loader)
 	bubble._mod_init(loader)
+	spike._mod_init(loader)
 	roller._mod_ready(loader)
 	bubble._mod_ready(loader)
+	spike._mod_ready(loader)
 
 	var custom_map: Dictionary = loader.registry("custom_minigames")
-	if not custom_map.has(6) or not custom_map.has(8):
-		return _fail("both slots 6 and 8 must be registered in custom_minigames")
+	if not custom_map.has(6) or not custom_map.has(8) or not custom_map.has(17):
+		return _fail("slots 6, 8 and 17 must all be registered in custom_minigames")
 
-	# Hub overrides should only be installed once (4 scripts) even when 2 minigame mods load.
+	# Hub overrides should only be installed once (4 scripts) even when 3 minigame mods load.
 	if loader.override_calls != 4:
 		return _fail("expected exactly 4 idempotent hub overrides, got %d" % loader.override_calls)
 
-	# Both packed scenes should instantiate with a Stage child.
+	# All three minigames occupy real vanilla slots: their packed scenes must be
+	# reachable through the stock scene paths AND instantiate with a Stage child.
 	for scene_path in [
 		"res://minigames/shape_cutter/shape_cutter.tscn",
 		"res://minigames/scavenger_chairs/scavenger_chairs.tscn",
+		"res://minigames/burn_recycle/burn_recycle.tscn",
 	]:
 		var packed := ResourceLoader.load(scene_path) as PackedScene
 		if packed == null:
@@ -87,20 +93,30 @@ func _run() -> void:
 			return _fail("scene missing Stage node: " + scene_path)
 		inst.free()
 
-	# Verify overridden game.gd includes both custom minigames in default_playlist and session_minigame_list.
+	# The hub spec for slot 17 must still expose the packed scene.
+	var spike_spec: Dictionary = custom_map[17]
+	var spike_packed: PackedScene = spike_spec.get("packed_scene", null) as PackedScene
+	if spike_packed == null:
+		return _fail("slot 17 has no packed_scene")
+	var spike_inst := spike_packed.instantiate()
+	if not spike_inst.has_node("Stage"):
+		spike_inst.free()
+		return _fail("slot 17 scene missing Stage node")
+	spike_inst.free()
+
+	# Verify overridden game.gd includes all three custom minigames in default & arcade playlists.
 	var game_script := ResourceLoader.load("res://scripts/scenes/game/game.gd") as GDScript
 	var game_node = game_script.new()
 	root.add_child(game_node)
 	game_node.generate_session_playlist()
-	if not game_node.session_minigame_list.has(6) or not game_node.session_minigame_list.has(8):
+	if not game_node.session_minigame_list.has(6) or not game_node.session_minigame_list.has(8) or not game_node.session_minigame_list.has(17):
 		return _fail("default playlist missing coexisting custom minigames: " + str(game_node.session_minigame_list))
 
-	# Verify Arcade mode also includes both custom minigames.
 	var gm: Node = root.get_node("GameManager")
 	gm.set("custom_game", true)
 	gm.set("arcade_game", true)
 	game_node.generate_session_playlist()
-	if not game_node.session_minigame_list.has(6) or not game_node.session_minigame_list.has(8):
+	if not game_node.session_minigame_list.has(6) or not game_node.session_minigame_list.has(8) or not game_node.session_minigame_list.has(17):
 		return _fail("arcade playlist missing coexisting custom minigames: " + str(game_node.session_minigame_list))
 
 	game_node.free()
