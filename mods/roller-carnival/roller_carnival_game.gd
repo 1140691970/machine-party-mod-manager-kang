@@ -1294,13 +1294,17 @@ func _spawn_impact_decal(pos: Vector3, scale_mul: float = 1.0) -> void:
 		_decals.append(mark)
 
 
+var _burst_box_mesh: BoxMesh = null
+
+
 func _spawn_burst(origin: Vector3, color: Color, count: int) -> void:
+	if _burst_box_mesh == null:
+		_burst_box_mesh = BoxMesh.new()
+		_burst_box_mesh.size = Vector3(0.14, 0.14, 0.14)
 	var mat = _meshes.make_toon_mat(color, 0.3, 0.0, color, 1.8)
 	for _i in range(count):
 		var part := MeshInstance3D.new()
-		var sm := BoxMesh.new()
-		sm.size = Vector3(0.14, 0.14, 0.14)
-		part.mesh = sm
+		part.mesh = _burst_box_mesh
 		part.material_override = mat
 		part.position = origin
 		_fx_layer.add_child(part)

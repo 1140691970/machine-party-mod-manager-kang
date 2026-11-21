@@ -570,75 +570,66 @@ static func _attach_normalized_glb(parent: Node3D, glb_path: String, target_exte
 	return true
 
 
-static func build_water_bubble(tile_size: float, _owner_color: Color) -> Node3D:
-	## Authentic Machine Party industrial explosive canister (dark iron + hazard rust barrel + red detonator LED).
-	var n := Node3D.new()
+static var _bomb_asset_cache: Dictionary = {}
+static var _blast_asset_cache: Dictionary = {}
 
-	var base := MeshInstance3D.new()
+
+static func _get_bomb_assets(tile_size: float) -> Dictionary:
+	var key := snappedi(int(round(tile_size * 1000.0)), 1)
+	if _bomb_asset_cache.has(key):
+		return _bomb_asset_cache[key]
 	var bm := CylinderMesh.new()
 	bm.top_radius = tile_size * 0.34
 	bm.bottom_radius = tile_size * 0.38
 	bm.height = tile_size * 0.14
-	base.mesh = bm
-	base.material_override = make_std_mat(Color(0.24, 0.24, 0.26), 0.82, 0.42, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(1.2, 1.2, 1.2))
-	base.position = Vector3(0.0, tile_size * 0.07, 0.0)
-	n.add_child(base)
 
-	var canister := MeshInstance3D.new()
-	canister.name = "CanisterBody"
 	var cm := CylinderMesh.new()
 	cm.top_radius = tile_size * 0.29
 	cm.bottom_radius = tile_size * 0.31
 	cm.height = tile_size * 0.52
-	canister.mesh = cm
-	canister.material_override = make_std_mat(Color(0.68, 0.22, 0.16), 0.48, 0.54, Color.BLACK, 0.0, false, TEX_BARREL, Vector3(0.9, 0.9, 0.9))
-	canister.position = Vector3(0.0, tile_size * 0.38, 0.0)
-	n.add_child(canister)
 
-	# Hazard dark-amber steel clamp band (unified industrial palette, no bright neon).
-	var band := MeshInstance3D.new()
 	var bnd_m := CylinderMesh.new()
 	bnd_m.top_radius = tile_size * 0.315
 	bnd_m.bottom_radius = tile_size * 0.315
 	bnd_m.height = tile_size * 0.10
-	band.mesh = bnd_m
-	band.material_override = make_std_mat(Color(0.66, 0.46, 0.14), 0.55, 0.46, Color(0.45, 0.26, 0.05), 0.25, false, TEX_METAL_PLATE)
-	band.position = Vector3(0.0, tile_size * 0.38, 0.0)
-	n.add_child(band)
 
-	var cap := MeshInstance3D.new()
 	var cap_m := CylinderMesh.new()
 	cap_m.top_radius = tile_size * 0.18
 	cap_m.bottom_radius = tile_size * 0.24
 	cap_m.height = tile_size * 0.12
-	cap.mesh = cap_m
-	cap.material_override = make_std_mat(Color(0.22, 0.22, 0.24), 0.85, 0.36, Color.BLACK, 0.0, false, TEX_THREADPLATE)
-	cap.position = Vector3(0.0, tile_size * 0.68, 0.0)
-	n.add_child(cap)
 
-	var beacon := MeshInstance3D.new()
-	beacon.name = "FuseBeacon"
 	var sm := SphereMesh.new()
 	sm.radius = tile_size * 0.10
 	sm.height = tile_size * 0.20
-	beacon.mesh = sm
-	beacon.material_override = make_std_mat(Color(0.95, 0.20, 0.10), 0.1, 0.2, Color(1.0, 0.18, 0.08), 2.2)
-	beacon.position = Vector3(0.0, tile_size * 0.79, 0.0)
-	n.add_child(beacon)
-	return n
+
+	var canister_mat := make_std_mat(Color(0.68, 0.22, 0.16), 0.48, 0.54, Color(0.92, 0.22, 0.06), 0.0, false, TEX_BARREL, Vector3(0.9, 0.9, 0.9))
+	canister_mat.emission_enabled = true
+	canister_mat.emission = Color(0.92, 0.22, 0.06)
+	canister_mat.emission_energy_multiplier = 0.0
+
+	var assets := {
+		"base_mesh": bm,
+		"base_mat": make_std_mat(Color(0.24, 0.24, 0.26), 0.82, 0.42, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(1.2, 1.2, 1.2)),
+		"canister_mesh": cm,
+		"canister_mat": canister_mat,
+		"band_mesh": bnd_m,
+		"band_mat": make_std_mat(Color(0.66, 0.46, 0.14), 0.55, 0.46, Color(0.45, 0.26, 0.05), 0.25, false, TEX_METAL_PLATE),
+		"cap_mesh": cap_m,
+		"cap_mat": make_std_mat(Color(0.22, 0.22, 0.24), 0.85, 0.36, Color.BLACK, 0.0, false, TEX_THREADPLATE),
+		"beacon_mesh": sm,
+		"beacon_mat": make_std_mat(Color(0.95, 0.20, 0.10), 0.1, 0.2, Color(1.0, 0.18, 0.08), 2.2),
+	}
+	_bomb_asset_cache[key] = assets
+	return assets
 
 
-static func build_blast_cell(tile_size: float, is_center: bool) -> Node3D:
-	## Gritty vanilla scorch + fiery smoke cloud indicator (replaces blocky orange cubes).
-	var n := Node3D.new()
+static func _get_blast_assets(tile_size: float, is_center: bool) -> Dictionary:
+	var key := "%d_%d" % [int(round(tile_size * 1000.0)), 1 if is_center else 0]
+	if _blast_asset_cache.has(key):
+		return _blast_asset_cache[key]
 
-	# Ground scorch / ember ring using vanilla scorch_01.png.
-	var ground_quad := MeshInstance3D.new()
 	var qm := QuadMesh.new()
 	qm.size = Vector2(tile_size * (1.28 if is_center else 1.06), tile_size * (1.28 if is_center else 1.06))
-	ground_quad.mesh = qm
-	ground_quad.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	ground_quad.position = Vector3(0.0, 0.06, 0.0)
 	var scorch_mat := StandardMaterial3D.new()
 	scorch_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	scorch_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
@@ -647,15 +638,9 @@ static func build_blast_cell(tile_size: float, is_center: bool) -> Node3D:
 	var scorch_tex = load_optional(TEX_SCORCH)
 	if scorch_tex is Texture2D:
 		scorch_mat.albedo_texture = scorch_tex
-	ground_quad.material_override = scorch_mat
-	n.add_child(ground_quad)
 
-	# Billboard smoke/fire puff using vanilla smoke_07.png (no solid cubes or spheres).
-	var puff := MeshInstance3D.new()
 	var pm := QuadMesh.new()
 	pm.size = Vector2(tile_size * (1.20 if is_center else 0.92), tile_size * (1.20 if is_center else 0.92))
-	puff.mesh = pm
-	puff.position = Vector3(0.0, tile_size * (0.46 if is_center else 0.34), 0.0)
 	var puff_mat := StandardMaterial3D.new()
 	puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	puff_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
@@ -665,10 +650,79 @@ static func build_blast_cell(tile_size: float, is_center: bool) -> Node3D:
 	var smoke_tex = load_optional(TEX_SMOKE)
 	if smoke_tex is Texture2D:
 		puff_mat.albedo_texture = smoke_tex
-	puff.material_override = puff_mat
+
+	var assets := {
+		"scorch_mesh": qm,
+		"scorch_mat": scorch_mat,
+		"puff_mesh": pm,
+		"puff_mat": puff_mat,
+	}
+	_blast_asset_cache[key] = assets
+	return assets
+
+
+static func build_water_bubble(tile_size: float, _owner_color: Color) -> Node3D:
+	## Authentic Machine Party industrial explosive canister (dark iron + hazard rust barrel + red detonator LED).
+	var assets := _get_bomb_assets(tile_size)
+	var n := Node3D.new()
+
+	var base := MeshInstance3D.new()
+	base.mesh = assets["base_mesh"]
+	base.material_override = assets["base_mat"]
+	base.position = Vector3(0.0, tile_size * 0.07, 0.0)
+	n.add_child(base)
+
+	var canister := MeshInstance3D.new()
+	canister.name = "CanisterBody"
+	canister.mesh = assets["canister_mesh"]
+	# Duplicate per-bomb material so individual fuse glow pulses independently without sharing state.
+	canister.material_override = (assets["canister_mat"] as StandardMaterial3D).duplicate()
+	canister.position = Vector3(0.0, tile_size * 0.38, 0.0)
+	n.add_child(canister)
+
+	# Hazard dark-amber steel clamp band (unified industrial palette, no bright neon).
+	var band := MeshInstance3D.new()
+	band.mesh = assets["band_mesh"]
+	band.material_override = assets["band_mat"]
+	band.position = Vector3(0.0, tile_size * 0.38, 0.0)
+	n.add_child(band)
+
+	var cap := MeshInstance3D.new()
+	cap.mesh = assets["cap_mesh"]
+	cap.material_override = assets["cap_mat"]
+	cap.position = Vector3(0.0, tile_size * 0.68, 0.0)
+	n.add_child(cap)
+
+	var beacon := MeshInstance3D.new()
+	beacon.name = "FuseBeacon"
+	beacon.mesh = assets["beacon_mesh"]
+	beacon.material_override = (assets["beacon_mat"] as StandardMaterial3D).duplicate()
+	beacon.position = Vector3(0.0, tile_size * 0.79, 0.0)
+	n.add_child(beacon)
+	return n
+
+
+static func build_blast_cell(tile_size: float, is_center: bool, with_flash: bool = true) -> Node3D:
+	## Gritty vanilla scorch + fiery smoke cloud indicator (replaces blocky orange cubes).
+	var assets := _get_blast_assets(tile_size, is_center)
+	var n := Node3D.new()
+
+	# Ground scorch / ember ring using vanilla scorch_01.png.
+	var ground_quad := MeshInstance3D.new()
+	ground_quad.mesh = assets["scorch_mesh"]
+	ground_quad.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	ground_quad.position = Vector3(0.0, 0.06, 0.0)
+	ground_quad.material_override = assets["scorch_mat"]
+	n.add_child(ground_quad)
+
+	# Billboard smoke/fire puff using vanilla smoke_07.png (no solid cubes or spheres).
+	var puff := MeshInstance3D.new()
+	puff.mesh = assets["puff_mesh"]
+	puff.position = Vector3(0.0, tile_size * (0.46 if is_center else 0.34), 0.0)
+	puff.material_override = assets["puff_mat"]
 	n.add_child(puff)
 
-	if is_center:
+	if is_center and with_flash:
 		var flash := OmniLight3D.new()
 		flash.light_color = Color(1.0, 0.55, 0.20)
 		flash.light_energy = 4.5

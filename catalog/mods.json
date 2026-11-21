@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-21.1-mpml1",
+  "revision": "2026-11-21.2-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -126,18 +126,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
       "image": "roller-carnival",
-      "version": "v0.1.7",
+      "version": "v0.1.8",
       "releaseNotes": {
-        "version": "v0.1.7",
-        "zh-CN": "支持在官方在线房间中自动驱动房间机器人（Lobby Bots）跳蹲躲避滚筒，并与泡泡爆破（Bubble Blitz）等自研小游戏无缝共存。",
-        "zh-TW": "支援在官方線上房間中自動驅動房間機器人（Lobby Bots）跳蹲閃避滾筒，並與泡泡爆破（Bubble Blitz）等自研小遊戲無縫共存。",
-        "en": "Enables automatic jump/crouch AI for Lobby Bots in official online matches while staying fully compatible with the Multi-Minigame Coexistence Hub."
+        "version": "v0.1.8",
+        "zh-CN": "优化运行流畅度：缓存金/银滚筒与爆发粒子的共享网格和材质，消除高频刷滚筒时的重复资源分配。",
+        "zh-TW": "最佳化執行流暢度：快取金／銀滾筒與爆發粒子的共享網格與材質，消除高頻刷滾筒時的重複資源配置。",
+        "en": "Improves runtime smoothness by caching shared meshes and materials for gold/silver rollers and burst particles, eliminating per-spawn allocations."
       },
       "package": {
-        "assetId": "1021",
-        "filename": "roller-carnival-0.1.7.zip",
-        "size": 151774,
-        "sha256": "7d1c7329d3e836ed4dc889c94e99692d24d644954c4dba003cc41f3795d16809",
+        "assetId": "1024",
+        "filename": "roller-carnival-0.1.8.zip",
+        "size": 152920,
+        "sha256": "a6e5f2e8fc960275566b228e017b81159cf6c134843bc64383544c6056e9c4a3",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
@@ -404,18 +404,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "image": "bubble-blitz",
-      "version": "v0.1.1",
+      "version": "v0.1.2",
       "releaseNotes": {
-        "version": "v0.1.1",
-        "zh-CN": "修复底部个人属性 HUD 偏移或截断问题与左上角后处理黑块，升级游戏内图标为 256×256 原版单色 CRT 剪影；现自动驱动房间机器人（Lobby Bots）主动对战，并在暂停菜单或窗口失焦时拦截误操作。",
-        "zh-TW": "修正底部個人屬性 HUD 偏移或截斷問題與左上角後處理黑塊，升級遊戲內圖示為 256×256 原版單色 CRT 剪影；現自動驅動房間機器人（Lobby Bots）主動對戰，並在暫停選單或視窗失焦時攔截誤操作。",
-        "en": "Fixes bottom personal HUD centering/clipping and top-left post-FX artifact, uses a 256×256 monochrome CRT icon, enables tactical AI for Lobby Bots in official matches, and blocks input while paused or unfocused."
+        "version": "v0.1.2",
+        "zh-CN": "大幅优化炸弹爆炸流畅度：新增进场 FX 管线预热、缓存炸弹与爆炸共享网格/材质，仅在爆炸中心播放 GPU 粒子，并对焦痕/血迹贴花、动态闪光灯与连锁音效加上并发上限。",
+        "zh-TW": "大幅最佳化炸彈爆炸流暢度：新增進場 FX 管線預熱、快取炸彈與爆炸共享網格／材質，僅於爆炸中心播放 GPU 粒子，並對焦痕／血跡貼花、動態閃光燈與連鎖音效加上併發上限。",
+        "en": "Fixes bomb explosion stuttering by adding startup FX pipeline warmup, caching shared bomb/blast meshes and materials, limiting GPU particles to blast centers, and capping decals, flash lights, and chain SFX."
       },
       "package": {
-        "assetId": "1020",
-        "filename": "bubble-blitz-0.1.1.zip",
-        "size": 160442,
-        "sha256": "8fde427735cf43391284751305f18ecbedb135a6e0ef31727f667292b426d173",
+        "assetId": "1025",
+        "filename": "bubble-blitz-0.1.2.zip",
+        "size": 164794,
+        "sha256": "3ca17fc96cd2cb3e4e5046609ada09842ac31f88e00fce566992b3a422a64912",
         "mirrorApproved": true
       },
       "supportedGameVersions": [

@@ -79,6 +79,19 @@ var _explosion_mark_tex: Texture2D = null
 var _blood_tex_01: Texture2D = null
 var _blood_tex_02: Texture2D = null
 
+const MAX_EXPLOSION_DECALS := 24
+const MAX_BLOOD_DECALS := 16
+const MAX_ACTIVE_VANILLA_FX := 6
+const MAX_ACTIVE_BLAST_LIGHTS := 2
+const EXPLOSION_SFX_MIN_INTERVAL_MS := 45
+
+var _explosion_decals: Array[Node3D] = []
+var _blood_decals: Array[Node3D] = []
+var _active_fx_count: int = 0
+var _active_blast_lights: int = 0
+var _last_explosion_sfx_ms: int = 0
+var _is_self_test: bool = false
+
 var _screenshot_path: String = ""
 var _screenshot_frames: int = 0
 
@@ -109,10 +122,13 @@ func _ready() -> void:
 	for raw_a in args:
 		var a: String = str(raw_a)
 		if a == "--self-test":
+			_is_self_test = true
 			_run_self_test()
 			return
 		if a.begins_with("--capture-screenshot="):
 			_screenshot_path = a.substr("--capture-screenshot=".length())
+
+	_warmup_fx_pipelines.call_deferred()
 
 	_standalone_mode = (get_parent() == get_tree().root)
 	if _standalone_mode:
@@ -422,6 +438,10 @@ func _clear_arena() -> void:
 	_bubbles.clear()
 	_blasts.clear()
 	_items.clear()
+	_explosion_decals.clear()
+	_blood_decals.clear()
+	_active_fx_count = 0
+	_active_blast_lights = 0
 	_client_inputs.clear()
 	_monitor_timer = null
 	_monitor_theme = null
@@ -684,10 +704,53 @@ func _activate_particles_recursive(node: Node) -> void:
 		_activate_particles_recursive(child)
 
 
-func _spawn_vanilla_fx(scene: PackedScene, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	if _standalone_mode and _fx_hit_blood_scene != null and "--self-test" in Array(OS.get_cmdline_args()) + Array(OS.get_cmdline_user_args()):
+func _warmup_fx_pipelines() -> void:
+	if _is_self_test or not is_inside_tree() or _fx_root == null:
 		return
-	if scene == null or _fx_root == null:
+	var warmup_nodes: Array[Node] = []
+	var hidden_pos := Vector3(0.0, -4.0, 0.0)
+	var warm_tex: Texture2D = _explosion_mark_tex if _explosion_mark_tex != null else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
+	if warm_tex != null:
+		var dec := Decal.new()
+		dec.size = Vector3(0.05, 0.05, 0.05)
+		dec.texture_albedo = warm_tex
+		dec.position = hidden_pos
+		_fx_root.add_child(dec)
+		warmup_nodes.append(dec)
+	if M != null and C != null:
+		var warm_blast: Node3D = M.build_blast_cell(C.TILE_SIZE, true, true)
+		warm_blast.position = hidden_pos
+		warm_blast.scale = Vector3(0.001, 0.001, 0.001)
+		_fx_root.add_child(warm_blast)
+		warmup_nodes.append(warm_blast)
+	for packed in [_fx_explosion_scene, _fx_dustplume_scene, _fx_hit_blood_scene, _fx_bloodmist_scene]:
+		if packed == null:
+			continue
+		var inst = packed.instantiate()
+		if inst is Node3D:
+			var n3: Node3D = inst
+			if n3.get_script() != null:
+				n3.set_script(null)
+			n3.position = hidden_pos
+			n3.scale = Vector3(0.001, 0.001, 0.001)
+			_fx_root.add_child(n3)
+			_activate_particles_recursive(n3)
+			warmup_nodes.append(n3)
+		elif inst is Node:
+			(inst as Node).queue_free()
+	if warmup_nodes.is_empty():
+		return
+	get_tree().create_timer(0.25).timeout.connect(func():
+		for n in warmup_nodes:
+			if is_instance_valid(n):
+				n.queue_free()
+	)
+
+
+func _spawn_vanilla_fx(scene: PackedScene, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
+	if _is_self_test or scene == null or _fx_root == null:
+		return
+	if _active_fx_count >= MAX_ACTIVE_VANILLA_FX:
 		return
 	var inst = scene.instantiate()
 	if inst is Node3D:
@@ -698,33 +761,47 @@ func _spawn_vanilla_fx(scene: PackedScene, world_pos: Vector3, scale_val: float,
 		n3.position = world_pos
 		n3.scale = Vector3.ONE * scale_val
 		_fx_root.add_child(n3)
+		_active_fx_count += 1
 		_activate_particles_recursive(n3)
 		get_tree().create_timer(lifetime).timeout.connect(func():
 			if is_instance_valid(n3):
+				_active_fx_count = maxi(0, _active_fx_count - 1)
 				n3.queue_free()
 		)
+	elif inst is Node:
+		(inst as Node).queue_free()
 
 
 func _spawn_explosion_mark(world_pos: Vector3, size_val: float) -> void:
 	if _fx_root == null or _explosion_mark_tex == null:
 		return
+	while _explosion_decals.size() >= MAX_EXPLOSION_DECALS:
+		var old: Node3D = _explosion_decals.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
 	var dec := Decal.new()
 	dec.size = Vector3(size_val, 0.35, size_val)
 	dec.texture_albedo = _explosion_mark_tex
 	dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
 	dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
 	_fx_root.add_child(dec)
+	_explosion_decals.append(dec)
 
 
 func _spawn_blood_decal(world_pos: Vector3) -> void:
 	if _fx_root == null or (_blood_tex_01 == null and _blood_tex_02 == null):
 		return
+	while _blood_decals.size() >= MAX_BLOOD_DECALS:
+		var old: Node3D = _blood_decals.pop_front()
+		if is_instance_valid(old):
+			old.queue_free()
 	var dec := Decal.new()
 	dec.size = Vector3(1.15, 0.35, 1.15)
 	dec.texture_albedo = _blood_tex_02 if _rng.randf() > 0.5 and _blood_tex_02 != null else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
 	dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
 	dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
 	_fx_root.add_child(dec)
+	_blood_decals.append(dec)
 
 
 func _process(delta: float) -> void:
@@ -1287,27 +1364,34 @@ func _rpc_detonate(b_id: int, cells: Array, destroyed_crates: Array) -> void:
 
 func _spawn_blast_visual(cells: Array, owner_id: int) -> void:
 	var blast_nodes: Array = []
+	var use_flash: bool = _active_blast_lights < MAX_ACTIVE_BLAST_LIGHTS
+	if use_flash:
+		_active_blast_lights += 1
 	for i in range(cells.size()):
 		var c: Vector2i = cells[i]
 		var wpos: Vector3 = C.grid_to_world(c, _map_width, _map_height)
-		var n: Node3D = M.build_blast_cell(C.TILE_SIZE, i == 0)
+		var is_center: bool = (i == 0)
+		var n: Node3D = M.build_blast_cell(C.TILE_SIZE, is_center, use_flash and is_center)
 		n.position = wpos
 		_blast_root.add_child(n)
 		blast_nodes.append(n)
-		if i == 0:
-			_spawn_vanilla_fx(_fx_explosion_scene, Vector3(wpos.x, 0.25, wpos.z), 0.22, 2.2)
-			_spawn_vanilla_fx(_fx_dustplume_scene, Vector3(wpos.x, 0.15, wpos.z), 0.28, 2.2)
+		if is_center:
+			_spawn_vanilla_fx(_fx_explosion_scene, Vector3(wpos.x, 0.25, wpos.z), 0.22, 1.8)
+			_spawn_vanilla_fx(_fx_dustplume_scene, Vector3(wpos.x, 0.15, wpos.z), 0.28, 1.6)
 			_spawn_explosion_mark(wpos, C.TILE_SIZE * 1.45)
-		else:
-			_spawn_vanilla_fx(_fx_dustplume_scene, Vector3(wpos.x, 0.12, wpos.z), 0.20, 1.5)
+		elif i % 2 == 0:
 			_spawn_explosion_mark(wpos, C.TILE_SIZE * 0.95)
 	if _sfx_explosion != null and _screenshot_path.is_empty():
-		_sfx_explosion.play()
+		var now_ms := Time.get_ticks_msec()
+		if now_ms - _last_explosion_sfx_ms >= EXPLOSION_SFX_MIN_INTERVAL_MS:
+			_last_explosion_sfx_ms = now_ms
+			_sfx_explosion.play()
 	_blasts.append({
 		"cells": cells,
 		"owner_id": owner_id,
 		"timer": C.BLAST_DURATION_SEC,
 		"nodes": blast_nodes,
+		"has_light": use_flash,
 	})
 
 
@@ -1330,6 +1414,8 @@ func _step_blasts(delta: float) -> void:
 		if float(b["timer"]) > 0.0:
 			kept.append(b)
 		else:
+			if bool(b.get("has_light", false)):
+				_active_blast_lights = maxi(0, _active_blast_lights - 1)
 			for n in b["nodes"]:
 				if is_instance_valid(n):
 					(n as Node3D).queue_free()
@@ -1649,11 +1735,9 @@ func _animate_visuals(delta: float) -> void:
 			if body_m != null and body_m.material_override is StandardMaterial3D:
 				var cmat: StandardMaterial3D = body_m.material_override
 				if progress > 0.55 and blink_on:
-					cmat.emission_enabled = true
-					cmat.emission = Color(0.92, 0.22, 0.06)
 					cmat.emission_energy_multiplier = (progress - 0.55) * 2.4
 				else:
-					cmat.emission_enabled = false
+					cmat.emission_energy_multiplier = 0.0
 
 	for item_id in _item_nodes.keys():
 		var inode: Node3D = _item_nodes[item_id]

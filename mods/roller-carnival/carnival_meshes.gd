@@ -979,9 +979,14 @@ static func _first_existing_path(candidates: Array) -> String:
 	return ""
 
 
-static func build_roller_mesh(roller_type: String, radius: float, length: float = 9.0) -> Dictionary:
-	ensure_game_pck_mounted()
-	var root := Node3D.new()
+static var _roller_asset_cache: Dictionary = {}
+
+
+static func _get_roller_assets(roller_type: String, radius: float, length: float) -> Dictionary:
+	var key := "%s_%d_%d" % [roller_type, int(round(radius * 1000.0)), int(round(length * 1000.0))]
+	if _roller_asset_cache.has(key):
+		return _roller_asset_cache[key]
+
 	var is_gold: bool = (roller_type == "gold")
 	var base_color: Color = Color(1.0, 0.72, 0.16) if is_gold else Color(0.76, 0.88, 1.0)
 	var glow_color: Color = Color(1.0, 0.68, 0.10) if is_gold else Color(0.50, 0.82, 1.0)
@@ -991,19 +996,80 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 	var body_norm := TEX_THREADPLATE_NORMAL if (is_gold and ResourceLoader.exists(TEX_THREADPLATE_NORMAL)) else ""
 	var rust_tex := _first_existing_path([TEX_HEAVY_RUST, TEX_METAL_PLATE])
 
-	var body_mat := make_toon_mat(
-		base_color,
-		0.48 if is_gold else 0.45,
-		0.46 if is_gold else 0.50,
-		Color(0.30, 0.18, 0.02) if is_gold else Color(0.10, 0.18, 0.26), 0.12,
-		body_tex,
-		Vector3(3.0, 2.0, 1.0),
-		false,
-		body_norm
-	)
-	var flange_mat := make_toon_mat(trim_color, 0.52, 0.68, Color.BLACK, 0.0, rust_tex, Vector3(0.6, 0.6, 0.6))
-	var lug_mat := make_toon_mat(Color(0.24, 0.20, 0.18) if is_gold else Color(0.36, 0.42, 0.48), 0.45, 0.78)
-	var beacon_mat := make_toon_mat(glow_color, 0.25, 0.15, glow_color, 1.05)
+	var cyl := CylinderMesh.new()
+	cyl.radial_segments = 12
+	cyl.rings = 1
+	cyl.top_radius = radius * 0.90
+	cyl.bottom_radius = radius * 0.90
+	cyl.height = length
+
+	var am := CylinderMesh.new()
+	am.radial_segments = 10
+	am.rings = 1
+	am.top_radius = 0.13
+	am.bottom_radius = 0.13
+	am.height = length + 0.75
+
+	var fm := CylinderMesh.new()
+	fm.radial_segments = 12
+	fm.rings = 1
+	fm.top_radius = radius + (0.045 if is_gold else 0.035)
+	fm.bottom_radius = fm.top_radius
+	fm.height = 0.24 if is_gold else 0.20
+
+	var rm := CylinderMesh.new()
+	rm.radial_segments = 12
+	rm.rings = 1
+	rm.top_radius = radius * 0.94
+	rm.bottom_radius = radius * 0.94
+	rm.height = 0.16
+
+	var lm := BoxMesh.new()
+	lm.size = Vector3(0.18, 0.14, 0.34) if is_gold else Vector3(0.22, 0.09, 0.28)
+
+	var cm := BoxMesh.new()
+	cm.size = Vector3(0.46, 0.46, 0.36)
+
+	var rvm := BoxMesh.new()
+	rvm.size = Vector3(0.20, 0.14, 0.40)
+
+	var assets := {
+		"trim_color": trim_color,
+		"body_mat": make_toon_mat(
+			base_color,
+			0.48 if is_gold else 0.45,
+			0.46 if is_gold else 0.50,
+			Color(0.30, 0.18, 0.02) if is_gold else Color(0.10, 0.18, 0.26), 0.12,
+			body_tex,
+			Vector3(3.0, 2.0, 1.0),
+			false,
+			body_norm
+		),
+		"flange_mat": make_toon_mat(trim_color, 0.52, 0.68, Color.BLACK, 0.0, rust_tex, Vector3(0.6, 0.6, 0.6)),
+		"lug_mat": make_toon_mat(Color(0.24, 0.20, 0.18) if is_gold else Color(0.36, 0.42, 0.48), 0.45, 0.78),
+		"beacon_mat": make_toon_mat(glow_color, 0.25, 0.15, glow_color, 1.05),
+		"drum_mesh": cyl,
+		"axle_mesh": am,
+		"flange_mesh": fm,
+		"ring_mesh": rm,
+		"lug_mesh": lm,
+		"carriage_mesh": cm,
+		"rivet_mesh": rvm,
+	}
+	_roller_asset_cache[key] = assets
+	return assets
+
+
+static func build_roller_mesh(roller_type: String, radius: float, length: float = 9.0) -> Dictionary:
+	ensure_game_pck_mounted()
+	var assets := _get_roller_assets(roller_type, radius, length)
+	var root := Node3D.new()
+	var is_gold: bool = (roller_type == "gold")
+	var trim_color: Color = assets["trim_color"]
+	var body_mat: StandardMaterial3D = assets["body_mat"]
+	var flange_mat: StandardMaterial3D = assets["flange_mat"]
+	var lug_mat: StandardMaterial3D = assets["lug_mat"]
+	var beacon_mat: StandardMaterial3D = assets["beacon_mat"]
 
 	var spin_pivot := Node3D.new()
 	spin_pivot.name = "SpinPivot"
@@ -1011,26 +1077,14 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 
 	# 12-sided low-poly industrial steel drum
 	var drum := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.radial_segments = 12
-	cyl.rings = 1
-	cyl.top_radius = radius * 0.90
-	cyl.bottom_radius = radius * 0.90
-	cyl.height = length
-	drum.mesh = cyl
+	drum.mesh = assets["drum_mesh"]
 	drum.material_override = body_mat
 	drum.rotation_degrees.x = 90.0
 	spin_pivot.add_child(drum)
 
 	# Central steel axle running out to the guide rail carriages
 	var axle := MeshInstance3D.new()
-	var am := CylinderMesh.new()
-	am.radial_segments = 10
-	am.rings = 1
-	am.top_radius = 0.13
-	am.bottom_radius = 0.13
-	am.height = length + 0.75
-	axle.mesh = am
+	axle.mesh = assets["axle_mesh"]
 	axle.material_override = flange_mat
 	axle.rotation_degrees.x = 90.0
 	spin_pivot.add_child(axle)
@@ -1040,13 +1094,7 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 	for fi in range(flange_count):
 		var fz: float = lerpf(-length * 0.36, length * 0.36, float(fi) / float(flange_count - 1))
 		var flange := MeshInstance3D.new()
-		var fm := CylinderMesh.new()
-		fm.radial_segments = 12
-		fm.rings = 1
-		fm.top_radius = radius + (0.045 if is_gold else 0.035)
-		fm.bottom_radius = fm.top_radius
-		fm.height = 0.24 if is_gold else 0.20
-		flange.mesh = fm
+		flange.mesh = assets["flange_mesh"]
 		flange.material_override = flange_mat
 		flange.rotation_degrees.x = 90.0
 		flange.position = Vector3(0.0, 0.0, fz)
@@ -1055,13 +1103,7 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 	# Two hazard indicator rings near the ends
 	for rz in [-3.5, 3.5]:
 		var ring := MeshInstance3D.new()
-		var rm := CylinderMesh.new()
-		rm.radial_segments = 12
-		rm.rings = 1
-		rm.top_radius = radius * 0.94
-		rm.bottom_radius = radius * 0.94
-		rm.height = 0.16
-		ring.mesh = rm
+		ring.mesh = assets["ring_mesh"]
 		ring.material_override = beacon_mat
 		ring.rotation_degrees.x = 90.0
 		ring.position = Vector3(0.0, 0.0, rz)
@@ -1073,9 +1115,7 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 		for k in range(4):
 			var ang: float = TAU * float(k) / 4.0 + float(s_idx) * (TAU / 8.0)
 			var lug := MeshInstance3D.new()
-			var lm := BoxMesh.new()
-			lm.size = Vector3(0.18, 0.14, 0.34) if is_gold else Vector3(0.22, 0.09, 0.28)
-			lug.mesh = lm
+			lug.mesh = assets["lug_mesh"]
 			lug.material_override = lug_mat
 			var radial_offset := radius * (0.93 if is_gold else 0.95)
 			lug.position = Vector3(cos(ang) * radial_offset, sin(ang) * radial_offset, z_pos)
@@ -1091,17 +1131,13 @@ static func build_roller_mesh(roller_type: String, radius: float, length: float 
 	# Non-rotating steel bearing carriage blocks engaging the front/back guide rails
 	for cz in [-(length * 0.5 + 0.28), length * 0.5 + 0.28]:
 		var carriage := MeshInstance3D.new()
-		var cm := BoxMesh.new()
-		cm.size = Vector3(0.46, 0.46, 0.36)
-		carriage.mesh = cm
+		carriage.mesh = assets["carriage_mesh"]
 		carriage.material_override = flange_mat
 		carriage.position = Vector3(0.0, 0.0, cz)
 		root.add_child(carriage)
 
 		var rivet := MeshInstance3D.new()
-		var rvm := BoxMesh.new()
-		rvm.size = Vector3(0.20, 0.14, 0.40)
-		rivet.mesh = rvm
+		rivet.mesh = assets["rivet_mesh"]
 		rivet.material_override = beacon_mat
 		rivet.position = Vector3(0.0, 0.0, cz)
 		root.add_child(rivet)

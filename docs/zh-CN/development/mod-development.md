@@ -68,6 +68,18 @@
 - **遵循官方小游戏信号协议**：接入轮换池的场景应完整声明标准信号（`host_loaded`、`minigame_loaded`、`minigame_ready`、`minigame_finished`、`player_scored`、`player_scores_finalized`）。
 - **隔离测试快捷功能**：仅用于开发预览的按键（如 `F7` 叠层预览、`--self-test`）需严格隔离条件，不影响 Steam 正常对局。
 
+### 运行时性能指标与红线
+
+所有第一方模组都必须满足以下性能约束，避免周期性卡顿、首次特效冻结与局中越打越卡：
+
+| 维度 | 硬性指标 / 规范 | 原因与实现要求 |
+| --- | --- | --- |
+| **场景树扫描与属性反射** | `_process`、`_physics_process`、`node_added` 与定时器中 **禁止调用 `get_property_list()`**；对局中 **禁止周期性全树遍历** | `get_property_list()` 每次会分配数十个临时 `Dictionary`。改用 O(1) 的 `prop in obj`，首次绑定时缓存属性名；`node_added` 先用 `node.get_script() == null` 快速过滤；滤镜与状态监听改用信号（如 `visibility_changed`）替代定时全树轮询。 |
+| **特效管线预热** | 所有使用 `GPUParticles3D`、`Decal`、透明叠加材质或动态点光源的小游戏，进场必须延迟执行 `_warmup_fx_pipelines()`（藏于场下约 `0.25s`，`--self-test` 跳过） | 提前编译着色器，消除首次爆炸、受击或淘汰时的渲染线程冻结。 |
+| **网格与材质复用** | 高频生成的实体（炸弹、爆炸格、滚筒、碎屑）**单次生成 0 次新建 `StandardMaterial3D` / `Mesh`** | 按参数键静态缓存共享 `Mesh` 与 `StandardMaterial3D`，减少 GC 抖动并利于 GPU 合批。 |
+| **特效与音效并发上限** | 焦痕/撞击 `Decal` **≤ 28**、血迹 `Decal` **≤ 16**（先进先出自动回收）；同时活跃 `GPUParticles3D` 场景 **≤ 6**（多格爆炸仅在中心格播粒子）；瞬时闪光 `OmniLight3D` **≤ 2**；连锁音效防抖间隔 **≥ 45 ms** | 避免后期贴花无限堆积、连锁引爆同帧实例化数十套 GPU 粒子、动态光源集群抖动与同帧重播音效。 |
+| **显示与帧步调** | 默认开启 `VSYNC_ENABLED`；默认 3D 渲染缩放上限 **≤ 1.5×** 且不超过实际窗口像素高度（`2.0×`、`1440p`、关闭 VSync 均作为可选启动参数） | 避免软限 60 FPS + 关 VSync 引起的画面抖动，并防止小窗口或中低配显卡白跑 4× 像素填充量。 |
+
 ## 4. 四级测试与验收规范
 
 | 层级 | 覆盖范围 | 执行命令与通过标准 |

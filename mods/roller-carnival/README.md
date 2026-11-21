@@ -5,7 +5,7 @@
 ![滾筒嘉年華小遊戲圖示](../../apps/desktop/ui/images/roller-carnival.png)
 
 - **模組 ID**：`roller-carnival`
-- **版本**：`0.1.7`（目錄清單對應 `v0.1.7`）
+- **版本**：`0.1.8`（目錄清單對應 `v0.1.8`）
 - **授權**：`GPL-3.0-only`
 - **目標遊戲版本**：Steam Windows `v2.1.2`
 - **開發與打包規範**：[自研模組開發、測試、接入與打包規範](../../docs/zh-TW/development/mod-development.md) · [ADR-009](../../docs/zh-TW/architecture/ADR-009-bundled-first-party-mods.md)

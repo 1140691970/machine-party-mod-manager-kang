@@ -101,13 +101,13 @@ test("every catalog mod declares a valid Windows adapter profile", () => {
   assert.equal(plus.adapter.autoLoader, true);
 
   const roller = catalog.mods.find(mod => mod.id === "roller-carnival");
-  assert.equal(roller.package.filename, "roller-carnival-0.1.7.zip");
+  assert.equal(roller.package.filename, "roller-carnival-0.1.8.zip");
   assert.equal(roller.package.mirrorApproved, true);
   assert.equal(roller.adapter.kind, "loader-files");
   assert.equal(roller.adapter.autoLoader, true);
 
   const bubble = catalog.mods.find(mod => mod.id === "bubble-blitz");
-  assert.equal(bubble.package.filename, "bubble-blitz-0.1.1.zip");
+  assert.equal(bubble.package.filename, "bubble-blitz-0.1.2.zip");
   assert.equal(bubble.package.mirrorApproved, true);
   assert.equal(bubble.adapter.kind, "loader-files");
   assert.equal(bubble.adapter.autoLoader, true);

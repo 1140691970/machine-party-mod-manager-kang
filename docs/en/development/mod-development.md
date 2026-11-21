@@ -68,6 +68,18 @@ Check capability defensively with `loader.has_api("<name>")` or `loader.has_meth
 - **Emit standard minigame contract signals** when joining Machine Party's rotation: `host_loaded`, `minigame_loaded`, `minigame_ready`, `minigame_finished`, `player_scored`, `player_scores_finalized`.
 - **Clean up standalone preview code**: Guard any dev-only input (e.g. `F7` overlay test key, local `--self-test` args) cleanly so normal Steam sessions are unaffected.
 
+### Runtime performance budgets and rules
+
+Every first-party mod must avoid frame-time spikes, progressive late-round lag, and frame-pacing judder:
+
+| Area | Hard budget / rule | Rationale |
+| --- | --- | --- |
+| **SceneTree & reflection** | **0** `get_property_list()` calls in `_process`, `_physics_process`, `node_added`, or timers; **0** periodic full-tree walks during active gameplay | `get_property_list()` allocates dozens of Dictionaries per call. Use O(1) `prop in obj`, cache property names once on attach, fast-skip `node.get_script() == null` in `node_added`, and prefer signals (`visibility_changed`, groups) over polling. |
+| **Shader / FX warmup** | Deferred `_warmup_fx_pipelines()` on scene entry (~0.25s hidden below stage, skipped in `--self-test`) | Pre-compiles `GPUParticles3D`, `Decal`, additive transparent materials, and dynamic lights so the first explosion or hit never freezes the render thread. |
+| **Mesh & material reuse** | **0** new `StandardMaterial3D` or `Mesh` allocations per repeated spawn (bombs, blasts, rollers, debris) | Cache shared `Mesh` and `StandardMaterial3D` instances once per key to prevent GC spikes and preserve GPU batching. |
+| **FX & audio concurrency caps** | Scorch/impact `Decal` **≤ 28**; blood `Decal` **≤ 16** (FIFO ring buffer); active `GPUParticles3D` scenes **≤ 6** (center-only for multi-tile blasts); transient flash `OmniLight3D` **≤ 2**; chain SFX debounce **≥ 45 ms** | Prevents unbounded late-round decal overdraw, chain-detonation particle storms, light-cluster thrashing, and same-frame audio restarts. |
+| **Display & frame pacing** | Keep `VSYNC_ENABLED` by default; default 3D scale cap **≤ 1.5×** and clamped to actual window height (opt-in flags for `2.0×`, `1440p`, or `VSYNC_DISABLED`) | Avoids software-capped 60 FPS micro-stutter and unnecessary 4× GPU pixel fillrate on smaller windows or mid-range GPUs. |
+
 ## 4. Testing and verification tiers
 
 Every mod change must pass all tiers feasible in the developer's environment before release:

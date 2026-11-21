@@ -548,7 +548,7 @@ mod tests {
             .package
             .as_ref()
             .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.7.zip");
+        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.8.zip");
         assert!(roller_pkg.mirror_approved);
         assert!(roller.adapter.as_ref().unwrap().auto_loader);
 
@@ -558,7 +558,7 @@ mod tests {
             .package
             .as_ref()
             .expect("bubble-blitz package present");
-        assert_eq!(bubble_pkg.filename, "bubble-blitz-0.1.1.zip");
+        assert_eq!(bubble_pkg.filename, "bubble-blitz-0.1.2.zip");
         assert!(bubble_pkg.mirror_approved);
         assert!(bubble.adapter.as_ref().unwrap().auto_loader);
         assert_eq!(
@@ -571,7 +571,7 @@ mod tests {
         );
         assert_eq!(
             download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.7/1021"
+            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.8/1024"
         );
     }
 }
