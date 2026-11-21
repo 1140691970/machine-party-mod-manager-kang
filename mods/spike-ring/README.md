@@ -68,4 +68,4 @@ npm run check:architecture && npm test
 ## 验证状态
 
 - ✅ macOS Godot 4.5.2 `--self-test`、多小游戏共存回归测试（与 `roller-carnival`、`bubble-blitz` 同时加载）及确定性 ZIP 打包校验通过。
-- ⏳ Windows + Steam `v2.1.2` 实机联机对局与卸载还原待验收（目录当前保持 `verified: false`）。
+- ⏳ Windows + Steam `v2.1.2` 实机联机对局与卸载还原待验收。
