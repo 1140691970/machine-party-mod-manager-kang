@@ -4,7 +4,7 @@ import test from "node:test";
 import gateway from "../../services/update-worker/app-updates.mjs";
 import worker from "../../services/catalog-worker/catalog.mjs";
 import snapshot from "../../catalog/mods.json" with {type: "json"};
-import {cachedCatalog, downloadUrl, loadCatalog, restoreCatalog, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
+import {cachedCatalog, coverUrl, downloadUrl, loadCatalog, restoreCatalog, validCatalog} from "../../apps/desktop/ui/online-catalog.js";
 
 const compatibleSnapshot = () => ({...snapshot,mods:snapshot.mods.map(m=>({...m,...previous[m.id]}))});
 const catalogStore = {PACKAGES:{get:async key => {
@@ -224,4 +224,72 @@ test("only the full catalog carries the proof for its exact bytes, including ove
   const prior = new Map(storage);
   await assert.rejects(loadCatalog(local, request, () => { throw Error("catalogInvalid"); }), /catalogInvalid/);
   assert.deepEqual(storage, prior);
+});
+
+test("each optional mod cover resolves through the gateway and Worker from R2 with edge caching", async () => {
+  const withoutCover = snapshot.mods.find(mod => !mod.cover);
+  assert.ok(withoutCover, "expected at least one mod without an optional cover");
+  assert.equal(coverUrl(withoutCover), "");
+
+  for (const mod of snapshot.mods.filter(entry => entry.cover)) {
+    const cover = mod.cover;
+    const expectedKey = `covers/sha256/${cover.sha256}.png`;
+    const url = coverUrl(mod);
+    assert.equal(url, `https://machineparty.ailaogong.men/v1/covers/${mod.id}/${cover.sha256}.png`);
+
+    const env = {PACKAGES: {head: async key => {
+      assert.equal(key, expectedKey);
+      return {size: cover.size};
+    }}};
+    const head = await gateway.fetch(new Request(url, {method: "HEAD"}), {
+      CATALOG: {fetch: request => worker.fetch(request, env)}
+    });
+    assert.equal(head.status, 200, mod.id);
+    assert.equal(head.headers.get("content-type"), cover.contentType);
+    assert.equal(head.headers.get("content-length"), String(cover.size));
+    assert.equal(head.headers.get("x-content-type-options"), "nosniff");
+    assert.match(head.headers.get("cache-control"), /immutable/);
+
+    assert.equal((await serve(url, {PACKAGES: {get: async () => null}})).status, 503);
+    assert.equal((await serve(url, {PACKAGES: {get: async () => ({size: cover.size - 1, body: new Uint8Array(1)})}})).status, 503);
+    assert.equal((await serve(url + ".extra")).status, 404);
+    assert.equal((await serve(url, env, {method: "PUT"})).status, 405);
+  }
+
+  const badCover = structuredClone(snapshot);
+  const coveredIdx = badCover.mods.findIndex(mod => mod.cover);
+  badCover.mods[coveredIdx].cover.contentType = "image/svg+xml";
+  assert.equal(validCatalog(badCover), false);
+
+  const badHash = structuredClone(snapshot);
+  badHash.mods[coveredIdx].cover.sha256 = "not-a-sha";
+  assert.equal(validCatalog(badHash), false);
+
+  const badName = structuredClone(snapshot);
+  badName.mods[coveredIdx].cover.filename = "../evil.png";
+  assert.equal(validCatalog(badName), false);
+
+  const mod = snapshot.mods[coveredIdx];
+  const values = new Map();
+  let reads = 0;
+  const cache = {match: async key => values.get(key)?.clone(), put: async (key, res) => values.set(key, res)};
+  const original = globalThis.caches;
+  globalThis.caches = {default: cache};
+  const payload = {size: mod.cover.size, body: new Uint8Array(mod.cover.size)};
+  const env = {PACKAGES: {get: async () => { reads++; return payload; }, head: async () => payload}};
+  const pending = [];
+  const req = method => worker.fetch(new Request(coverUrl(mod), {method}), env, {waitUntil: p => pending.push(p)});
+  try {
+    await req("HEAD");
+    assert.equal(values.size, 0);
+    assert.equal((await req("GET")).headers.get("x-cover-cache"), "MISS");
+    await Promise.all(pending);
+    const hit = await req("GET");
+    assert.equal(hit.headers.get("x-cover-cache"), "HIT");
+    assert.equal((await hit.arrayBuffer()).byteLength, payload.size);
+    assert.equal(reads, 1);
+  } finally {
+    if (original === undefined) delete globalThis.caches;
+    else globalThis.caches = original;
+  }
 });

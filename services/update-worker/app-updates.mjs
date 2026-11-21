@@ -2,7 +2,7 @@ export default {
   async fetch(request, env) {
     if (!["GET", "HEAD"].includes(request.method)) return new Response(null, {status: 405, headers: {Allow: "GET, HEAD"}});
     const path = new URL(request.url).pathname;
-    if (path === "/v1/catalog.json" || path.startsWith("/v1/downloads/"))
+    if (path === "/v1/catalog.json" || path.startsWith("/v1/downloads/") || path.startsWith("/v1/covers/"))
       return env.CATALOG.fetch(request);
     const stable = path === "/v1/app-updates/stable/latest.json";
     const preview = /^\/v1\/app-downloads\/(\d+\.\d+\.\d+-\d+)\/(setup\.exe)$/.exec(path);

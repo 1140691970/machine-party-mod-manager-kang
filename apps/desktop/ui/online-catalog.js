@@ -4,8 +4,17 @@ const languages = ["zh-CN", "zh-TW", "en"];
 const slug = /^[a-z0-9-]+$/;
 const version = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const sha256Hex = /^[a-f0-9]{64}$/;
+const coverExt = {"image/png": "png", "image/webp": "webp", "image/jpeg": "jpg"};
 const safeFilename = name => typeof name === "string" && name.length > 0 && !name.includes("..") && !/[\\/]/.test(name);
 const stringArray = value => Array.isArray(value) && value.every(item => typeof item === "string");
+
+function validCover(cover) {
+  return Boolean(cover && typeof cover === "object"
+    && typeof cover.filename === "string" && /^[a-z0-9-]+\.(?:png|webp|jpe?g)$/i.test(cover.filename)
+    && typeof cover.contentType === "string" && cover.contentType in coverExt
+    && Number.isSafeInteger(cover.size) && cover.size > 0
+    && typeof cover.sha256 === "string" && sha256Hex.test(cover.sha256));
+}
 
 function validAdapter(adapter) {
   if (!adapter || typeof adapter !== "object") return false;
@@ -49,6 +58,7 @@ function validEntry(mod) {
     && typeof mod.repo === "string" && /^[\w-][\w.-]*\/[\w-][\w.-]*$/.test(mod.repo)
     && Number.isSafeInteger(mod.order) && mod.order > 0 && typeof mod.verified === "boolean"
     && (!mod.image || typeof mod.image === "string" && slug.test(mod.image))
+    && (mod.cover === undefined || validCover(mod.cover))
     && (!mod.version || typeof mod.version === "string" && version.test(mod.version))
     && (mod.supportedGameVersions === undefined || stringArray(mod.supportedGameVersions))
     && Array.isArray(mod.aliases) && mod.aliases.every(alias => typeof alias === "string")
@@ -130,4 +140,9 @@ export async function loadCatalog(storage, request = fetch, authorize) {
 
 export function downloadUrl(mod) {
   return origin + `/v1/downloads/${mod.id}/${mod.version}/${mod.package.assetId}`;
+}
+
+export function coverUrl(mod) {
+  const ext = mod?.cover && coverExt[mod.cover.contentType];
+  return ext ? origin + `/v1/covers/${mod.id}/${mod.cover.sha256}.${ext}` : "";
 }

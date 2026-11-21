@@ -11,7 +11,7 @@ The desktop app requests `GET /v1/catalog.json?inventory=id&prepare=1` from the 
 | Item | Catalog behavior |
 | --- | --- |
 | Snapshot identity | Schema version, catalog revision and mod list. The revision identifies the snapshot. Mod versions follow the upstream tags. |
-| Mod data | Stable ID, fixed catalog order, author source, three-language summary and aliases, cover, and approved version data. Installable versions need compatibility conditions, a fixed asset, SHA-256 and an install method the client supports. |
+| Mod data | Stable ID, fixed catalog order, author source, three-language summary and aliases, optional R2 cover (`covers/sha256/<sha256>.<ext>` served at `GET /v1/covers/{modId}/{sha256}.{ext}`, [ADR-016](../architecture/ADR-016-r2-mod-covers.md)), and approved version data. Installable versions need compatibility conditions, a fixed asset, SHA-256 and an install method the client supports. |
 | HTTP response | The Worker supplies an ETag for each catalog variant and returns 304 for a matching `If-None-Match`. |
 | Client storage | The desktop client validates the catalog and verifies its signature for online package approvals. It caches the signed document for offline verification and keeps a browsing copy. |
 

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-21.4-mpml1",
+  "revision": "2026-11-21.5-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -8,7 +8,12 @@
       "category": "expansion",
       "order": 1,
       "repo": "DarkJadeStone/MachineParty-Overtime",
-      "image": "overtime",
+      "cover": {
+        "filename": "overtime.png",
+        "contentType": "image/png",
+        "size": 304721,
+        "sha256": "f609e6509f52206dbd6a015fdb593ac3885af88b57ce100c584d6745ede495d7"
+      },
       "version": "v1.7",
       "releaseNotes": {
         "version": "v1.7",
@@ -72,7 +77,12 @@
       "category": "expansion",
       "order": 2,
       "repo": "Ghostx10742/MachineParty-Plus",
-      "image": "plus",
+      "cover": {
+        "filename": "machineparty-plus.png",
+        "contentType": "image/png",
+        "size": 2313418,
+        "sha256": "5da501a9bbcddb60b8d7d9cd3d20c71a0ce2af3d394663bb2949461b1502172e"
+      },
       "version": "v2.1.0",
       "releaseNotes": {
         "version": "v2.1.0",
@@ -125,7 +135,12 @@
       "order": 5,
       "repo": "JamesGZM/machine-party-mod-manager",
       "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
-      "image": "roller-carnival",
+      "cover": {
+        "filename": "roller-carnival.png",
+        "contentType": "image/png",
+        "size": 387168,
+        "sha256": "e1c83c2e7f39555a36c2490593e47ca00bc964c3570b7e4b9188c0915d45c49a"
+      },
       "version": "v0.1.8",
       "releaseNotes": {
         "version": "v0.1.8",
@@ -192,7 +207,12 @@
       "order": 6,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
-      "image": "lobby-bots",
+      "cover": {
+        "filename": "lobby-bots.png",
+        "contentType": "image/png",
+        "size": 259740,
+        "sha256": "5b60d58b2a4728e1480697452e99a53743121204b573ec5771e2adc4cbb8a693"
+      },
       "version": "v0.2.2",
       "releaseNotes": {
         "version": "v0.2.2",
@@ -262,7 +282,12 @@
       "order": 7,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
-      "image": "standalone-hd",
+      "cover": {
+        "filename": "standalone-hd.png",
+        "contentType": "image/png",
+        "size": 1607072,
+        "sha256": "56e4ca3d20f2d429ee529b1ef451aabb717bd3b47ee5eeff86edec4569a62a3f"
+      },
       "version": "v0.1.2",
       "releaseNotes": {
         "version": "v0.1.2",
@@ -403,7 +428,12 @@
       "order": 9,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
-      "image": "bubble-blitz",
+      "cover": {
+        "filename": "bubble-blitz.png",
+        "contentType": "image/png",
+        "size": 287193,
+        "sha256": "19b1bc1396da255b91ad8d952a1b084eff3c6a28c4fe69ea4bcaf90a862d152c"
+      },
       "version": "v0.1.2",
       "releaseNotes": {
         "version": "v0.1.2",
@@ -484,7 +514,12 @@
       "order": 10,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
-      "image": "spike-ring",
+      "cover": {
+        "filename": "spike-ring.png",
+        "contentType": "image/png",
+        "size": 832988,
+        "sha256": "7bdc73af6c0187543e7a2178129f0531464a9bee8823b7696754fb1a24424174"
+      },
       "version": "v0.1.0",
       "package": {
         "assetId": "1026",

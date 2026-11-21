@@ -2,7 +2,7 @@
 
 `bubble-blitz` 是由 `machine-party-mod-manager` 开发维护的第一方原创 3D 泡泡堂×炸弹人结合版派对小游戏模组（通过 R2 + 目录 Worker 发布 ZIP 套件），接入**多小游戏共存注册中心（Multi-Minigame Coexistence Hub）**并占用原版未使用的 `Globals.MinigameIdentifier.ScavangerChairs = 8` 槽位，可与 [`roller-carnival`](../roller-carnival/README.md) 及未来更多自研小游戏同时安装、共同出现在官方默认轮换、自定义歌单、街机模式、本地同屏与过场 15 格 CRT 抽签池中。
 
-![泡泡爆破小游戏图示](../../apps/desktop/ui/images/bubble-blitz.png)
+![泡泡爆破小游戏图示](../../catalog/covers/bubble-blitz.png)
 
 - **模组 ID**：`bubble-blitz`
 - **版本**：`0.1.2`（目录清单对应 `v0.1.2`）
@@ -65,7 +65,7 @@
 ./mods/bubble-blitz/run_mac.sh --self-test
 
 # 3. 截取 1280x720 封面图
-./mods/bubble-blitz/run_mac.sh --screenshot apps/desktop/ui/images/bubble-blitz.png
+./mods/bubble-blitz/run_mac.sh --screenshot catalog/covers/bubble-blitz.png
 
 # 4. 校验打包、多小游戏共存回归测试与全仓契约
 node scripts/pack-mod.mjs --all --verify-catalog

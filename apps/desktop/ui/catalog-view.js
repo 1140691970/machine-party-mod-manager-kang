@@ -1,4 +1,4 @@
-import { downloadUrl } from "./online-catalog.js";
+import { coverUrl, downloadUrl } from "./online-catalog.js";
 import { installationProblem, catalogAction, uninstallEntry } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
 import { confirmGameExit } from "./game-exit-dialog.js";
@@ -117,13 +117,16 @@ function cover(mod, name) {
   const box = element("div", "", "cover");
   const fallback = element("strong", name, "cover-title");
   box.append(fallback);
-  if (mod.image) {
+  const src = coverUrl(mod);
+  if (src) {
     const img = element("img", "", "loading");
     img.alt = "";
+    img.decoding = "async";
+    img.loading = "lazy";
     box.classList.add("skeleton");
     img.onload = () => { img.classList.remove("loading"); box.classList.remove("skeleton"); };
     img.onerror = () => { img.replaceWith(fallback); box.classList.remove("skeleton"); };
-    img.src = "images/" + mod.image + ".png";
+    img.src = src;
     fallback.replaceWith(img);
   }
   const tags = element("div", "", "cover-tags");

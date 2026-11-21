@@ -61,7 +61,7 @@ Machine Party on Steam is Windows-only, so playing the game on macOS is out of s
 
 ## Common changes
 
-- **Add or edit a mod**: change `catalog/mods.json` only. Provide `name`, `summary` and `detail` in all three languages, keep `id` and `repo` stable, and add a cover to `apps/desktop/ui/images/{image}.png` if `image` is set. Inclusion follows the [mod catalog guide](../catalog/mods.md).
+- **Add or edit a mod**: change `catalog/mods.json` only. Provide `name`, `summary` and `detail` in all three languages, keep `id` and `repo` stable, and optionally add a cover image to `catalog/covers/<id>.<ext>` with matching `cover` metadata (`filename`, `contentType`, `size`, `sha256`) for R2 delivery (never bundle mod covers into `apps/desktop/ui/images/`). Inclusion follows the [mod catalog guide](../catalog/mods.md).
 - **Add a repository-authored mod**: follow the [mod development specification](mod-development.md) (`mods/<id>/` with `README.md`, `mod.json` matching `^[a-z0-9-]+$`, and GDScript sources), run `node scripts/pack-mod.mjs <id>` (`scripts/pack-mod.mjs` excludes `project.godot`, `*_scene.tscn`, `*.sh`, and `*.md`), add a standard `package` + `adapter.kind: "loader-files"` (`autoLoader: true`) entry in `catalog/mods.json`, and run Godot syntax/self-tests plus `npm run test:rust` and `npm test` ([ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)).
 - **Add UI text**: add one key with Simplified Chinese, Traditional Chinese and English values to `apps/desktop/ui/languages.js`.
 - **Add a command**: implement the logic in a Tauri-free module with a unit test, expose it in `commands.rs`, register it in `main.rs`, and call it only from `bridge.js`.

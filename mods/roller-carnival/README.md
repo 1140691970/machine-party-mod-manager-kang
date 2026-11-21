@@ -2,7 +2,7 @@
 
 `roller-carnival` 是由 `machine-party-mod-manager` 開發維護的第一方原創 3D 躲避派對小遊戲模組（透過 R2 + 目錄 Worker 發布 ZIP 套件），接管原版《Machine Party》未使用的小遊戲槽位 `Globals.MinigameIdentifier.ShapeCutter = 6`，讓自研小遊戲能直接加入官方預設輪換、自訂清單、街機模式與過場 CRT 抽籤池。
 
-![滾筒嘉年華小遊戲圖示](../../apps/desktop/ui/images/roller-carnival.png)
+![滾筒嘉年華小遊戲圖示](../../catalog/covers/roller-carnival.png)
 
 - **模組 ID**：`roller-carnival`
 - **版本**：`0.1.8`（目錄清單對應 `v0.1.8`）

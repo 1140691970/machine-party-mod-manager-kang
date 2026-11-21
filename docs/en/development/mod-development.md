@@ -86,7 +86,7 @@ Every mod change must pass all tiers feasible in the developer's environment bef
 
 | Tier | Scope | Commands & pass criteria |
 | --- | --- | --- |
-| **Tier 0: Godot standalone** | GDScript syntax, gameplay self-tests, UI/cover screenshot | 1. Headless syntax check (`Godot --headless --check-only --script`) on every standalone script (`override_*.gd` files using `extends "res://..."` are noted as game-runtime-only).<br>2. Headless `--self-test` covering movement, collision, safety bounds, presets, and score/tie-break rules -> exits `0` printing `SELF_TEST_PASSED`.<br>3. `1280×720` cover capture (`--capture-screenshot=apps/desktop/ui/images/<id>.png`) visually inspected via screenshot review. |
+| **Tier 0: Godot standalone** | GDScript syntax, gameplay self-tests, optional cover screenshot | 1. Headless syntax check (`Godot --headless --check-only --script`) on every standalone script (`override_*.gd` files using `extends "res://..."` are noted as game-runtime-only).<br>2. Headless `--self-test` covering movement, collision, safety bounds, presets, and score/tie-break rules -> exits `0` printing `SELF_TEST_PASSED`.<br>3. Optional `1280×720` cover capture (`--capture-screenshot=catalog/covers/<id>.png`) visually inspected via screenshot review. |
 | **Tier 1: Packaging, contracts & lint** | Deterministic ZIP, boundaries, catalog schema, docs, Rust lint | Run `node scripts/pack-mod.mjs --all --verify-catalog`, `npm run check:architecture`, `npm test`, and `npm run lint:rust`. Enforces exact deterministic ZIP `size` & `sha256` match, `mod.json` ID/version parity, non-empty `mods/<id>/README.md`, non-excluded `requiredFiles`, R2/Worker contract checks, 3-language docs/links, and valid cover images. |
 | **Tier 2: Rust L1 & L3 simulation** | ZIP extraction, GDPC v3 patch/restore, install/uninstall transactions | Run `npm run test:rust` (`pck_loader`, `installer`). Locally on macOS with an uncommitted copy of vanilla Steam v2.1.2 `Machine Party.pck`, run `MPM_L3_VANILLA_PCK="/path/to/Machine Party.pck" npm run test:rust` to verify exact append and lossless SHA-256 restore. |
 | **Tier 3: Windows Steam physical** | End-to-end Windows acceptance (**required before `verified: true`**) | On Windows + Steam `v2.1.2`: Worker download + SHA-256 verify + install in desktop manager -> launch via Steam -> gameplay, presets, rotation, multiplayer RPC -> offline uninstall -> confirm vanilla `Machine Party.pck` SHA-256 restored; also verify external MPML coexistence and `overtime` conflict checks. |
@@ -103,10 +103,11 @@ On 2026-11-19 a Windows player confirmed that Roller Carnival worked again with 
 
 To publish a first-party mod into the catalog and R2/Worker pipeline:
 
-1. Create `mods/<id>/README.md`, `mods/<id>/mod.json`, runtime scripts, and cover image `apps/desktop/ui/images/<id>.png`.
+1. Create `mods/<id>/README.md`, `mods/<id>/mod.json`, runtime scripts, and (optionally) a cover image at `catalog/covers/<id>.<ext>` (`.png`, `.webp`, or `.jpg`).
 2. Run `node scripts/pack-mod.mjs <id>` to inspect the exact deterministic `filename`, `size`, `sha256`, and `files` list.
 3. Add an entry to [`catalog/mods.json`](../../../catalog/mods.json):
-   - Set `"id"` (`<id>`), unique `"order"`, the source `"repo"` (for example `"JamesGZM/machine-party-mod-manager"`), `"image": "<id>"`, and `"version": "v<mod.json.version>"`.
+   - Set `"id"` (`<id>`), unique `"order"`, the source `"repo"` (for example `"JamesGZM/machine-party-mod-manager"`), and `"version": "v<mod.json.version>"`.
+   - **Optional R2 cover image**: If `catalog/covers/<id>.<ext>` is provided, declare `"cover": { "filename": "<id>.<ext>", "contentType": "image/png" | "image/webp" | "image/jpeg", "size": <bytes>, "sha256": "<64-hex>" }` (max 4 MiB; recommended `1280×720` 16:9). Never place mod covers under `apps/desktop/ui/images/` (which only holds app chrome such as `logo.svg`). Omitting `cover` is valid and renders the card title fallback cleanly ([ADR-016](../architecture/ADR-016-r2-mod-covers.md)).
    - For an additional mod from a listed repository, use `"inventoryById": true` to give it its own install record. See [ADR-010](../architecture/ADR-010-shared-repository-mods.md).
    - Set `"package"`: unique numeric string `"assetId"` (e.g. `"1001"`), exact `"filename"`, `"size"`, `"sha256"` from `scripts/pack-mod.mjs`, and `"mirrorApproved": true`.
    - Set `"supportedGameVersions"`, `"windowsPreview"` matching the current app preview build, and `"verified": false` until Tier 3 passes.
@@ -134,7 +135,7 @@ Version metadata example
 ## 6. Packaging and R2 / Worker deployment
 
 - **Deterministic ZIP build**: [`scripts/pack-mod.mjs`](../../../scripts/pack-mod.mjs) packs non-excluded runtime files in sorted lexicographical order using `ZIP_STORED` (method `0`) with fixed DOS timestamps (`1980-01-01 00:00:00`), guaranteeing identical SHA-256 hashes across macOS, Linux, and Windows.
-- **Automated Worker + R2 staging**: Dispatching `.github/workflows/catalog-worker.yml` runs `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`, uploads missing `packages/sha256/<sha256>.zip` objects to Cloudflare R2 (`machine-party-mods`), verifies every `mirrorApproved` package object size in R2, stages `catalog/revisions/<revision>.json`, deploys `services/catalog-worker`, and checks every live `/v1/downloads/<id>/<version>/<assetId>` HEAD response.
+- **Automated Worker + R2 staging**: Dispatching `.github/workflows/catalog-worker.yml` runs `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`, uploads missing `packages/sha256/<sha256>.zip` objects and optional `covers/sha256/<sha256>.<ext>` cover images to Cloudflare R2 (`machine-party-mods`), verifies every `mirrorApproved` package and declared `cover` object size in R2, stages `catalog/revisions/<revision>.json`, deploys `services/catalog-worker`, and checks every live `/v1/downloads/<id>/<version>/<assetId>` and `/v1/covers/<id>/<sha256>.<ext>` HEAD response.
 - **Updating an existing mod** — Bump the version in `mods/<id>/mod.json`. Run `node scripts/pack-mod.mjs <id>` to read the new filename, size and SHA-256. Update the package metadata (including `assetId`), catalog revision and mod version in `catalog/mods.json`. Replace or remove any notes from the previous version. Update the mod README, the [mods index](../../../mods/README.md) and the version in the [English](../../../README.md), [Simplified Chinese](../../readme/README.zh-CN.md) and [Traditional Chinese](../../readme/README.zh-TW.md) homepage tables. Push to `main` and dispatch `Deploy mod catalog Worker`. For desktop manager updates, see [Releasing manager updates](releasing.md).
 
 For a native MPML release already known to the manager, set `"updateChannel": "preview"` to offer the new package to Windows preview users. The catalog workflow signs that revision. In Windows preview 0.1.2-12, open **Mod catalog**, select **Update to**, review the versions and confirm. For Windows preview 0.1.2-11, follow the [support guide](../../../SUPPORT.md). Promote to `"verified": true` after Steam acceptance. See [ADR-012](../architecture/ADR-012-single-mod-updates.md).
@@ -142,6 +143,7 @@ For a native MPML release already known to the manager, set `"updateChannel": "p
 ## References
 
 - [ADR-009: First-party mods, deterministic R2 packaging, and self-managed loader](../architecture/ADR-009-bundled-first-party-mods.md)
+- [ADR-016: Optional R2-hosted mod cover images](../architecture/ADR-016-r2-mod-covers.md)
 - [ADR-005: Install transactions and verified game restoration](../architecture/ADR-005-install-transactions.md)
 - [ADR-007: Mod adapters and macOS simulation tiers](../architecture/ADR-007-mod-adapters.md)
 - [Production catalog delivery](../catalog/delivery.md) · [Development guide](README.md) · [Mods directory index](../../../mods/README.md) · [Roller Carnival README](../../../mods/roller-carnival/README.md)

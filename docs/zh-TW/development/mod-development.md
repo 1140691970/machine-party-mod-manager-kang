@@ -84,7 +84,7 @@
 
 | 層級 | 驗證範圍 | 執行方式與通過標準 |
 | --- | --- | --- |
-| **Tier 0：Godot 本機測試** | 腳本語法、玩法邏輯自測、封面截圖 | 1. 使用 Godot 4.5.2 headless `--check-only --script` 檢查獨立腳本語法（繼承 `"res://..."` 的覆寫腳本標註需完整遊戲執行環境）。<br>2. 執行 `--self-test` 驗證移動、擊退、安全間隔底線、預設組合與排名同分規則，確認輸出 `SELF_TEST_PASSED`。<br>3. 擷取 `1280×720` 封面圖至 `apps/desktop/ui/images/<id>.png` 並實際檢視截圖效果。 |
+| **Tier 0：Godot 本機測試** | 腳本語法、玩法邏輯自測、選用封面截圖 | 1. 使用 Godot 4.5.2 headless `--check-only --script` 檢查獨立腳本語法（繼承 `"res://..."` 的覆寫腳本標註需完整遊戲執行環境）。<br>2. 執行 `--self-test` 驗證移動、擊退、安全間隔底線、預設組合與排名同分規則，確認輸出 `SELF_TEST_PASSED`。<br>3. 選用擷取 `1280×720` 封面圖至 `catalog/covers/<id>.png` 並實際檢視截圖效果。 |
 | **Tier 1：打包、契約與 Lint** | 確定性 ZIP、架構邊界、目錄契約、文件與 Rust Lint | 執行 `node scripts/pack-mod.mjs --all --verify-catalog`、`npm run check:architecture`、`npm test`、`npm run lint:rust`。自動驗證 ZIP `size`／`sha256` 吻合、`mod.json` 與 `catalog/mods.json` 的版本與 ID 相符、`mods/<id>/README.md` 非空白、`requiredFiles` 全數存在、Worker R2 下載測試與三語文件相對連結皆正確。 |
 | **Tier 2：Rust L1 與 L3 實包模擬** | ZIP 解壓、GDPC v3 寫入與截斷還原、交易安全 | 執行 `npm run test:rust`（覆蓋 `pck_loader`、`installer`）。於 macOS 本機可使用未提交的原版 Steam v2.1.2 `Machine Party.pck` 隔離複本執行 `MPM_L3_VANILLA_PCK="/path/to/Machine Party.pck" npm run test:rust`，確認寫入與原版 SHA-256 逐位元組還原。 |
 | **Tier 3：Windows Steam 實機驗收** | 開放正式安裝前的必要門禁（**`verified: true` 前置條件**） | 於 Windows + Steam `v2.1.2` 完成：桌面端經 Worker 下載並校驗 SHA-256 安裝 → Steam 啟動遊戲 → 大廳預設、輪換池、多人 RPC 聯機對局 → 離線解除安裝並核對原版 `Machine Party.pck` SHA-256 還原；另須確認與外部 MPML 和平共存，以及與直接修補 PCK 模組的互斥保護。 |
@@ -101,10 +101,11 @@
 
 將第一方自研模組接入目錄與 R2／Worker 管線的標準流程：
 
-1. 在 `mods/<id>/` 備妥 `README.md`、`mod.json`、執行期 GDScript 檔案，以及封面圖片 `apps/desktop/ui/images/<id>.png`。
+1. 在 `mods/<id>/` 備妥 `README.md`、`mod.json`、執行期 GDScript 檔案；封面圖為選填，如需封面請放置於 `catalog/covers/<id>.<ext>`（支援 `.png`、`.webp`、`.jpg`）。
 2. 執行 `node scripts/pack-mod.mjs <id>` 取得確定性的 `filename`、`size`、`sha256` 與 `files` 清單。
 3. 於 [`catalog/mods.json`](../../../catalog/mods.json) 新增對應條目：
-   - 填寫唯一的 `id` 與 `order`、來源 `repo`（例如 `"JamesGZM/machine-party-mod-manager"`）、`image` 與 `"version": "v<mod.json.version>"`。
+   - 填寫唯一的 `id` 與 `order`、來源 `repo`（例如 `"JamesGZM/machine-party-mod-manager"`）與 `"version": "v<mod.json.version>"`。
+   - **選用 R2 封面圖規範**：若提供 `catalog/covers/<id>.<ext>`，請在條目中宣告 `"cover": { "filename": "<id>.<ext>", "contentType": "image/png" | "image/webp" | "image/jpeg", "size": <位元組數>, "sha256": "<64位十六進位>" }`（上限 4 MiB，建議 `1280×720` 16:9）。禁止將模組封面放入 `apps/desktop/ui/images/`（該目錄僅保留應用程式自身圖示如 `logo.svg`）。省略 `cover` 完全合法，卡片會自動顯示標題佔位（[ADR-016](../architecture/ADR-016-r2-mod-covers.md)）。
    - 同一倉庫的新增模組使用 `"inventoryById": true` 建立獨立安裝紀錄，見 [ADR-010](../architecture/ADR-010-shared-repository-mods.md)。
    - 填寫 `"package"`：唯一數字字串 `assetId`（例如 `"1001"`）、`scripts/pack-mod.mjs` 輸出的 `filename`、`size`、`sha256`，以及 `"mirrorApproved": true`。
    - 填寫 `supportedGameVersions` 與對應桌面版號的 `windowsPreview`，在通過 Tier 3 前一律保持 `"verified": false`。
@@ -132,7 +133,7 @@
 ## 6. 確定性 ZIP 打包與 R2 / Worker 部署流程
 
 - **跨平台確定性打包**：[`scripts/pack-mod.mjs`](../../../scripts/pack-mod.mjs) 依字典序收集非排除檔案，採用 `ZIP_STORED`（method `0`）與固定 DOS 時間戳記（`1980-01-01 00:00:00`）產生封存檔，確保 macOS、Linux 與 Windows 產生完全相同的位元組與 SHA-256。
-- **CI 自動上傳 R2 與部署 Worker**：執行 `.github/workflows/catalog-worker.yml` 時，會自動跑 `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`、將缺少的 `packages/sha256/<sha256>.zip` 上傳至 R2（`machine-party-mods`）、驗證全部 `mirrorApproved` 套件的 R2 `ContentLength`，接著上傳 `catalog/revisions/<revision>.json`、部署 `services/catalog-worker` 並以 `HEAD /v1/downloads/...` 確認線上端點回傳 200。
+- **CI 自動上傳 R2 與部署 Worker**：執行 `.github/workflows/catalog-worker.yml` 時，會自動跑 `node scripts/pack-mod.mjs --all --verify-catalog --out "$RUNNER_TEMP/packages"`、將缺少的 `packages/sha256/<sha256>.zip` 與選用封面 `covers/sha256/<sha256>.<ext>` 上傳至 R2（`machine-party-mods`）、驗證全部 `mirrorApproved` 套件與 `cover` 物件的 R2 `ContentLength`，接著上傳 `catalog/revisions/<revision>.json`、部署 `services/catalog-worker` 並以 `HEAD /v1/downloads/...` 與 `HEAD /v1/covers/...` 確認線上端點回傳 200。
 - **更新既有自研模組** — 調升 `mods/<id>/mod.json` 的版本號，執行 `node scripts/pack-mod.mjs <id>` 取得新檔名、大小與 SHA-256。在 `catalog/mods.json` 更新套件資料（含 `assetId`）、目錄修訂號與模組版本。若有舊版說明，請更新或移除。同步更新模組 README、[模組索引](../../../mods/README.md)及[英文](../../../README.md)、[簡中](../../readme/README.zh-CN.md)、[繁中](../../readme/README.zh-TW.md)首頁表格的版本。推送至 `main` 後執行 `Deploy mod catalog Worker`。更新桌面用戶端時請參閱[發布管理器更新](releasing.md)。
 
 若管理器已收錄這個原生 MPML 模組，可設 `"updateChannel": "preview"` 將新版提供給 Windows 測試版玩家。目錄部署流程會簽署這次修訂。Windows 測試版 0.1.2-12 在「模組目錄」點選「更新至」，核對版本後確認。Windows 預覽版 0.1.2-11 的操作步驟見[支援指南](../SUPPORT.md)。通過 Steam 驗收後再設 `"verified": true`。詳見 [ADR-012](../architecture/ADR-012-single-mod-updates.md)。
@@ -140,6 +141,7 @@
 ## 延伸閱讀
 
 - [ADR-009：自研模組、R2 確定性打包與自管載入器規範](../architecture/ADR-009-bundled-first-party-mods.md)
+- [ADR-016：基於 R2 圖床的選用模組封面規範](../architecture/ADR-016-r2-mod-covers.md)
 - [ADR-005：安裝交易與原版遊戲驗證還原](../architecture/ADR-005-install-transactions.md)
 - [ADR-007：模組轉接器與 macOS 模擬驗證層級](../architecture/ADR-007-mod-adapters.md)
 - [正式目錄交付方案](../catalog/delivery.md) · [開發指南](README.md) · [自研模組目錄索引](../../../mods/README.md) · [滾筒嘉年華 README](../../../mods/roller-carnival/README.md)
