@@ -85,6 +85,7 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.2` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
 | [Player Spotlight](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.1` | Local-only overhead industrial spotlight on your own character across 3D minigames | Native MPML |
 | [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.2` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
+| [Spike Ring](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.0` | 3s prep + 60s survival in a brass arena with fair, never-unwinnable hazards | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 

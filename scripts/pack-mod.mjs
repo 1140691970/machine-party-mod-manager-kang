@@ -42,6 +42,23 @@ function crc32(bytes) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
+function toLf(bytes) {
+  // Windows checkouts can be CRLF; normalize text payloads so every platform packs identical bytes.
+  if (bytes.includes(0)) return bytes;
+  let count = 0;
+  for (let i = 0; i < bytes.length - 1; i++) {
+    if (bytes[i] === 13 && bytes[i + 1] === 10) count++;
+  }
+  if (count === 0) return bytes;
+  const out = Buffer.allocUnsafe(bytes.length - count);
+  let j = 0;
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 13 && bytes[i + 1] === 10) continue;
+    out[j++] = bytes[i];
+  }
+  return out;
+}
+
 async function collectRuntimeFiles(baseDir, currentDir = baseDir) {
   const entries = await readdir(currentDir, { withFileTypes: true });
   entries.sort((a, b) => a.name.localeCompare(b.name, "en"));
@@ -152,7 +169,7 @@ export async function packMod(modId, rootDir = DEFAULT_ROOT) {
   const entries = await Promise.all(
     collected.map(async ({ rel, abs }) => ({
       rel,
-      data: await readFile(abs)
+      data: toLf(await readFile(abs))
     }))
   );
   const bytes = buildDeterministicZip(entries);

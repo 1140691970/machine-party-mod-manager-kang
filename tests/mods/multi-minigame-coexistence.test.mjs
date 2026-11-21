@@ -19,7 +19,8 @@ test("multiple custom minigame mods coexist in hub registry, playlist, and scene
 
   await mkdir(path.join(project, "mods/roller-carnival"), { recursive: true });
   await mkdir(path.join(project, "mods/bubble-blitz"), { recursive: true });
-  for (const modId of ["roller-carnival", "bubble-blitz"]) {
+  await mkdir(path.join(project, "mods/spike-ring"), { recursive: true });
+  for (const modId of ["roller-carnival", "bubble-blitz", "spike-ring"]) {
     const srcDir = local(`../../mods/${modId}`);
     for (const name of await readdir(srcDir)) {
       if (name.endsWith(".gd") || name === "mod.json") {
@@ -54,8 +55,8 @@ test("multiple custom minigame mods coexist in hub registry, playlist, and scene
       "const CustomMinigamesWhitelist: Array[MinigameIdentifier] = [MinigameIdentifier.ChiselGauntlet, MinigameIdentifier.DiscoDodge]",
       "const CutsceneMinigameIdentifiers: Array[MinigameIdentifier] = [MinigameIdentifier.CutsceneTest]",
       "const CutsceneGlitchedPickerMinigameIdentifiers: Array[MinigameIdentifier] = [MinigameIdentifier.CutsceneGame02]",
-      "const MinigamePaths: Dictionary[MinigameIdentifier, String] = { MinigameIdentifier.ShapeCutter: \"res://minigames/shape_cutter/shape_cutter.tscn\", MinigameIdentifier.ScavangerChairs: \"res://minigames/scavenger_chairs/scavenger_chairs.tscn\" }",
-      "const MinigameIconPaths: Dictionary[MinigameIdentifier, String] = {}",
+      "const MinigamePaths: Dictionary[MinigameIdentifier, String] = { MinigameIdentifier.ShapeCutter: \"res://minigames/shape_cutter/shape_cutter.tscn\", MinigameIdentifier.ScavangerChairs: \"res://minigames/scavenger_chairs/scavenger_chairs.tscn\", MinigameIdentifier.BurnRecycle: \"res://minigames/burn_recycle/burn_recycle.tscn\" }",
+      "const MinigameIconPaths: Dictionary[MinigameIdentifier, String] = { MinigameIdentifier.BurnRecycle: \"res://minigames/intermission_new/minigame_icons/minigame icon_burn recycle.png\" }",
       "var default_playlist: Array = []",
       "var session_playlist: Array = []",
       "var all_minigames_finished: bool = false",

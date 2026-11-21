@@ -470,17 +470,11 @@ mod tests {
 
     #[test]
     fn preview_requires_matching_build_and_pinned_package() {
-        assert_eq!(preview_entries("0.1.2-13").len(), 7);
-        for id in [
-            "overtime",
-            "machineparty-plus",
-            "roller-carnival",
-            "lobby-bots",
-            "standalone-hd",
-            "player-spotlight",
-            "bubble-blitz",
-        ] {
-            let mut item = entry(id).unwrap();
+        let entries = all_entries();
+        assert!(!entries.is_empty());
+        assert_eq!(preview_entries("0.1.2-13").len(), entries.len());
+        for mut item in entries {
+            let id = item.id.clone();
             assert!(matches_preview(&item, "0.1.2-13"), "{id}");
             assert!(!matches_preview(&item, "0.1.2"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
@@ -541,26 +535,20 @@ mod tests {
         assert_eq!(plus_adapter.exclusive, "loader");
         assert!(plus_adapter.auto_loader);
 
-        assert_eq!(all_entries().len(), 7);
-        let roller = entry("roller-carnival").expect("roller-carnival entry present");
-        assert_eq!(roller.repo, "JamesGZM/machine-party-mod-manager");
-        let roller_pkg = roller
-            .package
-            .as_ref()
-            .expect("roller-carnival package present");
-        assert_eq!(roller_pkg.filename, "roller-carnival-0.1.8.zip");
-        assert!(roller_pkg.mirror_approved);
-        assert!(roller.adapter.as_ref().unwrap().auto_loader);
-
-        let bubble = entry("bubble-blitz").expect("bubble-blitz entry present");
-        assert_eq!(bubble.repo, "JamesGZM/machine-party-mod-manager");
-        let bubble_pkg = bubble
-            .package
-            .as_ref()
-            .expect("bubble-blitz package present");
-        assert_eq!(bubble_pkg.filename, "bubble-blitz-0.1.2.zip");
-        assert!(bubble_pkg.mirror_approved);
-        assert!(bubble.adapter.as_ref().unwrap().auto_loader);
+        let entries = all_entries();
+        assert!(!entries.is_empty());
+        for item in &entries {
+            let item_pkg = item.package.as_ref().expect("package present");
+            assert!(!item_pkg.asset_id.is_empty());
+            assert!(item_pkg.filename.ends_with(".zip"));
+            assert!(item_pkg.size > 0);
+            assert_eq!(item_pkg.sha256.len(), 64);
+            let item_adapter = item.adapter.as_ref().expect("adapter present");
+            assert_eq!(item_adapter.kind, "loader-files");
+            assert!(item_adapter.auto_loader);
+            let url = download_url(item).expect("download URL present");
+            assert!(url.starts_with("https://machineparty.ailaogong.men/v1/downloads/"));
+        }
         assert_eq!(
             project_url("JamesGZM/machine-party-mod-manager").as_deref(),
             Some("https://github.com/JamesGZM/machine-party-mod-manager")
@@ -568,10 +556,6 @@ mod tests {
         assert_eq!(
             download_url(&mod_entry).unwrap(),
             "https://machineparty.ailaogong.men/v1/downloads/overtime/v1.7/594522625"
-        );
-        assert_eq!(
-            download_url(&roller).unwrap(),
-            "https://machineparty.ailaogong.men/v1/downloads/roller-carnival/v0.1.8/1024"
         );
     }
 }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-21.2-mpml1",
+  "revision": "2026-11-21.3-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -476,6 +476,80 @@
         "bubble",
         "blitz",
         "bomberman"
+      ]
+    },
+    {
+      "id": "spike-ring",
+      "category": "game",
+      "order": 10,
+      "repo": "JamesGZM/machine-party-mod-manager",
+      "inventoryById": true,
+      "image": "spike-ring",
+      "version": "v0.1.0",
+      "package": {
+        "assetId": "1026",
+        "filename": "spike-ring-0.1.0.zip",
+        "size": 188066,
+        "sha256": "ff22f9a335e480684ae53e4274041a73bccba8da22094b53370064eaf14f7874",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.1.2-13",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
+        "target": "pckDir",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "arena_meshes.gd",
+          "config.gd",
+          "main.gd",
+          "mod.json",
+          "official_minigame.gd",
+          "override_game.gd",
+          "override_local_game.gd",
+          "override_picker.gd",
+          "override_playlist.gd",
+          "spike_ring_game.gd"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": false,
+      "name": {
+        "zh-CN": "尖刺圆环",
+        "zh-TW": "尖刺圓環",
+        "en": "Spike Ring"
+      },
+      "summary": {
+        "zh-CN": "3 秒准备 + 60 秒生存计时，圆形机械竞技场躲喷火、电锯与激光，按停留时间计分。",
+        "zh-TW": "3 秒準備 + 60 秒生存計時，圓形機械競技場躲噴火、電鋸與雷射，按停留時間計分。",
+        "en": "3s prep + 60s survival in a circular brass arena — dodge flame jets, saws and lasers; score by time alive."
+      },
+      "detail": {
+        "zh-CN": "2–8 人联机（人数不写死），服务器权威：准备期可移动跳跃但推人禁用、不会出局；正式开始后 60 秒计时，所有玩家出局或倒计时结束才结算。WASD 移动、鼠标朝向、左键推人（命中 +2 分、摔倒固定 0.3 秒、爬起免推 0.2 秒、冷却 1.5 秒）、空格跳跃。每存活 1 秒 +1 分，终局存活 +10。机关安全生成器做网格化危险区模拟与 BFS 可达性检查，绝不生成无解组合；三关数据驱动难度曲线。与滚筒嘉年华、泡泡爆破等加载器小游戏共存，联机时全员需安装同版模组。测试版，尚待 Windows Steam 实机验收。",
+        "zh-TW": "2–8 人連線（人數不寫死），伺服器權威：準備期可移動跳躍但推人禁用、不會出局；正式開始後 60 秒計時，所有玩家出局或倒數結束才結算。WASD 移動、滑鼠朝向、左鍵推人（命中 +2 分、摔倒固定 0.3 秒、爬起免推 0.2 秒、冷卻 1.5 秒）、空白鍵跳躍。每存活 1 秒 +1 分，終局存活 +10。機關安全生成器做網格化危險區模擬與 BFS 可達性檢查，絕不生成無解組合；三關資料驅動難度曲線。與滾筒嘉年華、泡泡爆破等載入器小遊戲共存，連線時全員需安裝同版模組。測試版，尚待 Windows Steam 實機驗收。",
+        "en": "2-8 players (no hard cap), server-authoritative: 3s prep allows movement/jumping but disables shoves and eliminations, then a 60s survival round that only ends when everyone is out or the timer expires. WASD move, mouse aim, LMB shove (+2 pts, fixed 0.3s fall, 0.2s recovery immunity, 1.5s cooldown), Space jump. +1 per second alive, +10 if alive at the end. A grid-based hazard safety generator simulates the next 2s of danger and runs BFS reachability checks so no unwinnable combination is ever spawned; three data-driven round configs ramp difficulty. Coexists with Roller Carnival, Bubble Blitz and other loader minigames; all online players need the same version. Preview build, pending Windows Steam acceptance."
+      },
+      "aliases": [
+        "尖刺圆环",
+        "尖刺圓環",
+        "生存竞技场",
+        "spike",
+        "ring",
+        "spike ring"
       ]
     }
   ]
