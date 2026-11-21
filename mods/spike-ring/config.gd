@@ -9,30 +9,39 @@ extends RefCounted
 ## ============================================================================
 
 # ---------------------------------------------------------------- 1. 场地 / 玩家
-const ARENA_RADIUS := 7.0                   # 场地半径（米，原 12.0 → 7.0 缩小躲避区 ~66%）
+const ARENA_RADIUS := 10.5                  # 基准场地半径（5–8 人默认值）；实际按人数动态缩放
+const ARENA_RADIUS_SMALL := 8.5             # 2–4 人紧凑竞技场（直径 17m）
+const ARENA_RADIUS_MEDIUM := 10.5           # 5–8 人标准竞技场（直径 21m）
+const ARENA_RADIUS_LARGE := 13.0            # 9–16 人多人混战竞技场（直径 26m）
 const PLAYER_RADIUS := 0.42                 # 玩家碰撞半径（米）
-const EDGE_LIMIT_RADIUS := 6.58             # = ARENA_RADIUS - PLAYER_RADIUS，越过即出局
-const PLAYER_MOVE_SPEED := 5.2              # 水平移动速度（米/秒）
-const PLAYER_JUMP_VELOCITY := 6.4           # 起跳初速（米/秒）
+const EDGE_LIMIT_RADIUS := 10.08            # = ARENA_RADIUS - PLAYER_RADIUS（基准值）
+const SHRINK_START_SEC := 35.0              # 正式开始 35s 后（最后 25s）启动尖刺缩圈
+const SHRINK_MIN_RATIO := 0.42              # 缩圈最终最小半径比例（相对当局初始半径）
+const PLAYER_MOVE_SPEED := 5.6              # 水平移动速度（米/秒）
+const PLAYER_ACCEL := 28.0                  # 起步加速度（平滑起步手感）
+const PLAYER_DECEL := 24.0                  # 急停减速度（利落不打滑）
+const PLAYER_JUMP_VELOCITY := 6.6           # 起跳初速（米/秒）
 const PLAYER_GRAVITY := 19.0                # 重力加速度
-const PLAYER_JUMP_HEIGHT := 1.08            # v^2/(2g)，激光/低焰净空必须小于此值
-const SPAWN_CENTER_RADIUS := 2.8            # 中心随机出生区半径（原 4.2 → 2.8）
-const SPAWN_MIN_SEPARATION := 1.15          # 出生点最小间距（无重叠）
+const PLAYER_JUMP_HEIGHT := 1.14            # v^2/(2g)，贴地火带净空必须小于此值
+const SPAWN_CENTER_RADIUS := 4.2            # 基准中心出生区半径
+const SPAWN_MIN_SEPARATION := 1.35          # 出生点最小间距（无重叠）
 const SPAWN_MAX_TRIES := 400                # 拒绝采样上限，超限走环形兜底
 
-# ---------------------------------------------------------------- 1b. 相机 / 视角（俯视全景）
-const CAMERA_FOV := 60.0                    # 正俯视透视相机垂直 FOV（度，原 50 → 60 视角更广）
-const CAMERA_FIT_RADIUS := ARENA_RADIUS + 0.6  # 需完整入镜半径：含边缘尖刺墙
-const CAMERA_FIT_MARGIN := 1.02             # 额外留白
-const CAMERA_MIN_HEIGHT := 13.5             # 相机高度下限（米，原 22 → 13.5 拉近一倍）
-const PLAYER_VISUAL_SCALE := 0.90           # 官方工人 rig 视觉缩放（原 0.44 → 0.90 放大约 2 倍）
-const PLAYER_LABEL_HEIGHT := 2.20           # 名牌 / 血条高度随角色放大下移
+# ---------------------------------------------------------------- 1b. 相机 / 视角（高角度斜俯视 3D 舞台）
+const CAMERA_FOV := 46.0                    # 3D 舞台透视相机垂直 FOV（对齐 Bubble Blitz 工业舞台感）
+const CAMERA_PITCH_DEG := 58.0              # 高角度斜俯视俯角（度），完整保留角色立体感、跳跃高度与全景视野
+const CAMERA_FIT_RADIUS := ARENA_RADIUS + 1.4  # 需完整入镜半径：含边缘尖刺墙与后方 CRT 倒计时屏
+const CAMERA_FIT_MARGIN := 1.06             # 额外留白
+const CAMERA_MIN_HEIGHT := 18.0             # 相机距离下限（米）
+const PLAYER_VISUAL_SCALE := 0.78           # 官方工人 rig 视觉缩放（与 20m 场地保持约 1:11 比例）
+const PLAYER_LABEL_HEIGHT := 1.95           # 名牌高度
 
 # ---------------------------------------------------------------- 2. 推人 / 摔倒
-const PUSH_RANGE := 1.8                     # 左键扇形检测半径（米，原 2.1 → 1.8 适配小场地）
+const PUSH_RANGE := 2.1                     # 扇形推人检测半径（米）
 const PUSH_HALF_ANGLE_COS := 0.7071         # cos(45°)，半角 45° 的扇形
 const PUSH_COOLDOWN_SEC := 1.5              # 推人冷却
-const PUSH_KNOCKBACK_SPEED := 7.6           # 击退速度
+const PUSH_KNOCKBACK_SPEED := 15.0          # 对齐官方 Disco Dodge shove_strength=15.0
+const PUSH_DECAY := 30.0                    # 对齐官方 Disco Dodge shove_decay=30.0
 const FALL_DURATION_SEC := 0.30             # 摔倒固定 0.30 秒爬起（硬约束）
 const RECOVERY_IMMUNITY_SEC := 0.20         # 爬起后 0.20 秒免推（防锁死）
 const PUSH_SCORE := 2                       # 每次成功推倒 +2 分
@@ -58,14 +67,15 @@ const HIT_FORGIVENESS := 0.12               # 危险带/半径收缩量，宁可
 const HISTORY_WINDOW_SEC := 1.0             # 位置历史保留时长
 
 # ---------------------------------------------------------------- 5. 机关通用参数
-const HZ_FLAME := 0
+const HZ_FLAME := 0                         # 伸缩机械地刺带（保留 HZ_FLAME 别名兼容）
+const HZ_SPIKES := 0
 const HZ_SAW := 1
 const HZ_LASER := 2
 const HZ_COUNT := 3
 
-const HAZARD_LASER_ONLY := true             # 去掉喷火与滚动电锯，全部机关为激光
-const HAZARD_MAX_CONCURRENT := 6            # 同时激活激光线上限（多线并发）
-const HAZARD_TYPE_COOLDOWN_SEC := 0.0       # 单一类型不自冷却，否则多线束被节流
+const HAZARD_LASER_ONLY := false            # 启用墙壁激光、高速电锯与伸缩地刺三类重工业机械机关
+const HAZARD_MAX_CONCURRENT := 5            # 同时激活机关上限
+const HAZARD_TYPE_COOLDOWN_SEC := 0.4       # 轻度防同类型连刷，保证节奏多变
 const LASER_BURST_MIN := 2                  # 每次生成的最少激光线数
 const LASER_BURST_MAX := 4                  # 每次生成的最多激光线数
 const HAZARD_MIN_PLAYER_DISTANCE := 1.1     # 禁止在玩家 1.1 米内立即生成致命机关
@@ -85,61 +95,70 @@ const HAZARD_STATE_WARN := 0
 const HAZARD_STATE_ACTIVE := 1
 const HAZARD_STATE_DONE := 2
 
-# 喷火：低焰长条，可跳跃越过，也可绕开
-const FLAME_WARN_MIN := 0.8
-const FLAME_WARN_MAX := 1.2
-const FLAME_ACTIVE_MIN := 1.2
+# 伸缩机械地刺带：地板格栅预警后整排钢刺猛然向上刺出（不可跳，横向走位躲避）
+const FLAME_WARN_MIN := 0.95
+const FLAME_WARN_MAX := 1.25
+const FLAME_ACTIVE_MIN := 1.3
 const FLAME_ACTIVE_MAX := 1.8
-const FLAME_WIDTH := 1.5
-const FLAME_CLEAR_HEIGHT := 0.55
+const FLAME_WIDTH := 1.35
+const FLAME_CLEAR_HEIGHT := 99.0
 # 电锯：贴地沿弦线跑，不可跳越，只能横向躲避
 const SAW_WARN := 0.8
 const SAW_ACTIVE_MAX := 4.0
-const SAW_RADIUS := 0.62
-const SAW_SPEED := 7.0
+const SAW_RADIUS := 0.85
+const SAW_SPEED := 7.8
 const SAW_CLEAR_HEIGHT := 99.0
-# 激光：低空扫描线，正常跳跃可越过；v0.1.5 起改为"从一端扫到另一端"
-const LASER_WARN_MIN := 0.65
-const LASER_WARN_MAX := 0.95
-const LASER_ACTIVE_MIN := 0.9               # 仅作为兜底（扫掠模式下由 active_duration 决定）
-const LASER_ACTIVE_MAX := 1.4
-const LASER_WIDTH := 0.60                   # 加粗，扫掠中的线更醒目
-const LASER_CLEAR_HEIGHT := 0.62            # 仍可跳跃越过（PLAYER_JUMP_HEIGHT=1.08）
+# 激光：上身高度（~1.02m）带安全缺口的墙壁滑轨切割光束（不可跳，玩家钻缺口并互推对抗）
+const LASER_WARN_MIN := 1.00
+const LASER_WARN_MAX := 1.25
+const LASER_ACTIVE_MIN := 2.4
+const LASER_ACTIVE_MAX := 3.2
+const LASER_WIDTH := 0.44
+const LASER_GAP_WIDTH := 3.1                # 激光墙安全缺口宽度（米），玩家可钻过并在缺口处推人对抗
+const LASER_CLEAR_HEIGHT := 99.0            # 上身高度不可跳（贴地火带才可跳）
 
-## 扫掠激光参数（v0.1.5 新增）
-const LASER_SWEEP_SPEED := 4.2              # 扫掠平移速度（米/秒，略低于玩家 5.2 → 可躲需预判）
-const LASER_SWEEP_ENTRY_PAD := 0.6          # 入场点在场地外多远处开始（保证完全从画面外扫进来）
+## 扫掠激光参数
+const LASER_SWEEP_SPEED := 2.8              # 平稳可读的扫掠速度（米/秒，远低于玩家 5.6 → 充足反应时间）
+const LASER_SWEEP_ENTRY_PAD := 0.6
 
-# ---------------------------------------------------------------- 6. 难度曲线（三段）
-## 0-15s 低频简单 / 15-35s 中频混合 / 35-60s 高频但强制可躲。
-## weights 为三类机关的生成权重；interval 为生成间隔；speed_scale 作用于机关速度。
+# ---------------------------------------------------------------- 5b. 空投消耗品（直接可见 3D 道具）
+const ITEM_NONE := 0
+const ITEM_SHIELD := 1                      # 防爆护盾（被动抵挡 1 次致命伤害并弹回安全区）
+const ITEM_POWER_SHOVE := 2                 # 重击铁拳（消耗于下一次推人：2x 击退 + 立即重置冷却）
+const ITEM_SHOCKWAVE := 3                   # 震荡冲击波（消耗于下一次推人：360° 3.2m 范围震飞）
+const AIRDROP_TIMES := [12.0, 28.0, 44.0]   # 每局 3 次空投时间点
+const AIRDROP_FALL_SEC := 2.0               # 空投从高空降落时长（期间地面显示落点准星）
+const AIRDROP_PICKUP_RADIUS := 1.15         # 碰到即拿半径
+const SHOCKWAVE_RANGE := 3.2                # 360° 震荡冲击波半径
+
+# ---------------------------------------------------------------- 6. 难度曲线（三段，节奏克制清晰）
 const DIFFICULTY_PHASES := [
 	{
-		"until": 15.0,
+		"until": 20.0,
 		"name": "WARMUP",
 		"interval": 2.4,
-		"max_concurrent": 2,
-		"burst": 2,
-		"speed_scale": 0.90,
-		"weights": {"flame": 0.0, "saw": 0.0, "laser": 1.0},
+		"max_concurrent": 1,
+		"burst": 1,
+		"speed_scale": 0.88,
+		"weights": {"flame": 0.28, "saw": 0.30, "laser": 0.42},
 	},
 	{
-		"until": 35.0,
+		"until": 40.0,
 		"name": "MIXED",
-		"interval": 1.5,
-		"max_concurrent": 4,
-		"burst": 3,
+		"interval": 2.0,
+		"max_concurrent": 2,
+		"burst": 1,
 		"speed_scale": 1.00,
-		"weights": {"flame": 0.0, "saw": 0.0, "laser": 1.0},
+		"weights": {"flame": 0.32, "saw": 0.33, "laser": 0.35},
 	},
 	{
 		"until": 60.0,
 		"name": "FRENZY",
-		"interval": 1.0,
-		"max_concurrent": 6,
-		"burst": 4,
-		"speed_scale": 1.15,
-		"weights": {"flame": 0.0, "saw": 0.0, "laser": 1.0},
+		"interval": 1.5,
+		"max_concurrent": 3,
+		"burst": 1,
+		"speed_scale": 1.12,
+		"weights": {"flame": 0.35, "saw": 0.35, "laser": 0.30},
 	},
 ]
 
@@ -163,10 +182,10 @@ const ROUND_CONFIGS := [
 		"id": "sawmill",
 		"name_zh": "棱镜车间",
 		"name_en": "PRISM WORKS",
-		"interval_scale": 0.88,
-		"speed_scale": 1.08,
+		"interval_scale": 0.90,
+		"speed_scale": 1.06,
 		"max_concurrent_bonus": 0,
-		"burst_bonus": 1,
+		"burst_bonus": 0,
 		"weights_bias": {"flame": 0.0, "saw": 0.0, "laser": 0.0},
 		"accent": [0.94, 0.36, 0.26],
 	},
@@ -174,10 +193,10 @@ const ROUND_CONFIGS := [
 		"id": "laser_vault",
 		"name_zh": "激光熔炉",
 		"name_en": "LASER VAULT",
-		"interval_scale": 0.76,
-		"speed_scale": 1.18,
+		"interval_scale": 0.82,
+		"speed_scale": 1.12,
 		"max_concurrent_bonus": 0,
-		"burst_bonus": 1,
+		"burst_bonus": 0,
 		"weights_bias": {"flame": 0.0, "saw": 0.0, "laser": 0.0},
 		"accent": [0.98, 0.86, 0.28],
 	},
@@ -187,6 +206,22 @@ const ROUND_CONFIGS := [
 # ============================================================================
 # 工具：难度 / 机关类型选择
 # ============================================================================
+
+static func arena_radius_for_players(player_count: int) -> float:
+	if player_count <= 4:
+		return ARENA_RADIUS_SMALL
+	if player_count <= 8:
+		return ARENA_RADIUS_MEDIUM
+	return ARENA_RADIUS_LARGE
+
+
+static func current_arena_radius(elapsed: float, base_radius: float = ARENA_RADIUS) -> float:
+	if elapsed <= SHRINK_START_SEC:
+		return base_radius
+	var dur: float = maxf(1.0, ROUND_DURATION_SEC - SHRINK_START_SEC)
+	var t: float = clampf((elapsed - SHRINK_START_SEC) / dur, 0.0, 1.0)
+	return lerpf(base_radius, base_radius * SHRINK_MIN_RATIO, t)
+
 
 static func difficulty_phase(elapsed: float, round_cfg: Dictionary) -> Dictionary:
 	## 返回当前生效的难度阶段（已叠加本关配置倍率）。
@@ -271,9 +306,11 @@ static func hazard_params(type: int, rng: RandomNumberGenerator, speed_scale: fl
 # 工具：出生点（中心区域随机、无重叠、人数无关）
 # ============================================================================
 
-static func compute_spawns(player_count: int, seed_val: int) -> Array:
+static func compute_spawns(player_count: int, seed_val: int, base_radius: float = ARENA_RADIUS) -> Array:
 	## 不写死人数：任意 2..N 人均在中心圆内做拒绝采样，失败则环形兜底。
 	var count: int = maxi(1, player_count)
+	var spawn_r: float = base_radius * 0.44
+	var edge_lim: float = base_radius - PLAYER_RADIUS
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_val
 	var out: Array = []
@@ -281,7 +318,7 @@ static func compute_spawns(player_count: int, seed_val: int) -> Array:
 	while out.size() < count and tries < SPAWN_MAX_TRIES:
 		tries += 1
 		var ang: float = rng.randf() * TAU
-		var rad: float = sqrt(rng.randf()) * SPAWN_CENTER_RADIUS
+		var rad: float = sqrt(rng.randf()) * spawn_r
 		var cand := Vector2(cos(ang) * rad, sin(ang) * rad)
 		var ok: bool = true
 		for raw in out:
@@ -292,14 +329,13 @@ static func compute_spawns(player_count: int, seed_val: int) -> Array:
 		if ok:
 			out.append(cand)
 	# 兜底：按人数计算能容纳所有人的最小环半径，保证严格无重叠。
-	# 用精确弦长公式 sep/(2*sin(pi/n))；原 count*sep/TAU 是周长近似，人数多时会低估导致相邻点略微重叠。
 	if out.size() < count:
 		out.clear()
 		var ring_r: float = maxf(
-			SPAWN_CENTER_RADIUS * 0.72,
+			spawn_r * 0.72,
 			SPAWN_MIN_SEPARATION / (2.0 * sin(TAU / (2.0 * float(maxi(2, count)))))
 		)
-		ring_r = minf(ring_r, EDGE_LIMIT_RADIUS * 0.75)
+		ring_r = minf(ring_r, edge_lim * 0.75)
 		# 抖动只能整环统一旋转；若每点独立抖动会破坏等角分布，相邻点可能低于最小间距。
 		var base_a: float = rng.randf() * 0.04
 		for i in range(count):
@@ -464,7 +500,7 @@ static func state_name(state: int) -> String:
 
 static func hazard_name(type: int) -> String:
 	match type:
-		HZ_FLAME: return "FLAME"
+		HZ_FLAME: return "FLOOR_SPIKES"
 		HZ_SAW: return "SAW"
 		HZ_LASER: return "LASER"
 	return "UNKNOWN"

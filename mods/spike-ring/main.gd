@@ -46,25 +46,22 @@ static func _display_name() -> String:
 static func _brief_content() -> String:
 	var loc: String = TranslationServer.get_locale().to_upper()
 	if loc.begins_with("ZHS"):
-		return "3 秒准备倒计时：可以移动跳跃，推人禁用，不会出局！\n正式开始后 60 秒生存计时，躲开喷火、电锯、激光与边缘尖刺。\n[WASD] 移动，[鼠标] 朝向，[左键] 推人，[空格] 跳跃；每存活 1 秒得 1 分，推倒 +2，终局存活 +10！"
+		return "3 秒准备后开启 60 秒生存赛，躲开墙壁激光、电锯、伸缩地刺与终局缩圈尖刺环！\n[WASD / 方向键] 移动，[空格] 推搡对手；拾取空投护盾、重推 2x 与 360° 冲击波争夺优势。\n每存活 1 秒 +1 分，推倒对手 +2 分，终局存活额外 +10 分！"
 	if loc.begins_with("ZH"):
-		return "3 秒準備倒數：可以移動跳躍，推人禁用，不會出局！\n正式開始後 60 秒生存計時，躲開噴火、電鋸、雷射與邊緣尖刺。\n[WASD] 移動，[滑鼠] 朝向，[左鍵] 推人，[空白鍵] 跳躍；每存活 1 秒得 1 分，推倒 +2，終局存活 +10！"
-	return "3s prep countdown: move and jump freely, push disabled, no eliminations!\nThen survive 60s against flame jets, saws, lasers and the spiked rim.\n[WASD] move, [Mouse] aim, [LMB] shove, [Space] jump. +1 per second alive, +2 per shove, +10 if alive at the end!"
+		return "3 秒準備後開啟 60 秒生存賽，躲開牆壁雷射、電鋸、伸縮地刺與終局縮圈尖刺環！\n[WASD / 方向鍵] 移動，[空白鍵] 推搡對手；拾取空投護盾、重推 2x 與 360° 衝擊波爭奪優勢。\n每存活 1 秒 +1 分，推倒對手 +2 分，終局存活額外 +10 分！"
+	return "3s prep then a 60s survival match: dodge wall lasers, saws, floor spikes and the shrinking spike ring!\n[WASD / Arrows] move, [Space] shove rivals; grab visible airdrops (Shield, 2x Shove, 360° Shockwave).\n+1 per second alive, +2 per shove, +10 survival bonus at the end!"
 
 
 static func _controls_data() -> Array:
 	var loc: String = TranslationServer.get_locale().to_upper()
 	var move_text := "MOVE [WASD / ARROWS]"
-	var shove_text := "SHOVE [LEFT MOUSE]"
-	var jump_text := "JUMP [SPACE]"
+	var shove_text := "SHOVE [SPACE]"
 	if loc.begins_with("ZHS"):
 		move_text = "移动 [WASD / 方向键]"
-		shove_text = "推人 [鼠标左键]"
-		jump_text = "跳跃 [空格]"
+		shove_text = "推搡 [空格]"
 	elif loc.begins_with("ZH"):
 		move_text = "移動 [WASD / 方向鍵]"
-		shove_text = "推人 [滑鼠左鍵]"
-		jump_text = "跳躍 [空白鍵]"
+		shove_text = "推搡 [空白鍵]"
 	return [
 		{
 			"control_text": move_text,
@@ -75,14 +72,8 @@ static func _controls_data() -> Array:
 		{
 			"control_text": shove_text,
 			"controller_text": "SHOVE",
-			"keyboard_icons": [],
-			"controller_icons": ["ControllerFaceSouth"],
-		},
-		{
-			"control_text": jump_text,
-			"controller_text": "JUMP",
 			"keyboard_icons": ["KeyboardSpace"],
-			"controller_icons": ["ControllerFaceEast"],
+			"controller_icons": ["ControllerFaceSouth"],
 		},
 	]
 

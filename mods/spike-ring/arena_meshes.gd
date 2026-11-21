@@ -195,626 +195,6 @@ static func make_std_mat(
 	return mat
 
 
-static func build_floor_and_backdrop(width: int, height: int, tile_size: float, theme_meta: Dictionary) -> Dictionary:
-	ensure_game_pck_mounted()
-	var root := Node3D.new()
-	root.name = "ArenaFloor"
-
-	var col_a: Color = theme_meta.get("floor_a", Color(0.56, 0.53, 0.50))
-	var col_b: Color = theme_meta.get("floor_b", Color(0.44, 0.42, 0.40))
-	var accent: Color = theme_meta.get("accent", Color(0.32, 0.86, 1.0))
-
-	# Reuse vanilla Machine Party factory floor and metal grate textures with warm low-saturation industrial tone.
-	var tint_a := Color(0.68, 0.64, 0.60).lerp(col_a, 0.16)
-	var tint_b := Color(0.50, 0.48, 0.46).lerp(col_b, 0.16)
-	var mat_a := make_std_mat(tint_a, 0.22, 0.78, Color.BLACK, 0.0, false, TEX_FLOOR, Vector3(0.35, 0.35, 0.35))
-	var mat_b := make_std_mat(tint_b, 0.30, 0.70, Color.BLACK, 0.0, false, TEX_GRATE, Vector3(0.42, 0.42, 0.42))
-	var mat_frame := make_std_mat(Color(0.24, 0.22, 0.21), 0.60, 0.65, Color.BLACK, 0.0, false, TEX_SIDING, Vector3(0.25, 0.25, 0.25))
-	var mat_wall := make_std_mat(Color(0.40, 0.30, 0.24), 0.32, 0.80, Color.BLACK, 0.0, false, TEX_HEAVY_RUST, Vector3(0.18, 0.18, 0.18))
-	var mat_pipe := make_std_mat(Color(0.44, 0.40, 0.36), 0.72, 0.44, Color.BLACK, 0.0, false, TEX_PIPES, Vector3(0.4, 0.4, 0.4))
-	var mat_trim := make_std_mat(Color(0.14, 0.14, 0.15), 0.72, 0.50, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(0.4, 0.4, 0.4))
-
-	var total_w: float = float(width) * tile_size
-	var total_h: float = float(height) * tile_size
-
-	# Heavy dark charcoal industrial sub-deck (eliminates bright neon seams between floor tiles).
-	var deck := MeshInstance3D.new()
-	var deck_mesh := BoxMesh.new()
-	deck_mesh.size = Vector3(total_w + 2.8, 0.9, total_h + 2.8)
-	deck.mesh = deck_mesh
-	deck.material_override = mat_frame
-	deck.position = Vector3(0.0, -0.49, 0.0)
-	root.add_child(deck)
-
-	var rim := MeshInstance3D.new()
-	var rim_mesh := BoxMesh.new()
-	rim_mesh.size = Vector3(total_w + 0.32, 0.09, total_h + 0.32)
-	rim.mesh = rim_mesh
-	rim.material_override = mat_trim
-	rim.position = Vector3(0.0, -0.05, 0.0)
-	root.add_child(rim)
-
-	# Checkerboard factory floor tiles using two MultiMeshInstance3D batches.
-	var tile_mesh := BoxMesh.new()
-	tile_mesh.size = Vector3(tile_size * 0.995, 0.08, tile_size * 0.995)
-	var transforms_a: Array[Transform3D] = []
-	var transforms_b: Array[Transform3D] = []
-	var ox: float = (float(width) - 1.0) * 0.5
-	var oz: float = (float(height) - 1.0) * 0.5
-
-	for y in range(height):
-		for x in range(width):
-			var pos := Vector3((float(x) - ox) * tile_size, -0.04, (float(y) - oz) * tile_size)
-			var t := Transform3D(Basis.IDENTITY, pos)
-			if (x + y) % 2 == 0:
-				transforms_a.append(t)
-			else:
-				transforms_b.append(t)
-
-	for pair in [[transforms_a, mat_a, "TilesA"], [transforms_b, mat_b, "TilesB"]]:
-		var arr: Array[Transform3D] = pair[0]
-		var mm := MultiMesh.new()
-		mm.transform_format = MultiMesh.TRANSFORM_3D
-		mm.mesh = tile_mesh
-		mm.instance_count = arr.size()
-		for i in range(arr.size()):
-			mm.set_instance_transform(i, arr[i])
-		var mmi := MultiMeshInstance3D.new()
-		mmi.name = str(pair[2])
-		mmi.multimesh = mm
-		mmi.material_override = pair[1]
-		root.add_child(mmi)
-
-	# --- Industrial Factory Back Wall + Pipes + Fluorescent Tubes + 3D CRT Monitor ---
-	var back_z: float = -total_h * 0.5 - 1.35
-	var wall := MeshInstance3D.new()
-	var wm := BoxMesh.new()
-	wm.size = Vector3(total_w + 14.0, 6.2, 0.7)
-	wall.mesh = wm
-	wall.material_override = mat_wall
-	wall.position = Vector3(0.0, 2.4, back_z)
-	root.add_child(wall)
-
-	for py in [1.1, 3.6]:
-		var pipe := MeshInstance3D.new()
-		var pm := CylinderMesh.new()
-		pm.top_radius = 0.14
-		pm.bottom_radius = 0.14
-		pm.height = total_w + 12.0
-		pipe.mesh = pm
-		pipe.material_override = mat_pipe
-		pipe.rotation_degrees = Vector3(0.0, 0.0, 90.0)
-		pipe.position = Vector3(0.0, py, back_z + 0.48)
-		root.add_child(pipe)
-
-	# Warm industrial fluorescent wall tubes.
-	var tube_mat := make_std_mat(Color(0.95, 0.94, 0.82), 0.1, 0.2, Color(0.96, 0.92, 0.76), 1.8)
-	var fixture_mat := make_std_mat(Color(0.22, 0.22, 0.24), 0.7, 0.45)
-	for lx in [-total_w * 0.38, -total_w * 0.18, total_w * 0.18, total_w * 0.38]:
-		var fix := MeshInstance3D.new()
-		var fm := BoxMesh.new()
-		fm.size = Vector3(1.45, 0.22, 0.30)
-		fix.mesh = fm
-		fix.material_override = fixture_mat
-		fix.position = Vector3(lx, 2.85, back_z + 0.46)
-		root.add_child(fix)
-
-		var tube := MeshInstance3D.new()
-		var tm := BoxMesh.new()
-		tm.size = Vector3(1.25, 0.10, 0.14)
-		tube.mesh = tm
-		tube.material_override = tube_mat
-		tube.position = Vector3(lx, 2.74, back_z + 0.56)
-		root.add_child(tube)
-
-	# 3D CRT Countdown & Theme Monitor mounted on back wall (authentic Machine Party style).
-	var crt_root := Node3D.new()
-	crt_root.name = "BackWallCRT"
-	crt_root.position = Vector3(0.0, 2.15, back_z + 0.62)
-	crt_root.rotation_degrees = Vector3(24.0, 0.0, 0.0)
-	root.add_child(crt_root)
-
-	var casing := MeshInstance3D.new()
-	var cm := BoxMesh.new()
-	cm.size = Vector3(4.6, 2.1, 0.65)
-	casing.mesh = cm
-	casing.material_override = make_std_mat(Color(0.10, 0.11, 0.12), 0.6, 0.5, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(0.4, 0.4, 0.4))
-	crt_root.add_child(casing)
-
-	var screen := MeshInstance3D.new()
-	var sm := BoxMesh.new()
-	sm.size = Vector3(4.15, 1.65, 0.06)
-	screen.mesh = sm
-	screen.material_override = make_std_mat(Color(0.02, 0.05, 0.03), 0.1, 0.2, Color(0.03, 0.10, 0.05), 0.65)
-	screen.position = Vector3(0.0, 0.0, 0.34)
-	crt_root.add_child(screen)
-
-	var term_font: Font = load_terminal_font()
-	var monitor_timer := Label3D.new()
-	monitor_timer.name = "MonitorTimer"
-	monitor_timer.text = "01:15"
-	monitor_timer.font_size = 136
-	monitor_timer.pixel_size = 0.0072
-	monitor_timer.modulate = Color(0.68, 1.0, 0.68)
-	monitor_timer.outline_modulate = Color(0.04, 0.18, 0.06)
-	monitor_timer.outline_size = 10
-	if term_font != null:
-		monitor_timer.font = term_font
-	monitor_timer.position = Vector3(0.0, 0.22, 0.39)
-	crt_root.add_child(monitor_timer)
-
-	var monitor_theme := Label3D.new()
-	monitor_theme.name = "MonitorTheme"
-	monitor_theme.text = "BUBBLE BLITZ"
-	monitor_theme.font_size = 46
-	monitor_theme.pixel_size = 0.0068
-	monitor_theme.modulate = Color(0.64, 0.96, 0.68)
-	monitor_theme.outline_modulate = Color.BLACK
-	monitor_theme.outline_size = 8
-	if term_font != null:
-		monitor_theme.font = term_font
-	monitor_theme.position = Vector3(0.0, -0.46, 0.39)
-	crt_root.add_child(monitor_theme)
-
-	return {
-		"root": root,
-		"monitor_timer": monitor_timer,
-		"monitor_theme": monitor_theme,
-	}
-
-
-static func build_steel_pillar(tile_size: float, accent: Color) -> Node3D:
-	var n := Node3D.new()
-	var body := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(tile_size * 0.94, tile_size * 0.88, tile_size * 0.94)
-	body.mesh = bm
-	body.material_override = make_std_mat(
-		Color(0.56, 0.58, 0.60),
-		0.72,
-		0.48,
-		Color.BLACK,
-		0.0,
-		false,
-		TEX_THREADPLATE,
-		Vector3(0.65, 0.65, 0.65),
-		TEX_THREADPLATE_NORMAL
-	)
-	body.position = Vector3(0.0, tile_size * 0.44, 0.0)
-	n.add_child(body)
-
-	var cap := MeshInstance3D.new()
-	var cm := BoxMesh.new()
-	cm.size = Vector3(tile_size * 0.74, tile_size * 0.14, tile_size * 0.74)
-	cap.mesh = cm
-	cap.material_override = make_std_mat(
-		Color(0.46, 0.44, 0.42),
-		0.80,
-		0.36,
-		accent * 0.18,
-		0.22,
-		false,
-		TEX_METAL_PLATE,
-		Vector3(0.7, 0.7, 0.7)
-	)
-	cap.position = Vector3(0.0, tile_size * 0.91, 0.0)
-	n.add_child(cap)
-	return n
-
-
-static func build_crate(tile_size: float, is_gold: bool, base_color: Color) -> Node3D:
-	var n := Node3D.new()
-	var main_col: Color = Color(1.0, 0.84, 0.34) if is_gold else base_color.lerp(Color(0.92, 0.86, 0.78), 0.65)
-	var em_col: Color = Color(0.95, 0.68, 0.12) if is_gold else Color.BLACK
-	var em_e: float = 0.32 if is_gold else 0.0
-	var tex_path: String = TEX_CRATE_SUPPLY if is_gold else TEX_CRATE_WOOD
-
-	var body := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(tile_size * 0.88, tile_size * 0.80, tile_size * 0.88)
-	body.mesh = bm
-	body.material_override = make_std_mat(
-		main_col,
-		0.45 if is_gold else 0.14,
-		0.42 if is_gold else 0.78,
-		em_col,
-		em_e,
-		false,
-		tex_path,
-		Vector3(0.82, 0.82, 0.82)
-	)
-	body.position = Vector3(0.0, tile_size * 0.40, 0.0)
-	n.add_child(body)
-
-	var brace_mat := make_std_mat(
-		Color(0.60, 0.44, 0.14) if is_gold else Color(0.28, 0.24, 0.20),
-		0.62,
-		0.48,
-		Color.BLACK,
-		0.0,
-		false,
-		TEX_METAL_PLATE,
-		Vector3(0.9, 0.9, 0.9)
-	)
-	var b1 := MeshInstance3D.new()
-	var bm1 := BoxMesh.new()
-	bm1.size = Vector3(tile_size * 0.90, tile_size * 0.09, tile_size * 0.16)
-	b1.mesh = bm1
-	b1.material_override = brace_mat
-	b1.position = Vector3(0.0, tile_size * 0.80, 0.0)
-	n.add_child(b1)
-
-	var b2 := MeshInstance3D.new()
-	var bm2 := BoxMesh.new()
-	bm2.size = Vector3(tile_size * 0.16, tile_size * 0.09, tile_size * 0.90)
-	b2.mesh = bm2
-	b2.material_override = brace_mat
-	b2.position = Vector3(0.0, tile_size * 0.80, 0.0)
-	n.add_child(b2)
-	return n
-
-
-static func build_conveyor_tile(tile_size: float, dir: Vector2i, accent: Color) -> Node3D:
-	var n := Node3D.new()
-	var belt := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(tile_size * 0.94, 0.06, tile_size * 0.94)
-	belt.mesh = bm
-	belt.material_override = make_std_mat(
-		Color(0.30, 0.32, 0.34),
-		0.45,
-		0.72,
-		Color.BLACK,
-		0.0,
-		false,
-		TEX_SHREDDER,
-		Vector3(0.8, 0.8, 0.8)
-	)
-	belt.position = Vector3(0.0, 0.03, 0.0)
-	n.add_child(belt)
-
-	# Industrial stencil hazard chevron painted on conveyor belt (low-saturation ochre, no neon).
-	var arrow := MeshInstance3D.new()
-	var am := PrismMesh.new()
-	am.size = Vector3(tile_size * 0.38, tile_size * 0.40, 0.03)
-	arrow.mesh = am
-	var arrow_col := Color(0.76, 0.56, 0.16)
-	arrow.material_override = make_std_mat(arrow_col, 0.15, 0.62, arrow_col, 0.18)
-	arrow.position = Vector3(0.0, 0.072, 0.0)
-	arrow.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	var yaw: float = 0.0
-	if dir == Vector2i(1, 0):
-		yaw = -90.0
-	elif dir == Vector2i(-1, 0):
-		yaw = 90.0
-	elif dir == Vector2i(0, 1):
-		yaw = 180.0
-	elif dir == Vector2i(0, -1):
-		yaw = 0.0
-	n.rotation_degrees = Vector3(0.0, yaw, 0.0)
-	n.add_child(arrow)
-	return n
-
-
-static func build_crusher_block(tile_size: float) -> Node3D:
-	var n := Node3D.new()
-	var body := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = Vector3(tile_size * 0.95, tile_size * 1.12, tile_size * 0.95)
-	body.mesh = bm
-	body.material_override = make_std_mat(
-		Color(0.36, 0.32, 0.30),
-		0.78,
-		0.42,
-		Color.BLACK,
-		0.0,
-		false,
-		TEX_SHREDDER,
-		Vector3(0.7, 0.7, 0.7)
-	)
-	body.position = Vector3(0.0, tile_size * 0.56, 0.0)
-	n.add_child(body)
-
-	var stripe := MeshInstance3D.new()
-	var sm := BoxMesh.new()
-	sm.size = Vector3(tile_size * 0.98, tile_size * 0.22, tile_size * 0.98)
-	stripe.mesh = sm
-	stripe.material_override = make_std_mat(Color(0.96, 0.70, 0.10), 0.3, 0.45, Color(0.96, 0.50, 0.06), 0.65)
-	stripe.position = Vector3(0.0, tile_size * 0.96, 0.0)
-	n.add_child(stripe)
-	return n
-
-
-static func _collect_aabb(node: Node, parent_xform: Transform3D) -> AABB:
-	var combined := AABB()
-	var has_box := false
-	var cur_xform: Transform3D = parent_xform
-	if node is Node3D:
-		cur_xform = parent_xform * (node as Node3D).transform
-	if node is VisualInstance3D:
-		var local_box: AABB = (node as VisualInstance3D).get_aabb()
-		if local_box.size.length_squared() > 0.00001:
-			var world_box: AABB = cur_xform * local_box
-			combined = world_box if not has_box else combined.merge(world_box)
-			has_box = true
-	for child in node.get_children():
-		var sub: AABB = _collect_aabb(child, cur_xform)
-		if sub.size.length_squared() > 0.00001:
-			combined = sub if not has_box else combined.merge(sub)
-			has_box = true
-	return combined
-
-
-static func _attach_normalized_glb(parent: Node3D, glb_path: String, target_extent: float, base_y: float, tilt_deg: Vector3 = Vector3.ZERO) -> bool:
-	var packed = load_optional(glb_path)
-	if not (packed is PackedScene):
-		return false
-	var inst = (packed as PackedScene).instantiate()
-	if not (inst is Node3D):
-		if inst != null:
-			inst.free()
-		return false
-	var holder := Node3D.new()
-	holder.position = Vector3(0.0, base_y, 0.0)
-	holder.rotation_degrees = tilt_deg
-	var model: Node3D = inst
-	var box: AABB = _collect_aabb(model, Transform3D.IDENTITY)
-	var max_dim: float = maxf(box.size.x, maxf(box.size.y, box.size.z))
-	if max_dim > 0.001:
-		var s: float = target_extent / max_dim
-		model.scale = Vector3.ONE * s
-		var center: Vector3 = box.position + box.size * 0.5
-		model.position = -center * s
-	holder.add_child(model)
-	parent.add_child(holder)
-	return true
-
-
-static func build_water_bubble(tile_size: float, _owner_color: Color) -> Node3D:
-	## Authentic Machine Party industrial explosive canister (dark iron + hazard rust barrel + red detonator LED).
-	var n := Node3D.new()
-
-	var base := MeshInstance3D.new()
-	var bm := CylinderMesh.new()
-	bm.top_radius = tile_size * 0.34
-	bm.bottom_radius = tile_size * 0.38
-	bm.height = tile_size * 0.14
-	base.mesh = bm
-	base.material_override = make_std_mat(Color(0.24, 0.24, 0.26), 0.82, 0.42, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(1.2, 1.2, 1.2))
-	base.position = Vector3(0.0, tile_size * 0.07, 0.0)
-	n.add_child(base)
-
-	var canister := MeshInstance3D.new()
-	canister.name = "CanisterBody"
-	var cm := CylinderMesh.new()
-	cm.top_radius = tile_size * 0.29
-	cm.bottom_radius = tile_size * 0.31
-	cm.height = tile_size * 0.52
-	canister.mesh = cm
-	canister.material_override = make_std_mat(Color(0.68, 0.22, 0.16), 0.48, 0.54, Color.BLACK, 0.0, false, TEX_BARREL, Vector3(0.9, 0.9, 0.9))
-	canister.position = Vector3(0.0, tile_size * 0.38, 0.0)
-	n.add_child(canister)
-
-	# Hazard dark-amber steel clamp band (unified industrial palette, no bright neon).
-	var band := MeshInstance3D.new()
-	var bnd_m := CylinderMesh.new()
-	bnd_m.top_radius = tile_size * 0.315
-	bnd_m.bottom_radius = tile_size * 0.315
-	bnd_m.height = tile_size * 0.10
-	band.mesh = bnd_m
-	band.material_override = make_std_mat(Color(0.66, 0.46, 0.14), 0.55, 0.46, Color(0.45, 0.26, 0.05), 0.25, false, TEX_METAL_PLATE)
-	band.position = Vector3(0.0, tile_size * 0.38, 0.0)
-	n.add_child(band)
-
-	var cap := MeshInstance3D.new()
-	var cap_m := CylinderMesh.new()
-	cap_m.top_radius = tile_size * 0.18
-	cap_m.bottom_radius = tile_size * 0.24
-	cap_m.height = tile_size * 0.12
-	cap.mesh = cap_m
-	cap.material_override = make_std_mat(Color(0.22, 0.22, 0.24), 0.85, 0.36, Color.BLACK, 0.0, false, TEX_THREADPLATE)
-	cap.position = Vector3(0.0, tile_size * 0.68, 0.0)
-	n.add_child(cap)
-
-	var beacon := MeshInstance3D.new()
-	beacon.name = "FuseBeacon"
-	var sm := SphereMesh.new()
-	sm.radius = tile_size * 0.10
-	sm.height = tile_size * 0.20
-	beacon.mesh = sm
-	beacon.material_override = make_std_mat(Color(0.95, 0.20, 0.10), 0.1, 0.2, Color(1.0, 0.18, 0.08), 2.2)
-	beacon.position = Vector3(0.0, tile_size * 0.79, 0.0)
-	n.add_child(beacon)
-	return n
-
-
-static func build_blast_cell(tile_size: float, is_center: bool) -> Node3D:
-	## Gritty vanilla scorch + fiery smoke cloud indicator (replaces blocky orange cubes).
-	var n := Node3D.new()
-
-	# Ground scorch / ember ring using vanilla scorch_01.png.
-	var ground_quad := MeshInstance3D.new()
-	var qm := QuadMesh.new()
-	qm.size = Vector2(tile_size * (1.28 if is_center else 1.06), tile_size * (1.28 if is_center else 1.06))
-	ground_quad.mesh = qm
-	ground_quad.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
-	ground_quad.position = Vector3(0.0, 0.06, 0.0)
-	var scorch_mat := StandardMaterial3D.new()
-	scorch_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	scorch_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	scorch_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	scorch_mat.albedo_color = Color(1.0, 0.44, 0.12, 0.85 if is_center else 0.70)
-	var scorch_tex = load_optional(TEX_SCORCH)
-	if scorch_tex is Texture2D:
-		scorch_mat.albedo_texture = scorch_tex
-	ground_quad.material_override = scorch_mat
-	n.add_child(ground_quad)
-
-	# Billboard smoke/fire puff using vanilla smoke_07.png (no solid cubes or spheres).
-	var puff := MeshInstance3D.new()
-	var pm := QuadMesh.new()
-	pm.size = Vector2(tile_size * (1.20 if is_center else 0.92), tile_size * (1.20 if is_center else 0.92))
-	puff.mesh = pm
-	puff.position = Vector3(0.0, tile_size * (0.46 if is_center else 0.34), 0.0)
-	var puff_mat := StandardMaterial3D.new()
-	puff_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	puff_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	puff_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	puff_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	puff_mat.albedo_color = Color(1.0, 0.56, 0.22, 0.72 if is_center else 0.58)
-	var smoke_tex = load_optional(TEX_SMOKE)
-	if smoke_tex is Texture2D:
-		puff_mat.albedo_texture = smoke_tex
-	puff.material_override = puff_mat
-	n.add_child(puff)
-
-	if is_center:
-		var flash := OmniLight3D.new()
-		flash.light_color = Color(1.0, 0.55, 0.20)
-		flash.light_energy = 4.5
-		flash.omni_range = tile_size * 3.2
-		flash.position = Vector3(0.0, 0.65, 0.0)
-		n.add_child(flash)
-
-	return n
-
-
-static func _pickup_short_label(item_type: int) -> String:
-	var loc: String = TranslationServer.get_locale().to_upper()
-	var is_zhs: bool = loc.begins_with("ZHS")
-	var is_zh: bool = loc.begins_with("ZH")
-	if item_type == 1:
-		return "炸弹+1" if is_zhs else ("炸彈+1" if is_zh else "BOMB+")
-	if item_type == 2:
-		return "范围+1" if is_zhs else ("範圍+1" if is_zh else "RANGE+")
-	if item_type == 3:
-		return "移速+" if is_zhs else ("移速+" if is_zh else "SPEED+")
-	if item_type == 4:
-		return "踢弹" if is_zhs else ("踢彈" if is_zh else "KICK")
-	return "救命针" if is_zhs else ("救命針" if is_zh else "NEEDLE")
-
-
-static func build_powerup_node(tile_size: float, item_type: int) -> Node3D:
-	## Authentic Machine Party 3D industrial pickups on unified dark-steel supply pads (no rainbow neon).
-	var n := Node3D.new()
-	var spin_root := Node3D.new()
-	spin_root.name = "SpinMesh"
-	spin_root.position = Vector3(0.0, tile_size * 0.44, 0.0)
-	n.add_child(spin_root)
-
-	var attached := false
-	if item_type == 1: # BOMB+ (mini industrial explosive canister)
-		var mini := build_water_bubble(tile_size * 0.54, Color.WHITE)
-		mini.position = Vector3(0.0, -tile_size * 0.22, 0.0)
-		spin_root.add_child(mini)
-		attached = true
-	elif item_type == 2: # POWER+ (vanilla exploding collar radio detonator)
-		attached = _attach_normalized_glb(spin_root, GLB_DETONATOR, tile_size * 0.62, 0.0, Vector3(12.0, 0.0, 14.0))
-	elif item_type == 3: # SPEED+ (vanilla industrial spring)
-		attached = _attach_normalized_glb(spin_root, GLB_SPRING, tile_size * 0.58, 0.0, Vector3(22.0, 0.0, 18.0))
-	elif item_type == 4: # KICK (vanilla heavy work boot)
-		attached = _attach_normalized_glb(spin_root, GLB_SHOE, tile_size * 0.64, 0.0, Vector3(10.0, 0.0, -14.0))
-	else: # NEEDLE (vanilla glowing kato syringe)
-		attached = _attach_normalized_glb(spin_root, GLB_SYRINGE, tile_size * 0.72, 0.0, Vector3(28.0, 0.0, 32.0))
-
-	if not attached:
-		var fallback := MeshInstance3D.new()
-		var fm := BoxMesh.new()
-		fm.size = Vector3.ONE * (tile_size * 0.36)
-		fallback.mesh = fm
-		fallback.material_override = make_std_mat(Color(0.76, 0.60, 0.24), 0.4, 0.4, Color(0.76, 0.55, 0.16), 0.5)
-		spin_root.add_child(fallback)
-
-	# Unified dark industrial steel supply pad with subtle warm-amber rim (consistent with Machine Party).
-	var pad := MeshInstance3D.new()
-	var pm2 := CylinderMesh.new()
-	pm2.top_radius = tile_size * 0.30
-	pm2.bottom_radius = tile_size * 0.34
-	pm2.height = 0.07
-	pad.mesh = pm2
-	pad.material_override = make_std_mat(Color(0.22, 0.22, 0.24), 0.78, 0.46, Color.BLACK, 0.0, false, TEX_METAL_PLATE)
-	pad.position = Vector3(0.0, 0.035, 0.0)
-	n.add_child(pad)
-
-	var ring := MeshInstance3D.new()
-	var rm := CylinderMesh.new()
-	rm.top_radius = tile_size * 0.315
-	rm.bottom_radius = tile_size * 0.315
-	rm.height = 0.025
-	ring.mesh = rm
-	ring.material_override = make_std_mat(Color(0.86, 0.68, 0.26, 0.62), 0.2, 0.35, Color(0.82, 0.58, 0.16), 0.65, true)
-	ring.position = Vector3(0.0, 0.075, 0.0)
-	n.add_child(ring)
-
-	# Clean Terminal F4 tag above each pickup so players know what it does at a glance.
-	var tag := Label3D.new()
-	tag.name = "PickupTag"
-	tag.text = _pickup_short_label(item_type)
-	tag.font_size = 28
-	tag.pixel_size = 0.0064
-	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	tag.no_depth_test = true
-	tag.modulate = Color(0.96, 0.90, 0.68)
-	tag.outline_modulate = Color.BLACK
-	tag.outline_size = 9
-	var term_font: Font = load_terminal_font()
-	if term_font != null:
-		tag.font = term_font
-	tag.position = Vector3(0.0, tile_size * 0.86, 0.0)
-	n.add_child(tag)
-	return n
-
-
-static func build_trap_bubble_shell() -> Node3D:
-	## Authentic Machine Party "CRITICAL / LOCKDOWN" hazard ring instead of a cartoon blue soap bubble.
-	## Signals the 4-second downed state where rivals can bump-execute or Needle can auto-revive.
-	var root := Node3D.new()
-	root.name = "TrapBubble"
-	root.visible = false
-
-	var outer_ring := MeshInstance3D.new()
-	var tm := TorusMesh.new()
-	tm.inner_radius = 0.52
-	tm.outer_radius = 0.66
-	outer_ring.mesh = tm
-	outer_ring.material_override = make_std_mat(
-		Color(0.94, 0.18, 0.12, 0.85),
-		0.2,
-		0.3,
-		Color(1.0, 0.16, 0.10),
-		1.8,
-		true
-	)
-	outer_ring.position = Vector3(0.0, 0.08, 0.0)
-	root.add_child(outer_ring)
-
-	var inner_disc := MeshInstance3D.new()
-	var dm := CylinderMesh.new()
-	dm.top_radius = 0.52
-	dm.bottom_radius = 0.52
-	dm.height = 0.02
-	inner_disc.mesh = dm
-	inner_disc.material_override = make_std_mat(
-		Color(0.86, 0.12, 0.08, 0.24),
-		0.0,
-		0.5,
-		Color(0.92, 0.14, 0.08),
-		0.7,
-		true
-	)
-	inner_disc.position = Vector3(0.0, 0.04, 0.0)
-	root.add_child(inner_disc)
-
-	var alarm_light := OmniLight3D.new()
-	alarm_light.light_color = Color(1.0, 0.18, 0.12)
-	alarm_light.light_energy = 2.6
-	alarm_light.omni_range = 2.6
-	alarm_light.position = Vector3(0.0, 0.75, 0.0)
-	root.add_child(alarm_light)
-
-	return root
-
-
 static func _resolve_player_color(idx: int, customization: Array) -> Color:
 	if customization.size() >= 3:
 		var suit_name: String = str(customization[2]).strip_edges().to_lower()
@@ -829,17 +209,8 @@ static func build_worker_character(idx: int, net_id: int, nickname: String, cust
 	var root := Node3D.new()
 	root.name = "Player_%d" % net_id
 
-	# Ground drop shadow disc.
-	var shadow := MeshInstance3D.new()
-	shadow.name = "GroundShadow"
-	var sh_m := CylinderMesh.new()
-	var shadow_r: float = 0.40 * maxf(0.5, visual_scale / 0.28)
-	sh_m.top_radius = shadow_r
-	sh_m.bottom_radius = shadow_r
-	sh_m.height = 0.02
-	shadow.mesh = sh_m
-	shadow.material_override = make_std_mat(Color(0.03, 0.02, 0.04, 0.7), 0.0, 0.9, Color.BLACK, 0.0, true)
-	shadow.position = Vector3(0.0, 0.025, 0.0)
+	# Ground drop shadow disc (cached mesh & material, proportional to player radius).
+	var shadow := _build_ground_shadow()
 	shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	root.add_child(shadow)
 
@@ -866,9 +237,6 @@ static func build_worker_character(idx: int, net_id: int, nickname: String, cust
 	else:
 		_build_fallback_character(avatar, col)
 
-	var trap_shell: Node3D = build_trap_bubble_shell()
-	root.add_child(trap_shell)
-
 	var term_font: Font = load_terminal_font()
 	var formatted_name: String = nickname.left(11) + "-" if nickname.length() > 11 else nickname
 	var label := Label3D.new()
@@ -886,24 +254,10 @@ static func build_worker_character(idx: int, net_id: int, nickname: String, cust
 	label.position = Vector3(0.0, label_y, 0.0)
 	root.add_child(label)
 
-	var hp_label := Label3D.new()
-	hp_label.name = "HpBar"
-	hp_label.text = "■■■"
-	hp_label.font_size = 32
-	hp_label.pixel_size = 0.0072
-	hp_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	hp_label.no_depth_test = true
-	hp_label.modulate = Color(0.98, 0.34, 0.28)
-	hp_label.outline_modulate = Color(0.0, 0.0, 0.0, 1.0)
-	hp_label.outline_size = 10
-	if term_font != null:
-		hp_label.font = term_font
-	hp_label.position = Vector3(0.0, label_y - 0.34, 0.0)
-	root.add_child(hp_label)
-
 	return {
 		"root": root,
 		"avatar": avatar,
+		"shadow": shadow,
 		"color": col,
 		"anim_player": anim_player,
 	}
@@ -991,6 +345,41 @@ static func _customize_official_rig(rig: Node3D, idx: int, customization: Array 
 			gl_attach.add_child(gl_inst)
 
 
+static var _shove_anim_cache: Animation = null
+static var _shove_anim_checked: bool = false
+
+
+static func _load_official_shove_anim() -> Animation:
+	if _shove_anim_checked:
+		return _shove_anim_cache
+	_shove_anim_checked = true
+	# 精确还原官方 Disco Dodge `shove_test` 骨骼姿态（不实例化含游戏 autoload 的 tscn，避免独立预览报错）
+	var anim := Animation.new()
+	anim.length = 0.34
+	anim.loop_mode = Animation.LOOP_NONE
+	var tracks: Array = [
+		["Armature/Skeleton3D:spine", Quaternion(0.0, 0.0, 0.0, 1.0), Quaternion(0.14, 0.0, 0.0, 0.99)],
+		["Armature/Skeleton3D:chest", Quaternion(0.0, 0.0, 0.0, 1.0), Quaternion(0.18, 0.0, 0.0, 0.98)],
+		["Armature/Skeleton3D:shoulder.L", Quaternion(-0.45, 0.04, 0.03, 0.89), Quaternion(-0.73, 0.05, 0.04, 0.68)],
+		["Armature/Skeleton3D:upper_arm.L", Quaternion(-0.25, 0.02, -0.06, 0.96), Quaternion(-0.57, 0.03, -0.10, 0.82)],
+		["Armature/Skeleton3D:forearm.L", Quaternion(-0.35, 0.02, -0.10, 0.93), Quaternion(-0.08, 0.02, -0.10, 0.99)],
+		["Armature/Skeleton3D:shoulder.R", Quaternion(0.45, -0.05, 0.04, 0.89), Quaternion(0.74, -0.07, 0.06, 0.66)],
+		["Armature/Skeleton3D:upper_arm.R", Quaternion(0.25, -0.01, -0.05, 0.96), Quaternion(0.56, -0.01, -0.07, 0.82)],
+		["Armature/Skeleton3D:forearm.R", Quaternion(0.35, 0.05, -0.10, 0.93), Quaternion(0.16, 0.06, -0.12, 0.97)],
+	]
+	for tr in tracks:
+		var idx: int = anim.add_track(Animation.TYPE_ROTATION_3D)
+		anim.track_set_path(idx, NodePath(str(tr[0])))
+		var q_rest: Quaternion = (tr[1] as Quaternion).normalized()
+		var q_push: Quaternion = (tr[2] as Quaternion).normalized()
+		anim.rotation_track_insert_key(idx, 0.0, q_rest)
+		anim.rotation_track_insert_key(idx, 0.09, q_push)
+		anim.rotation_track_insert_key(idx, 0.21, q_push)
+		anim.rotation_track_insert_key(idx, 0.34, q_rest)
+	_shove_anim_cache = anim
+	return _shove_anim_cache
+
+
 static func _setup_official_animations(rig: Node3D) -> AnimationPlayer:
 	var ap := rig.get_node_or_null("AnimationPlayer") as AnimationPlayer
 	if ap == null:
@@ -998,7 +387,10 @@ static func _setup_official_animations(rig: Node3D) -> AnimationPlayer:
 
 	var lib := AnimationLibrary.new()
 	var anim_idle = load_optional("res://animations/standing_idle_dynamic.res")
-	var anim_shove = load_optional("res://minigames/disco_dodge/animations/shoved_main.res")
+	var anim_shove: Animation = _load_official_shove_anim()
+	var anim_shoved = load_optional("res://minigames/disco_dodge/animations/shoved_main2.res")
+	if anim_shoved == null:
+		anim_shoved = load_optional("res://minigames/disco_dodge/animations/shoved_main.res")
 	var anim_crawl = load_optional("res://animations/crawl_overwrite.res")
 	var anim_fall = load_optional("res://minigames/disco_dodge/animations/falling.res")
 
@@ -1025,7 +417,9 @@ static func _setup_official_animations(rig: Node3D) -> AnimationPlayer:
 		dup_run.loop_mode = Animation.LOOP_LINEAR
 		lib.add_animation(&"run", dup_run)
 	if anim_shove is Animation:
-		lib.add_animation(&"shoved", anim_shove as Animation)
+		lib.add_animation(&"shove", anim_shove)
+	if anim_shoved is Animation:
+		lib.add_animation(&"shoved", anim_shoved as Animation)
 	var downed_src = anim_crawl if anim_crawl is Animation else anim_fall
 	if downed_src is Animation:
 		var dup_downed: Animation = (downed_src as Animation).duplicate()
@@ -1057,32 +451,6 @@ static func _build_fallback_character(parent: Node3D, suit_color: Color) -> void
 	head.material_override = make_std_mat(Color(0.92, 0.86, 0.78), 0.1, 0.55)
 	head.position = Vector3(0.0, 1.12, 0.0)
 	parent.add_child(head)
-
-
-static func build_bubble_icon() -> ImageTexture:
-	## Authentic Machine Party 256x256 monochrome (#000 / #e5e5e5) CRT silhouette icon
-	## matching stock minigames and Roller Carnival in Custom Playlist & Intermission Picker.
-	var image := Image.new()
-	image.load_svg_from_string("""
-	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
-	  <rect width="256" height="256" fill="#000"/>
-	  <g fill="#e5e5e5">
-	    <!-- Cross blast rays behind bomb -->
-	    <path d="M118 14h20l-4 42h-12zM118 200h20l-4 42h-12zM14 118l42 4v12l-42 4zM200 122l42-4v20l-42-4z"/>
-	    <!-- Diagonal sparks -->
-	    <path d="M48 48l28 20-8 8-20-28zM208 48l-20 28-8-8 28-20zM48 208l20-28 8 8-28 20zM208 208l-28-20 8-8 20 28z"/>
-	    <!-- Industrial pressure bomb canister -->
-	    <circle cx="128" cy="140" r="56" stroke="#000" stroke-width="10"/>
-	    <rect x="104" y="68" width="48" height="22" rx="6" stroke="#000" stroke-width="8"/>
-	    <!-- Hazard band cutouts -->
-	    <rect x="74" y="132" width="108" height="16" fill="#000"/>
-	    <rect x="82" y="136" width="92" height="8" fill="#e5e5e5"/>
-	    <!-- Lit fuse & spark star -->
-	    <path d="M128 68c0-18 16-24 28-28" fill="none" stroke="#e5e5e5" stroke-width="10" stroke-linecap="round"/>
-	    <polygon points="168,20 174,34 190,34 177,43 182,58 168,49 154,58 159,43 146,34 162,34"/>
-	  </g>
-	</svg>""")
-	return ImageTexture.create_from_image(image)
 
 
 # ============================================================================
@@ -1133,322 +501,463 @@ static func _spike(height: float, base_radius: float, mat: Material) -> MeshInst
 
 
 static func build_arena(radius: float, accent_rgb: Array) -> Dictionary:
-	## 构建俯视 2.5D 圆形机械竞技场：黄铜地板、齿轮、尖刺墙、警示灯、喷火口、CRT 后墙。
-	## 返回 {root, timer_label, phase_label, alive_label, nozzles}.
+	## 构建《Machine Party》重工业车间的圆形尖刺竞技场：
+	## 磨损铸铁地板、可向内合拢的真实机械尖刺环、后方重锈工厂墙 + 顶置日光灯 + 纯黑 CRT 倒计时屏。
 	ensure_game_pck_mounted()
 	var accent: Color = _color_of(accent_rgb)
 	var root := Node3D.new()
 	root.name = "SpikeRingArena"
 
-	var brass := make_std_mat(Color(0.42, 0.32, 0.18), 0.72, 0.42, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(10.0, 10.0, 10.0), TEX_THREADPLATE_NORMAL)
-	var floor_mat := make_std_mat(Color(0.30, 0.28, 0.26), 0.35, 0.78, Color.BLACK, 0.0, false, TEX_FLOOR, Vector3(9.0, 9.0, 9.0))
-	var dark_steel := make_std_mat(Color(0.16, 0.16, 0.18), 0.80, 0.42, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(3.0, 3.0, 3.0))
-	var rust := make_std_mat(Color(0.36, 0.22, 0.15), 0.55, 0.72, Color.BLACK, 0.0, false, TEX_HEAVY_RUST, Vector3(4.0, 4.0, 4.0))
-	var spike_mat := make_std_mat(Color(0.72, 0.66, 0.58), 0.88, 0.28)
-	var lamp_mat := make_std_mat(Color(0.95, 0.14, 0.10), 0.10, 0.30, Color(1.0, 0.16, 0.08), 2.6)
-	var accent_mat := make_std_mat(accent, 0.55, 0.38, accent * 0.65, 1.1)
-	var pipe_mat := make_std_mat(Color(0.30, 0.28, 0.26), 0.70, 0.45, Color.BLACK, 0.0, false, TEX_PIPES, Vector3(2.0, 2.0, 2.0))
+	var iron_plate := make_std_mat(Color(0.32, 0.29, 0.26), 0.52, 0.68, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(9.0, 9.0, 9.0), TEX_THREADPLATE_NORMAL)
+	var floor_mat := make_std_mat(Color(0.28, 0.26, 0.24), 0.35, 0.78, Color.BLACK, 0.0, false, TEX_FLOOR, Vector3(9.0, 9.0, 9.0))
+	var dark_steel := make_std_mat(Color(0.14, 0.14, 0.16), 0.82, 0.45, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(3.0, 3.0, 3.0))
+	var rust := make_std_mat(Color(0.26, 0.15, 0.10), 0.55, 0.78, Color.BLACK, 0.0, false, TEX_HEAVY_RUST, Vector3(6.0, 4.0, 4.0))
+	var brass_dull := make_std_mat(Color(0.38, 0.28, 0.16), 0.70, 0.52, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(4.0, 4.0, 4.0))
+	var spike_mat := make_std_mat(Color(0.64, 0.60, 0.56), 0.88, 0.30, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(1.5, 1.5, 1.5))
+	var hazard_paint := make_std_mat(Color(0.56, 0.38, 0.12), 0.25, 0.74, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(6.0, 6.0, 6.0))
+	var lamp_mat := make_std_mat(Color(0.82, 0.14, 0.08), 0.10, 0.35, Color(0.90, 0.14, 0.06), 1.6)
+	var tube_mat := make_std_mat(Color(0.96, 0.98, 0.92), 0.0, 0.2, Color(0.95, 0.98, 0.90), 2.8)
+	var pipe_mat := make_std_mat(Color(0.24, 0.22, 0.20), 0.72, 0.48, Color.BLACK, 0.0, false, TEX_PIPES, Vector3(2.0, 2.0, 2.0))
 
-	# --- 圆形地板（略低于 y=0，玩家站在 y=0）---
+	# --- 圆形磨损铁板地板（略低于 y=0，玩家站在 y=0）---
 	var floor_node := _disc(radius, 0.30, floor_mat)
 	floor_node.name = "Floor"
 	floor_node.position = Vector3(0.0, -0.16, 0.0)
 	root.add_child(floor_node)
 
-	# 地板上的同心黄铜刻度环与径向铆钉带，强化"机械转盘"观感。
-	for raw_r in [radius * 0.32, radius * 0.64, radius * 0.93]:
+	# 地板同心工业刻度环（哑光黄黑油漆与铸铁环，无刺眼霓虹）
+	for raw_r in [radius * 0.36, radius * 0.68, radius * 0.94]:
 		var ring_r: float = raw_r
-		var ring := _disc(ring_r, 0.02, accent_mat)
-		ring.position = Vector3(0.0, 0.012, 0.0)
+		var ring := _disc(ring_r, 0.018, hazard_paint if ring_r > radius * 0.9 else iron_plate)
+		ring.position = Vector3(0.0, 0.010, 0.0)
 		root.add_child(ring)
-		var inner := _disc(ring_r - 0.09, 0.024, floor_mat)
-		inner.position = Vector3(0.0, 0.018, 0.0)
+		var inner := _disc(ring_r - 0.14, 0.022, floor_mat)
+		inner.position = Vector3(0.0, 0.014, 0.0)
 		root.add_child(inner)
 
 	for i in range(24):
 		var a: float = TAU * float(i) / 24.0
-		var rivet := _box(Vector3(0.10, 0.06, 0.34), brass)
-		rivet.position = Vector3(cos(a) * radius * 0.78, 0.04, sin(a) * radius * 0.78)
+		var rivet := _box(Vector3(0.12, 0.04, 0.36), dark_steel)
+		rivet.position = Vector3(cos(a) * radius * 0.80, 0.02, sin(a) * radius * 0.80)
 		rivet.rotation.y = -a
 		root.add_child(rivet)
 
-	# --- 外圈齿轮装饰（12 组，黄铜齿盘 + 6 齿）---
-	var gear_count: int = 12
-	for g in range(gear_count):
-		var ga: float = TAU * float(g) / float(gear_count)
-		var gear_root := Node3D.new()
-		gear_root.position = Vector3(cos(ga) * (radius + 0.85), -0.05, sin(ga) * (radius + 0.85))
-		gear_root.rotation.y = -ga
-		root.add_child(gear_root)
-		var plate := _disc(0.72, 0.16, brass)
-		gear_root.add_child(plate)
-		for t in range(6):
-			var ta: float = TAU * float(t) / 6.0
-			var tooth := _box(Vector3(0.20, 0.18, 0.26), dark_steel)
-			tooth.position = Vector3(cos(ta) * 0.72, 0.0, sin(ta) * 0.72)
-			tooth.rotation.y = -ta
-			gear_root.add_child(tooth)
-		var hub := _disc(0.20, 0.20, accent_mat)
-		hub.position = Vector3(0.0, 0.12, 0.0)
-		gear_root.add_child(hub)
-
-	# --- 圆形尖刺墙：沿圆周 inward-facing 锥刺 + 底部黄铜护圈 ---
-	var wall_ring := _disc(radius + 0.20, 0.55, dark_steel)
+	# --- 外圈厚重深铁底座 ---
+	var wall_ring := _disc(radius + 0.32, 0.56, dark_steel)
 	wall_ring.position = Vector3(0.0, -0.28, 0.0)
 	root.add_child(wall_ring)
 	var wall_inner := _disc(radius - 0.06, 0.58, floor_mat)
 	wall_inner.position = Vector3(0.0, -0.27, 0.0)
 	root.add_child(wall_inner)
 
-	var spike_count: int = 72
+	# --- 多功能环形重工业测试井壁（集激光发射滑槽、电锯闸门、北侧 CRT 倒计时台于一体）---
+	var wall_segs: int = 24
+	var wall_r: float = radius + 0.78
+	var seg_len: float = TAU * wall_r / float(wall_segs) + 0.16
+	var groove_mat := make_std_mat(Color(0.05, 0.04, 0.04), 0.7, 0.8, Color(0.55, 0.12, 0.06), 0.55)
+	for wi in range(wall_segs):
+		var wa: float = TAU * float(wi) / float(wall_segs)
+		var is_front: bool = sin(wa) > 0.42
+		var wh: float = 0.62 if is_front else 1.95
+		var wpanel := _box(Vector3(0.56, wh, seg_len), dark_steel if wi % 2 == 0 else rust)
+		wpanel.position = Vector3(cos(wa) * wall_r, wh * 0.5 - 0.12, sin(wa) * wall_r)
+		wpanel.rotation.y = -wa
+		root.add_child(wpanel)
+		if not is_front:
+			# 内壁 y=1.02m 嵌入式激光发射凹槽（与激光同高，墙壁即发射轨道）
+			var slot := _box(Vector3(0.14, 0.24, seg_len), groove_mat)
+			slot.position = Vector3(cos(wa) * (wall_r - 0.24), 1.02, sin(wa) * (wall_r - 0.24))
+			slot.rotation.y = -wa
+			root.add_child(slot)
+
+	# 上下双层黄铜导轨卡在墙壁槽口上下沿
+	for rail_y in [0.86, 1.18]:
+		var laser_rail := TorusMesh.new()
+		laser_rail.inner_radius = radius + 0.36
+		laser_rail.outer_radius = radius + 0.52
+		laser_rail.rings = 48
+		laser_rail.ring_segments = 8
+		var rail_mi := MeshInstance3D.new()
+		rail_mi.mesh = laser_rail
+		rail_mi.material_override = brass_dull
+		rail_mi.position = Vector3(0.0, rail_y, 0.0)
+		root.add_child(rail_mi)
+
+	# --- 真实可收缩机械尖刺环（平时围在最外圈，最后 25 秒整体向圆心合拢！）---
+	var shrink_ring := Node3D.new()
+	shrink_ring.name = "MechanicalSpikeRing"
+	root.add_child(shrink_ring)
+
+	var collar_torus := TorusMesh.new()
+	collar_torus.inner_radius = radius - 0.10
+	collar_torus.outer_radius = radius + 0.34
+	collar_torus.rings = 48
+	collar_torus.ring_segments = 10
+	var collar_mesh := MeshInstance3D.new()
+	collar_mesh.mesh = collar_torus
+	collar_mesh.material_override = dark_steel
+	collar_mesh.position = Vector3(0.0, 0.14, 0.0)
+	shrink_ring.add_child(collar_mesh)
+
+	var warn_strip := TorusMesh.new()
+	warn_strip.inner_radius = radius - 0.18
+	warn_strip.outer_radius = radius - 0.06
+	warn_strip.rings = 48
+	warn_strip.ring_segments = 8
+	var warn_mesh := MeshInstance3D.new()
+	warn_mesh.name = "ShrinkWarnRim"
+	warn_mesh.mesh = warn_strip
+	warn_mesh.material_override = make_std_mat(Color(0.75, 0.16, 0.08, 0.85), 0.1, 0.6, Color(0.85, 0.14, 0.05), 1.6, true)
+	warn_mesh.position = Vector3(0.0, 0.04, 0.0)
+	warn_mesh.visible = false
+	shrink_ring.add_child(warn_mesh)
+
+	var spike_count: int = 56
 	for s in range(spike_count):
 		var sa: float = TAU * float(s) / float(spike_count)
-		var sp := _spike(0.90, 0.16, spike_mat)
-		sp.position = Vector3(cos(sa) * (radius + 0.02), 0.42, sin(sa) * (radius + 0.02))
+		var sp := _spike(0.95, 0.20, spike_mat)
+		sp.position = Vector3(cos(sa) * (radius + 0.04), 0.38, sin(sa) * (radius + 0.04))
 		sp.rotation_degrees = Vector3(0.0, -rad_to_deg(sa), 72.0)
-		root.add_child(sp)
+		shrink_ring.add_child(sp)
 
-	# --- 红色警示灯（12 盏，与喷火口交错）---
-	for l in range(12):
-		var la: float = TAU * float(l) / 12.0 + TAU / 24.0
-		var lamp := Node3D.new()
-		lamp.position = Vector3(cos(la) * (radius + 0.30), 0.90, sin(la) * (radius + 0.30))
-		root.add_child(lamp)
-		var cage := _box(Vector3(0.34, 0.34, 0.34), rust)
-		lamp.add_child(cage)
-		var bulb := MeshInstance3D.new()
-		var bulb_mesh := SphereMesh.new()
-		bulb_mesh.radius = 0.15
-		bulb_mesh.height = 0.30
-		bulb.mesh = bulb_mesh
-		bulb.material_override = lamp_mat
-		bulb.position = Vector3(0.0, 0.22, 0.0)
-		lamp.add_child(bulb)
-
-	# --- 圆周喷火口（12 个，复用原版管道纹理），供喷火机关定位 ---
+	# --- 圆周喷火口（12 个重型铸铁喷口），供喷火机关定位 ---
 	var nozzles: Array = []
 	for n_id in range(12):
 		var na: float = TAU * float(n_id) / 12.0
 		var nozzle := Node3D.new()
 		nozzle.name = "Nozzle_%d" % n_id
-		nozzle.position = Vector3(cos(na) * (radius + 0.12), 0.34, sin(na) * (radius + 0.12))
+		nozzle.position = Vector3(cos(na) * (radius + 0.48), 0.30, sin(na) * (radius + 0.48))
 		nozzle.rotation.y = -na
 		root.add_child(nozzle)
-		var body := _box(Vector3(0.70, 0.52, 0.62), pipe_mat)
+		var body := _box(Vector3(0.74, 0.48, 0.62), pipe_mat)
 		nozzle.add_child(body)
 		var muzzle := _disc(0.20, 0.46, dark_steel)
 		muzzle.rotation_degrees = Vector3(0.0, 0.0, 90.0)
-		muzzle.position = Vector3(-0.40, 0.0, 0.0)
+		muzzle.position = Vector3(-0.38, 0.0, 0.0)
 		nozzle.add_child(muzzle)
-		var led := _box(Vector3(0.10, 0.10, 0.44), lamp_mat)
-		led.position = Vector3(-0.40, 0.30, 0.0)
+		var led := _box(Vector3(0.10, 0.08, 0.36), lamp_mat)
+		led.position = Vector3(-0.36, 0.26, 0.0)
 		nozzle.add_child(led)
 		nozzles.append(nozzle)
 
-	# --- 后墙 CRT 监视器：官方 Terminal F4 字体显示倒计时 / 阶段 / 存活人数 ---
+	# --- 北侧井壁一体式 CRT 倒计时控制台（直接螺栓固定在环形井壁顶上，拆掉多余空墙）---
+	var crt_z: float = -radius - 0.85
+	for sx in [-2.4, 2.4]:
+		var strut := _box(Vector3(0.36, 2.2, 0.36), dark_steel)
+		strut.position = Vector3(sx, 1.75, crt_z - 0.15)
+		root.add_child(strut)
+	for lx in [-4.8, 4.8]:
+		var fixture := Node3D.new()
+		fixture.position = Vector3(lx, 2.45, crt_z + 0.15)
+		root.add_child(fixture)
+		var hood := _box(Vector3(1.6, 0.14, 0.32), dark_steel)
+		hood.position = Vector3(0.0, 0.08, 0.0)
+		fixture.add_child(hood)
+		var tube := _box(Vector3(1.4, 0.09, 0.14), tube_mat)
+		fixture.add_child(tube)
+
 	var term_font: Font = load_terminal_font()
 	var crt_root := Node3D.new()
 	crt_root.name = "CRTBackWall"
-	crt_root.position = Vector3(0.0, 5.2, -radius - 3.2)
+	crt_root.position = Vector3(0.0, 3.05, crt_z + 0.05)
+	crt_root.rotation_degrees = Vector3(-30.0, 0.0, 0.0)
 	root.add_child(crt_root)
-	var crt_frame := _box(Vector3(9.4, 4.2, 0.45), dark_steel)
+	var crt_frame := _box(Vector3(6.8, 2.8, 0.45), dark_steel)
 	crt_root.add_child(crt_frame)
-	var crt_screen := _box(Vector3(8.8, 3.6, 0.10), make_std_mat(Color(0.02, 0.05, 0.04), 0.0, 0.9, Color(0.10, 0.55, 0.24), 0.35))
-	crt_screen.position = Vector3(0.0, 0.0, 0.28)
+	var crt_screen := _box(Vector3(6.2, 2.3, 0.08), make_std_mat(Color(0.01, 0.015, 0.01), 0.0, 0.95))
+	crt_screen.position = Vector3(0.0, 0.0, 0.22)
 	crt_root.add_child(crt_screen)
 
 	var timer_label := Label3D.new()
 	timer_label.name = "TimerLabel"
-	timer_label.text = "60"
-	timer_label.font_size = 128
+	timer_label.text = "01:00"
+	timer_label.font_size = 114
 	timer_label.pixel_size = 0.014
-	timer_label.modulate = Color(0.62, 1.0, 0.64)
+	timer_label.modulate = Color(0.68, 1.0, 0.72)
 	timer_label.outline_modulate = Color(0.0, 0.0, 0.0)
-	timer_label.outline_size = 14
-	timer_label.position = Vector3(0.0, 0.55, 0.36)
+	timer_label.outline_size = 12
+	timer_label.position = Vector3(0.0, 0.28, 0.30)
 	if term_font != null:
 		timer_label.font = term_font
 	crt_root.add_child(timer_label)
 
 	var phase_label := Label3D.new()
 	phase_label.name = "PhaseLabel"
-	phase_label.text = "WARMUP"
-	phase_label.font_size = 44
-	phase_label.pixel_size = 0.011
-	phase_label.modulate = accent
+	phase_label.text = "SPIKE RING // BRASS FOUNDRY"
+	phase_label.font_size = 32
+	phase_label.pixel_size = 0.010
+	phase_label.modulate = Color(0.56, 0.88, 0.62)
 	phase_label.outline_modulate = Color(0.0, 0.0, 0.0)
-	phase_label.outline_size = 10
-	phase_label.position = Vector3(0.0, -0.95, 0.36)
+	phase_label.outline_size = 8
+	phase_label.position = Vector3(0.0, -0.68, 0.30)
 	if term_font != null:
 		phase_label.font = term_font
 	crt_root.add_child(phase_label)
 
-	var alive_label := Label3D.new()
-	alive_label.name = "AliveLabel"
-	alive_label.text = "ALIVE 0"
-	alive_label.font_size = 40
-	alive_label.pixel_size = 0.010
-	alive_label.modulate = Color(1.0, 0.86, 0.42)
-	alive_label.outline_modulate = Color(0.0, 0.0, 0.0)
-	alive_label.outline_size = 10
-	alive_label.position = Vector3(0.0, -1.55, 0.36)
-	if term_font != null:
-		alive_label.font = term_font
-	crt_root.add_child(alive_label)
-
-	# --- 场地照明（复用官方暖色低饱和工业氛围由 game.gd 的 Environment 提供） ---
+	# --- 舞台主光（暖工业顶光 + 柔和轮廓光，避免死黑）---
 	var key := DirectionalLight3D.new()
 	key.name = "KeyLight"
-	key.rotation_degrees = Vector3(-52.0, 28.0, 0.0)
-	key.light_energy = 1.35
-	key.light_color = Color(1.0, 0.88, 0.72)
+	key.rotation_degrees = Vector3(-56.0, 24.0, 0.0)
+	key.light_energy = 1.25
+	key.light_color = Color(1.0, 0.92, 0.82)
 	key.shadow_enabled = true
 	root.add_child(key)
 
 	var fill := OmniLight3D.new()
 	fill.name = "ForgeGlow"
-	fill.position = Vector3(0.0, 6.5, 0.0)
-	fill.light_color = accent
-	fill.light_energy = 2.2
-	fill.omni_range = radius * 2.4
+	fill.position = Vector3(0.0, 8.0, 1.0)
+	fill.light_color = Color(0.95, 0.78, 0.56)
+	fill.light_energy = 1.6
+	fill.omni_range = radius * 2.5
 	root.add_child(fill)
 
 	return {
 		"root": root,
 		"timer_label": timer_label,
 		"phase_label": phase_label,
-		"alive_label": alive_label,
+		"shrink_ring": shrink_ring,
+		"shrink_warn": warn_mesh,
 		"nozzles": nozzles,
 	}
 
 
-static func build_surroundings(radius: float, accent_rgb: Array) -> Node3D:
-	## 场地四周的机械狂欢环境：延伸工业地板、黄铜/霓虹环、径向管道、静态齿轮与
-	## 红色警示灯。正俯视相机会扫到半径约 2R 的区域，用它取代原先的纯黑背景。
-	## 全部复用游戏内工业纹理，不引入外部素材；装饰不参与碰撞与出局判定。
+static func build_surroundings(radius: float, _accent_rgb: Array) -> Node3D:
+	## 暗沉重工业深渊与低饱和度机械齿轮地板（无刺眼霓虹圈与发光球，突出中央竞技场）。
 	ensure_game_pck_mounted()
-	var accent: Color = _color_of(accent_rgb)
 	var root := Node3D.new()
 	root.name = "Surroundings"
-	var outer_r: float = radius * 2.30
+	var outer_r: float = radius * 2.40
 
-	var rust_floor := make_std_mat(Color(0.20, 0.14, 0.10), 0.48, 0.78, Color.BLACK, 0.0, false, TEX_HEAVY_RUST, Vector3(15.0, 15.0, 15.0))
-	var plate_floor := make_std_mat(Color(0.25, 0.21, 0.17), 0.62, 0.62, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(12.0, 12.0, 12.0))
-	var grate := make_std_mat(Color(0.21, 0.19, 0.17), 0.80, 0.52, Color.BLACK, 0.0, false, TEX_GRATE, Vector3(7.0, 7.0, 7.0))
-	var brass := make_std_mat(Color(0.46, 0.34, 0.18), 0.78, 0.40, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(3.0, 3.0, 3.0))
-	var pipe := make_std_mat(Color(0.31, 0.27, 0.22), 0.70, 0.48, Color.BLACK, 0.0, false, TEX_PIPES, Vector3(2.0, 2.0, 2.0))
-	var lamp := make_std_mat(Color(0.95, 0.16, 0.10), 0.10, 0.30, Color(1.0, 0.18, 0.06), 2.8)
-	var neon := make_std_mat(accent, 0.0, 0.50, accent * 0.80, 2.0, true)
+	var pit_floor := make_std_mat(Color(0.08, 0.06, 0.05), 0.50, 0.86, Color.BLACK, 0.0, false, TEX_HEAVY_RUST, Vector3(16.0, 16.0, 16.0))
+	var grate := make_std_mat(Color(0.14, 0.13, 0.12), 0.80, 0.56, Color.BLACK, 0.0, false, TEX_GRATE, Vector3(8.0, 8.0, 8.0))
+	var dark_brass := make_std_mat(Color(0.28, 0.21, 0.14), 0.75, 0.52, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(3.0, 3.0, 3.0))
+	var pipe := make_std_mat(Color(0.20, 0.18, 0.16), 0.72, 0.52, Color.BLACK, 0.0, false, TEX_PIPES, Vector3(2.0, 2.0, 2.0))
 
-	# 1) 大外围地板 + 两层金属平台（顶面依次抬高，避免共面闪烁）
-	var ground := _disc(outer_r, 0.60, rust_floor)
-	ground.position = Vector3(0.0, -0.70, 0.0)
+	var ground := _disc(outer_r, 0.60, pit_floor)
+	ground.position = Vector3(0.0, -0.75, 0.0)
 	root.add_child(ground)
-	var grating := _disc(radius + 5.40, 0.06, grate)
-	grating.position = Vector3(0.0, -0.36, 0.0)
+	var grating := _disc(radius + 4.80, 0.06, grate)
+	grating.position = Vector3(0.0, -0.40, 0.0)
 	root.add_child(grating)
-	var grating_inner := _disc(radius + 1.35, 0.06, plate_floor)
-	grating_inner.position = Vector3(0.0, -0.31, 0.0)
-	root.add_child(grating_inner)
 
-	# 2) 发光黄铜环 / 霓虹环：分隔竞技场与外围工厂
-	for raw_rr in [radius + 1.30, radius + 5.25]:
-		var rr: float = raw_rr
-		var ring := _disc(rr, 0.04, neon)
-		ring.position = Vector3(0.0, -0.27, 0.0)
-		root.add_child(ring)
-		var cover := _disc(rr - 0.16, 0.05, plate_floor)
-		cover.position = Vector3(0.0, -0.24, 0.0)
-		root.add_child(cover)
-
-	# 3) 16 条径向工业管道 + 两端法兰
-	var pipe_count: int = 16
-	for i in range(pipe_count):
-		var a: float = TAU * float(i) / float(pipe_count)
-		var inner: float = radius + 1.60
-		var outer: float = radius + 5.00
+	# 12 条低饱和度径向铸铁管道
+	for i in range(12):
+		var a: float = TAU * float(i) / 12.0
+		var inner: float = radius + 0.90
+		var outer: float = radius + 4.60
 		var mid_r: float = (inner + outer) * 0.5
-		var seg := _box(Vector3(outer - inner, 0.34, 0.42), pipe)
-		seg.position = Vector3(cos(a) * mid_r, -0.10, sin(a) * mid_r)
+		var seg := _box(Vector3(outer - inner, 0.30, 0.36), pipe)
+		seg.position = Vector3(cos(a) * mid_r, -0.22, sin(a) * mid_r)
 		seg.rotation.y = -a
 		root.add_child(seg)
-		for raw_rr2 in [inner, outer]:
-			var rr2: float = raw_rr2
-			var flange := _disc(0.46, 0.16, brass)
-			flange.position = Vector3(cos(a) * rr2, -0.06, sin(a) * rr2)
-			root.add_child(flange)
 
-	# 4) 8 组静态大齿轮 / 阀门（不滚动，纯氛围）
-	var gear_count: int = 8
-	for g in range(gear_count):
-		var ga: float = TAU * float(g) / float(gear_count) + TAU / 16.0
-		var gr: float = radius + 3.30
+	# 8 组深色静态大齿轮（哑光黄铜 + 深铁齿，不发光）
+	for g in range(8):
+		var ga: float = TAU * float(g) / 8.0 + TAU / 16.0
+		var gr: float = radius + 2.80
 		var gr_root := Node3D.new()
-		gr_root.position = Vector3(cos(ga) * gr, -0.18, sin(ga) * gr)
+		gr_root.position = Vector3(cos(ga) * gr, -0.28, sin(ga) * gr)
 		root.add_child(gr_root)
-		var plate := _disc(1.05, 0.20, brass)
+		var plate := _disc(1.05, 0.20, dark_brass)
 		gr_root.add_child(plate)
-		for t in range(10):
-			var ta: float = TAU * float(t) / 10.0
-			var tooth := _box(Vector3(0.30, 0.24, 0.34), grate)
+		for t in range(8):
+			var ta: float = TAU * float(t) / 8.0
+			var tooth := _box(Vector3(0.28, 0.22, 0.32), grate)
 			tooth.position = Vector3(cos(ta) * 1.05, 0.0, sin(ta) * 1.05)
 			tooth.rotation.y = -ta
 			gr_root.add_child(tooth)
-		var hub := _disc(0.30, 0.26, neon)
+		var hub := _disc(0.26, 0.26, pipe)
 		hub.position = Vector3(0.0, 0.14, 0.0)
 		gr_root.add_child(hub)
 
-	# 5) 12 盏红色警示灯，每 3 盏带一盏暖色点光
-	for l in range(12):
-		var la: float = TAU * float(l) / 12.0 + TAU / 24.0
-		var lr: float = radius + 1.75
-		var lamp_node := Node3D.new()
-		lamp_node.position = Vector3(cos(la) * lr, 0.15, sin(la) * lr)
-		root.add_child(lamp_node)
-		var cage := _box(Vector3(0.42, 0.36, 0.42), grate)
-		lamp_node.add_child(cage)
-		var bulb := MeshInstance3D.new()
-		var bm := SphereMesh.new()
-		bm.radius = 0.17
-		bm.height = 0.34
-		bulb.mesh = bm
-		bulb.material_override = lamp
-		bulb.position = Vector3(0.0, 0.26, 0.0)
-		lamp_node.add_child(bulb)
-		if l % 3 == 0:
-			var glow := OmniLight3D.new()
-			glow.light_color = Color(1.0, 0.52, 0.22)
-			glow.light_energy = 1.4
-			glow.omni_range = 7.0
-			glow.position = Vector3(0.0, 1.10, 0.0)
-			lamp_node.add_child(glow)
 	return root
+
+
+static var _hazard_assets: Dictionary = {}
+static var _saw_asset_cache: Dictionary = {}
+static var _shadow_assets: Dictionary = {}
+static var _item_assets: Dictionary = {}
+
+
+static func clear_caches() -> void:
+	_hazard_assets.clear()
+	_saw_asset_cache.clear()
+	_shadow_assets.clear()
+	_item_assets.clear()
+	_shove_anim_cache = null
+	_shove_anim_checked = false
+
+
+static func _build_ground_shadow() -> MeshInstance3D:
+	if _shadow_assets.is_empty():
+		var m := CylinderMesh.new()
+		m.top_radius = 0.48
+		m.bottom_radius = 0.48
+		m.height = 0.012
+		m.radial_segments = 16
+		var mat := StandardMaterial3D.new()
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.albedo_color = Color(0.02, 0.02, 0.02, 0.56)
+		_shadow_assets = {"mesh": m, "mat": mat}
+	var mi := MeshInstance3D.new()
+	mi.name = "GroundShadow"
+	mi.mesh = _shadow_assets["mesh"]
+	mi.material_override = _shadow_assets["mat"]
+	mi.position = Vector3(0.0, 0.03, 0.0)
+	return mi
+
+
+static func _get_hazard_assets() -> Dictionary:
+	if not _hazard_assets.is_empty():
+		return _hazard_assets
+	var unit_box := BoxMesh.new()
+	unit_box.size = Vector3.ONE
+	var floor_spike_mesh := CylinderMesh.new()
+	floor_spike_mesh.top_radius = 0.015
+	floor_spike_mesh.bottom_radius = 0.14
+	floor_spike_mesh.height = 0.85
+	floor_spike_mesh.radial_segments = 8
+	var floor_spike_tip_mesh := CylinderMesh.new()
+	floor_spike_tip_mesh.top_radius = 0.015
+	floor_spike_tip_mesh.bottom_radius = 0.11
+	floor_spike_tip_mesh.height = 0.18
+	floor_spike_tip_mesh.radial_segments = 8
+	var turret_housing_mesh := BoxMesh.new()
+	turret_housing_mesh.size = Vector3(0.76, 0.44, 0.56)
+	var turret_barrel_mesh := CylinderMesh.new()
+	turret_barrel_mesh.top_radius = 0.14
+	turret_barrel_mesh.bottom_radius = 0.18
+	turret_barrel_mesh.height = 0.42
+	turret_barrel_mesh.radial_segments = 12
+	var pylon_lens_mesh := SphereMesh.new()
+	pylon_lens_mesh.radius = 0.15
+	pylon_lens_mesh.height = 0.30
+	pylon_lens_mesh.radial_segments = 12
+	pylon_lens_mesh.rings = 8
+	var bearing_mesh := CylinderMesh.new()
+	bearing_mesh.top_radius = 0.36
+	bearing_mesh.bottom_radius = 0.36
+	bearing_mesh.height = 0.30
+	bearing_mesh.radial_segments = 16
+	var push_arc_mesh := BoxMesh.new()
+	push_arc_mesh.size = Vector3(1.45, 0.08, 0.28)
+	_hazard_assets = {
+		"unit_box": unit_box,
+		"floor_spike_mesh": floor_spike_mesh,
+		"floor_spike_tip_mesh": floor_spike_tip_mesh,
+		"turret_housing_mesh": turret_housing_mesh,
+		"turret_barrel_mesh": turret_barrel_mesh,
+		"pylon_lens_mesh": pylon_lens_mesh,
+		"bearing_mesh": bearing_mesh,
+		"push_arc_mesh": push_arc_mesh,
+		"warn_mat": make_std_mat(Color(0.95, 0.20, 0.08, 0.52), 0.0, 0.9, Color(1.0, 0.24, 0.06), 1.9, true),
+		"rail_mat": make_std_mat(Color(1.0, 0.68, 0.14, 0.80), 0.0, 0.7, Color(1.0, 0.50, 0.08), 1.6, true),
+		"saw_line_mat": make_std_mat(Color(1.0, 0.86, 0.30, 0.90), 0.0, 0.6, Color(1.0, 0.80, 0.20), 2.2, true),
+		"spike_slot_mat": make_std_mat(Color(0.10, 0.09, 0.09), 0.82, 0.50, Color(0.55, 0.10, 0.05), 0.45, false, TEX_GRATE, Vector3(8.0, 1.0, 1.0)),
+		"spike_steel_mat": make_std_mat(Color(0.76, 0.78, 0.82), 0.92, 0.20, Color(0.28, 0.10, 0.06), 0.35),
+		"laser_glow_mat": make_std_mat(Color(0.75, 0.12, 0.06, 0.28), 0.0, 0.90, Color(0.85, 0.10, 0.04), 1.0, true, TEX_SCORCH, Vector3(6.0, 1.0, 1.0)),
+		"laser_sight_mat": make_std_mat(Color(1.0, 0.18, 0.10, 0.65), 0.0, 0.30, Color(1.0, 0.14, 0.06), 2.4, true),
+		"laser_sheath_mat": make_std_mat(Color(0.95, 0.14, 0.08, 0.72), 0.0, 0.50, Color(1.0, 0.12, 0.05), 3.0, true),
+		"laser_core_mat": make_std_mat(Color(1.0, 0.88, 0.78, 1.0), 0.0, 0.25, Color(1.0, 0.48, 0.26), 4.6, true),
+		"pylon_iron_mat": make_std_mat(Color(0.18, 0.18, 0.20), 0.86, 0.42, Color.BLACK, 0.0, false, TEX_METAL_PLATE, Vector3(1.2, 1.2, 1.2)),
+		"pylon_brass_mat": make_std_mat(Color(0.46, 0.30, 0.14), 0.78, 0.42, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(1.0, 1.0, 1.0)),
+		"pylon_lens_mat": make_std_mat(Color(0.95, 0.18, 0.08), 0.1, 0.2, Color(1.0, 0.16, 0.06), 3.4),
+		"track_mat": make_std_mat(Color(0.22, 0.22, 0.24), 0.85, 0.35, Color.BLACK, 0.0, false, TEX_GRATE, Vector3(8.0, 1.0, 1.0)),
+		"bearing_mat": make_std_mat(Color(0.38, 0.30, 0.18), 0.8, 0.4, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(1.0, 1.0, 1.0)),
+		"push_wave_mat": make_std_mat(Color(1.0, 0.78, 0.28, 0.72), 0.0, 0.4, Color(1.0, 0.68, 0.18), 2.8, true),
+	}
+	return _hazard_assets
+
+
+static func build_push_wave() -> Node3D:
+	var assets := _get_hazard_assets()
+	var root := Node3D.new()
+	root.name = "PushWave"
+	var arc := MeshInstance3D.new()
+	arc.mesh = assets["push_arc_mesh"]
+	arc.material_override = assets["push_wave_mat"]
+	arc.position = Vector3(0.0, 0.85, 0.95)
+	root.add_child(arc)
+	return root
+
+
+static func _scaled_box(size: Vector3, mat: Material, unit_box: BoxMesh) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = unit_box
+	mi.scale = size
+	mi.material_override = mat
+	return mi
+
+
+static func _get_saw_assets(radius: float) -> Dictionary:
+	var key := int(round(radius * 1000.0))
+	if _saw_asset_cache.has(key):
+		return _saw_asset_cache[key]
+	var blade_mesh := CylinderMesh.new()
+	blade_mesh.top_radius = radius
+	blade_mesh.bottom_radius = radius
+	blade_mesh.height = 0.16
+	blade_mesh.radial_segments = 24
+	var tooth_mesh := BoxMesh.new()
+	tooth_mesh.size = Vector3(0.16, 0.18, 0.20)
+	var hub_mesh := CylinderMesh.new()
+	hub_mesh.top_radius = 0.18
+	hub_mesh.bottom_radius = 0.18
+	hub_mesh.height = 0.22
+	hub_mesh.radial_segments = 16
+	var assets := {
+		"blade_mesh": blade_mesh,
+		"blade_mat": make_std_mat(Color(0.66, 0.68, 0.70), 0.92, 0.22, Color(0.35, 0.38, 0.42), 0.35),
+		"tooth_mesh": tooth_mesh,
+		"tooth_mat": make_std_mat(Color(0.86, 0.88, 0.90), 0.95, 0.18),
+		"hub_mesh": hub_mesh,
+		"hub_mat": make_std_mat(Color(0.92, 0.62, 0.16), 0.75, 0.3, Color(0.9, 0.5, 0.1), 0.8),
+	}
+	_saw_asset_cache[key] = assets
+	return assets
 
 
 static func build_hazard_warning(type: int, a: Vector2, b: Vector2, width: float) -> Node3D:
 	## 地面红色警示带 + 喷火口亮灯 / 轨迹预警线。
+	var assets := _get_hazard_assets()
+	var unit_box: BoxMesh = assets["unit_box"]
 	var root := Node3D.new()
 	root.name = "HazardWarning"
 	var mid: Vector2 = (a + b) * 0.5
 	var length: float = a.distance_to(b)
 	var angle: float = atan2(b.y - a.y, b.x - a.x)
-	var warn_mat := make_std_mat(Color(0.95, 0.12, 0.08, 0.55), 0.0, 0.9, Color(1.0, 0.18, 0.06), 1.9, true)
-	var strip := _box(Vector3(length, 0.02, maxf(0.10, width)), warn_mat)
+	var strip := _scaled_box(Vector3(length, 0.02, maxf(0.10, width)), assets["warn_mat"], unit_box)
 	strip.position = Vector3(mid.x, 0.045, mid.y)
 	strip.rotation.y = -angle
 	root.add_child(strip)
 	# 两侧虚线导轨，机械风格的路标感
-	var rail_mat := make_std_mat(Color(1.0, 0.62, 0.12, 0.75), 0.0, 0.7, Color(1.0, 0.45, 0.08), 1.4, true)
+	var rail_mat: Material = assets["rail_mat"]
 	for raw_side in [-1.0, 1.0]:
 		var side: float = raw_side
 		var off: Vector2 = Vector2(-sin(angle), cos(angle)) * (width * 0.5 + 0.06) * side
-		var rail := _box(Vector3(length, 0.02, 0.06), rail_mat)
+		var rail := _scaled_box(Vector3(length, 0.02, 0.06), rail_mat, unit_box)
 		rail.position = Vector3(mid.x + off.x, 0.055, mid.y + off.y)
 		rail.rotation.y = -angle
 		root.add_child(rail)
-	if type == 1:  # HZ_SAW
+	if type == 0:  # 伸缩地刺带预警：格栅槽口 + 微微探头的金属刺尖
+		var tip_mesh: CylinderMesh = assets["floor_spike_tip_mesh"]
+		var tip_mat: Material = assets["spike_steel_mat"]
+		var count: int = maxi(4, int(length / 0.85))
+		var perp := Vector2(-sin(angle), cos(angle)) * (width * 0.22)
+		for i in range(count):
+			var t: float = (float(i) + 0.5) / float(count)
+			var p: Vector2 = a.lerp(b, t)
+			for side in [-1.0, 1.0]:
+				var tip := MeshInstance3D.new()
+				tip.mesh = tip_mesh
+				tip.material_override = tip_mat
+				var sp: Vector2 = p + perp * side
+				tip.position = Vector3(sp.x, 0.09, sp.y)
+				root.add_child(tip)
+	elif type == 1:  # HZ_SAW
 		# 电锯额外画一条细轨迹中心线
-		var line := _box(Vector3(length, 0.02, 0.05), make_std_mat(Color(1.0, 0.86, 0.30, 0.9), 0.0, 0.6, Color(1.0, 0.8, 0.2), 2.2, true))
+		var line := _scaled_box(Vector3(length, 0.02, 0.05), assets["saw_line_mat"], unit_box)
 		line.position = Vector3(mid.x, 0.065, mid.y)
 		line.rotation.y = -angle
 		root.add_child(line)
@@ -1456,86 +965,437 @@ static func build_hazard_warning(type: int, a: Vector2, b: Vector2, width: float
 
 
 static func build_hazard_active(type: int, a: Vector2, b: Vector2, width: float) -> Node3D:
-	## 激活视觉：喷火长条 / 电锯本体 / 激光扫描线。纯几何 + 发光材质，复用原版焦痕纹理。
+	## 激活视觉：伸缩机械地刺带 / 电锯轨道。
+	var assets := _get_hazard_assets()
+	var unit_box: BoxMesh = assets["unit_box"]
 	var root := Node3D.new()
 	root.name = "HazardActive"
 	var mid: Vector2 = (a + b) * 0.5
 	var length: float = a.distance_to(b)
 	var angle: float = atan2(b.y - a.y, b.x - a.x)
-	if type == 0:  # HZ_FLAME
-		var flame_mat := make_std_mat(Color(1.0, 0.42, 0.08, 0.85), 0.0, 0.9, Color(1.0, 0.36, 0.06), 3.2, true, TEX_SCORCH, Vector3(6.0, 1.0, 1.0))
-		var band := _box(Vector3(length, 0.42, width), flame_mat)
-		band.position = Vector3(mid.x, 0.24, mid.y)
-		band.rotation.y = -angle
-		root.add_child(band)
-		# 分节火舌，制造"喷火口逐段点火"的机械感
-		var seg_mat := make_std_mat(Color(1.0, 0.86, 0.24, 0.9), 0.0, 0.7, Color(1.0, 0.72, 0.16), 3.6, true)
-		var seg_count: int = maxi(3, int(length / 1.1))
+	if type == 0:  # 伸缩机械地刺带：深铁格栅槽 + 双排高耸钢刺猛然向上刺出
+		var slot := _scaled_box(Vector3(length, 0.05, width), assets["spike_slot_mat"], unit_box)
+		slot.position = Vector3(mid.x, 0.035, mid.y)
+		slot.rotation.y = -angle
+		root.add_child(slot)
+		var spike_mesh: CylinderMesh = assets["floor_spike_mesh"]
+		var spike_mat: Material = assets["spike_steel_mat"]
+		var seg_count: int = maxi(5, int(length / 0.72))
+		var perp := Vector2(-sin(angle), cos(angle)) * (width * 0.24)
 		for i in range(seg_count):
 			var t: float = (float(i) + 0.5) / float(seg_count)
 			var p: Vector2 = a.lerp(b, t)
-			var seg := _box(Vector3(0.55, 0.52, width * 0.62), seg_mat)
-			seg.position = Vector3(p.x, 0.30, p.y)
-			seg.rotation.y = -angle
-			root.add_child(seg)
-	elif type == 2:  # HZ_LASER
-		# 贴地辉光带：多线并发时在地板上形成清晰的"激光栅栏"
-		var glow_mat := make_std_mat(Color(1.0, 0.18, 0.12, 0.38), 0.0, 0.8, Color(1.0, 0.14, 0.08), 1.6, true)
-		var ground_glow := _box(Vector3(length, 0.02, width * 2.4), glow_mat)
-		ground_glow.position = Vector3(mid.x, 0.035, mid.y)
-		ground_glow.rotation.y = -angle
-		root.add_child(ground_glow)
-		var laser_mat := make_std_mat(Color(1.0, 0.22, 0.18, 0.95), 0.0, 0.6, Color(1.0, 0.20, 0.12), 4.2, true)
-		var beam := _box(Vector3(length, 0.14, width), laser_mat)
-		beam.position = Vector3(mid.x, 0.62, mid.y)
-		beam.rotation.y = -angle
-		root.add_child(beam)
-		var core := _box(Vector3(length, 0.05, maxf(0.06, width * 0.35)), make_std_mat(Color(1.0, 0.94, 0.72, 1.0), 0.0, 0.4, Color(1.0, 0.92, 0.6), 5.0, true))
-		core.position = Vector3(mid.x, 0.64, mid.y)
-		core.rotation.y = -angle
-		root.add_child(core)
-		for raw_endp in [a, b]:
-			var endp: Vector2 = raw_endp
-			var emitter := _box(Vector3(0.55, 0.72, 0.55), make_std_mat(Color(0.24, 0.24, 0.26), 0.8, 0.4))
-			emitter.position = Vector3(endp.x, 0.36, endp.y)
-			root.add_child(emitter)
+			for side in [-1.0, 1.0]:
+				var sp := MeshInstance3D.new()
+				sp.mesh = spike_mesh
+				sp.material_override = spike_mat
+				var q: Vector2 = p + perp * side
+				sp.position = Vector3(q.x, 0.43, q.y)
+				root.add_child(sp)
 	else:
 		# 电锯轨道：贴地细长金属轨 + 两端轴承
-		var track_mat := make_std_mat(Color(0.22, 0.22, 0.24), 0.85, 0.35, Color.BLACK, 0.0, false, TEX_GRATE, Vector3(8.0, 1.0, 1.0))
-		var track := _box(Vector3(length, 0.06, width * 0.55), track_mat)
+		var track := _scaled_box(Vector3(length, 0.06, width * 0.55), assets["track_mat"], unit_box)
 		track.position = Vector3(mid.x, 0.05, mid.y)
 		track.rotation.y = -angle
 		root.add_child(track)
 		for raw_endp in [a, b]:
 			var endp: Vector2 = raw_endp
-			var bearing := _disc(0.36, 0.30, make_std_mat(Color(0.38, 0.30, 0.18), 0.8, 0.4, Color.BLACK, 0.0, false, TEX_THREADPLATE, Vector3(1.0, 1.0, 1.0)))
+			var bearing := MeshInstance3D.new()
+			bearing.mesh = assets["bearing_mesh"]
+			bearing.material_override = assets["bearing_mat"]
 			bearing.position = Vector3(endp.x, 0.14, endp.y)
 			root.add_child(bearing)
 	return root
 
 
-static func build_saw_body(radius: float) -> Node3D:
+static func _set_seg(node: Node3D, p0: Vector2, p1: Vector2, y: float, h: float, thick: float) -> void:
+	if node == null:
+		return
+	var seg_len: float = p0.distance_to(p1)
+	if seg_len < 0.12:
+		node.visible = false
+		return
+	node.visible = true
+	var mid: Vector2 = (p0 + p1) * 0.5
+	var ang: float = atan2(p1.y - p0.y, p1.x - p0.x)
+	node.position = Vector3(mid.x, y, mid.y)
+	node.rotation.y = -ang
+	node.scale = Vector3(seg_len, h, thick)
+
+
+static func build_laser_rig(a: Vector2, b: Vector2, width: float, gap_t: float, gap_width: float) -> Node3D:
+	## 一体化带缺口激光组：预警阶段滑车即就位并拉出同高度(y=1.02m)细红瞄准线，
+	## 激活阶段无缝膨胀点燃为两段深红切割光束，中间保留清晰可钻过的安全缺口。
+	var assets := _get_hazard_assets()
+	var unit_box: BoxMesh = assets["unit_box"]
+	var root := Node3D.new()
+	root.name = "LaserRig"
+
+	for seg_name in ["Sight1", "Sight2"]:
+		var sight := _scaled_box(Vector3(1.0, 0.025, 0.03), assets["laser_sight_mat"], unit_box)
+		sight.name = seg_name
+		root.add_child(sight)
+	for seg_name in ["Sheath1", "Sheath2"]:
+		var sh := _scaled_box(Vector3(1.0, 0.10, maxf(0.10, width * 0.24)), assets["laser_sheath_mat"], unit_box)
+		sh.name = seg_name
+		sh.visible = false
+		root.add_child(sh)
+	for seg_name in ["Core1", "Core2"]:
+		var co := _scaled_box(Vector3(1.0, 0.045, 0.05), assets["laser_core_mat"], unit_box)
+		co.name = seg_name
+		co.visible = false
+		root.add_child(co)
+	for seg_name in ["Glow1", "Glow2"]:
+		var gg := _scaled_box(Vector3(1.0, 0.02, maxf(0.45, width * 1.1)), assets["laser_glow_mat"], unit_box)
+		gg.name = seg_name
+		gg.visible = false
+		root.add_child(gg)
+
+	# 嵌入式墙壁雷射炮台（卡在环形井壁 y=1.02m 凹槽内，炮管水平向场地内对射）
+	var pylon_names := ["PylonA", "PylonB"]
+	for pi in range(2):
+		var turret := Node3D.new()
+		turret.name = pylon_names[pi]
+		var housing := MeshInstance3D.new()
+		housing.mesh = assets["turret_housing_mesh"]
+		housing.material_override = assets["pylon_iron_mat"]
+		housing.position = Vector3(0.0, 1.02, -0.22)
+		turret.add_child(housing)
+		var barrel := MeshInstance3D.new()
+		barrel.mesh = assets["turret_barrel_mesh"]
+		barrel.material_override = assets["pylon_brass_mat"]
+		barrel.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+		barrel.position = Vector3(0.0, 1.02, 0.16)
+		turret.add_child(barrel)
+		var lens := MeshInstance3D.new()
+		lens.mesh = assets["pylon_lens_mesh"]
+		lens.material_override = assets["pylon_lens_mat"]
+		lens.position = Vector3(0.0, 1.02, 0.36)
+		turret.add_child(lens)
+		root.add_child(turret)
+
+	update_laser_rig(root, a, b, width, gap_t, gap_width, 0, 0.0)
+	return root
+
+
+static func update_laser_rig(
+	rig: Node3D, a: Vector2, b: Vector2, width: float,
+	gap_t: float, gap_width: float, state: int, pulse: float
+) -> void:
+	if rig == null or not is_instance_valid(rig):
+		return
+	var total_len: float = a.distance_to(b)
+	if total_len < 0.2 or state == 2:
+		rig.visible = false
+		return
+	rig.visible = true
+	var dir: Vector2 = (b - a) / total_len
+	var gap_center_dist: float = clampf(gap_t * total_len, gap_width * 0.65, total_len - gap_width * 0.65)
+	var g0: float = maxf(0.0, gap_center_dist - gap_width * 0.5)
+	var g1: float = minf(total_len, gap_center_dist + gap_width * 0.5)
+	var p_g0: Vector2 = a + dir * g0
+	var p_g1: Vector2 = a + dir * g1
+
+	# 将两端炮台嵌进环形井壁（外推 0.48m 到墙壁发射槽），炮口朝向彼此
+	var wall_a: Vector2 = a + a.normalized() * 0.48
+	var wall_b: Vector2 = b + b.normalized() * 0.48
+	var pa := rig.get_node_or_null("PylonA") as Node3D
+	if pa != null:
+		pa.position = Vector3(wall_a.x, 0.0, wall_a.y)
+		pa.rotation.y = atan2(dir.x, dir.y)
+	var pb := rig.get_node_or_null("PylonB") as Node3D
+	if pb != null:
+		pb.position = Vector3(wall_b.x, 0.0, wall_b.y)
+		pb.rotation.y = atan2(-dir.x, -dir.y)
+
+	var is_warn: bool = (state == 0)
+	var is_active: bool = (state == 1)
+	var s1 := rig.get_node_or_null("Sight1") as Node3D
+	var s2 := rig.get_node_or_null("Sight2") as Node3D
+	var sh1 := rig.get_node_or_null("Sheath1") as Node3D
+	var sh2 := rig.get_node_or_null("Sheath2") as Node3D
+	var co1 := rig.get_node_or_null("Core1") as Node3D
+	var co2 := rig.get_node_or_null("Core2") as Node3D
+	var gg1 := rig.get_node_or_null("Glow1") as Node3D
+	var gg2 := rig.get_node_or_null("Glow2") as Node3D
+
+	if is_warn:
+		var sight_thick: float = 0.025 + 0.035 * pulse
+		_set_seg(s1, a, p_g0, 1.02, sight_thick, sight_thick)
+		_set_seg(s2, p_g1, b, 1.02, sight_thick, sight_thick)
+		for n in [sh1, sh2, co1, co2, gg1, gg2]:
+			if n != null:
+				n.visible = false
+	elif is_active:
+		for n in [s1, s2]:
+			if n != null:
+				n.visible = false
+		var sh_w: float = maxf(0.10, width * 0.24)
+		var gg_w: float = maxf(0.42, width * 1.05)
+		_set_seg(sh1, a, p_g0, 1.02, 0.10, sh_w)
+		_set_seg(sh2, p_g1, b, 1.02, 0.10, sh_w)
+		_set_seg(co1, a, p_g0, 1.02, 0.045, 0.05)
+		_set_seg(co2, p_g1, b, 1.02, 0.045, 0.05)
+		_set_seg(gg1, a, p_g0, 0.035, 0.02, gg_w)
+		_set_seg(gg2, p_g1, b, 0.035, 0.02, gg_w)
+
+
+static func _get_item_assets() -> Dictionary:
+	if not _item_assets.is_empty():
+		return _item_assets
+	var ring_m := TorusMesh.new()
+	ring_m.inner_radius = 0.60
+	ring_m.outer_radius = 0.72
+	ring_m.rings = 24
+	ring_m.ring_segments = 8
+	var shield_ring_m := TorusMesh.new()
+	shield_ring_m.inner_radius = 0.64
+	shield_ring_m.outer_radius = 0.72
+	shield_ring_m.rings = 28
+	shield_ring_m.ring_segments = 8
+	var item_ring_m := TorusMesh.new()
+	item_ring_m.inner_radius = 0.34
+	item_ring_m.outer_radius = 0.42
+	item_ring_m.rings = 20
+	item_ring_m.ring_segments = 8
+	var core_cyl := CylinderMesh.new()
+	core_cyl.top_radius = 0.18
+	core_cyl.bottom_radius = 0.18
+	core_cyl.height = 0.52
+	core_cyl.radial_segments = 12
+	var hammer_head := BoxMesh.new()
+	hammer_head.size = Vector3(0.64, 0.34, 0.34)
+	var hammer_handle := CylinderMesh.new()
+	hammer_handle.top_radius = 0.08
+	hammer_handle.bottom_radius = 0.09
+	hammer_handle.height = 0.54
+	hammer_handle.radial_segments = 10
+	var coil_m := CylinderMesh.new()
+	coil_m.top_radius = 0.22
+	coil_m.bottom_radius = 0.28
+	coil_m.height = 0.62
+	coil_m.radial_segments = 14
+	var aura_ring_m := TorusMesh.new()
+	aura_ring_m.inner_radius = 0.56
+	aura_ring_m.outer_radius = 0.68
+	aura_ring_m.rings = 28
+	aura_ring_m.ring_segments = 8
+	var shock_torus := TorusMesh.new()
+	shock_torus.inner_radius = 0.88
+	shock_torus.outer_radius = 1.02
+	shock_torus.rings = 32
+	shock_torus.ring_segments = 8
+	_item_assets = {
+		"drop_ring_mesh": ring_m,
+		"drop_ring_mat": make_std_mat(Color(0.95, 0.72, 0.22, 0.80), 0.0, 0.4, Color(1.0, 0.64, 0.16), 2.2, true),
+		"shield_ring_mesh": shield_ring_m,
+		"item_ring_mesh": item_ring_m,
+		"core_cyl": core_cyl,
+		"shield_mat": make_std_mat(Color(0.32, 0.90, 1.0, 0.85), 0.2, 0.2, Color(0.24, 0.82, 1.0), 2.6, true),
+		"iron_hub_mat": make_std_mat(Color(0.22, 0.24, 0.26), 0.85, 0.35),
+		"hammer_head": hammer_head,
+		"hammer_handle": hammer_handle,
+		"fist_mat": make_std_mat(Color(1.0, 0.68, 0.16), 0.82, 0.26, Color(1.0, 0.50, 0.08), 1.8),
+		"coil_mesh": coil_m,
+		"coil_mat": make_std_mat(Color(0.95, 0.26, 0.18), 0.75, 0.28, Color(1.0, 0.22, 0.14), 2.2),
+		"copper_mat": make_std_mat(Color(0.86, 0.52, 0.22), 0.85, 0.25, Color(0.9, 0.42, 0.12), 1.0),
+		"aura_ring_mesh": aura_ring_m,
+		"aura_gold_mat": make_std_mat(Color(1.0, 0.72, 0.18, 0.85), 0.0, 0.3, Color(1.0, 0.62, 0.12), 2.6, true),
+		"aura_red_mat": make_std_mat(Color(1.0, 0.32, 0.18, 0.85), 0.0, 0.3, Color(1.0, 0.24, 0.12), 2.8, true),
+		"shock_mesh": shock_torus,
+		"shock_mat": make_std_mat(Color(1.0, 0.42, 0.18, 0.82), 0.0, 0.3, Color(1.0, 0.34, 0.12), 3.4, true),
+	}
+	return _item_assets
+
+
+static func build_airdrop_item(item_type: int) -> Node3D:
+	## 直接空投可见的 3D 工业消耗品道具（无盲盒箱子）：地面落点环 + 机械造型道具与标签。
+	var assets := _get_item_assets()
+	var root := Node3D.new()
+	root.name = "AirdropItem"
+
+	var drop_ring := MeshInstance3D.new()
+	drop_ring.name = "DropRing"
+	drop_ring.mesh = assets["drop_ring_mesh"]
+	drop_ring.material_override = assets["drop_ring_mat"]
+	drop_ring.position = Vector3(0.0, 0.05, 0.0)
+	root.add_child(drop_ring)
+
+	var visual := Node3D.new()
+	visual.name = "ItemVisual"
+	root.add_child(visual)
+
+	var tag_text := "護盾"
+	var tag_col := Color(0.48, 0.94, 1.0)
+	if item_type == 1:
+		# 双环工业力场核心
+		var core := MeshInstance3D.new()
+		core.mesh = assets["core_cyl"]
+		core.material_override = assets["iron_hub_mat"]
+		core.position = Vector3(0.0, 0.56, 0.0)
+		visual.add_child(core)
+		for rot in [Vector3(35.0, 0.0, 25.0), Vector3(-35.0, 0.0, -25.0)]:
+			var r := MeshInstance3D.new()
+			r.mesh = assets["item_ring_mesh"]
+			r.material_override = assets["shield_mat"]
+			r.position = Vector3(0.0, 0.56, 0.0)
+			r.rotation_degrees = rot
+			visual.add_child(r)
+		tag_text = "護盾"
+		tag_col = Color(0.48, 0.94, 1.0)
+	elif item_type == 2:
+		# 工业液压重锤（2x 重推）
+		var handle := MeshInstance3D.new()
+		handle.mesh = assets["hammer_handle"]
+		handle.material_override = assets["iron_hub_mat"]
+		handle.position = Vector3(0.0, 0.42, 0.0)
+		visual.add_child(handle)
+		var head := MeshInstance3D.new()
+		head.mesh = assets["hammer_head"]
+		head.material_override = assets["fist_mat"]
+		head.position = Vector3(0.0, 0.74, 0.0)
+		visual.add_child(head)
+		tag_text = "重推 2x"
+		tag_col = Color(1.0, 0.78, 0.28)
+	else:
+		# 高压电容线圈（360° 冲击波）
+		var coil := MeshInstance3D.new()
+		coil.mesh = assets["coil_mesh"]
+		coil.material_override = assets["coil_mat"]
+		coil.position = Vector3(0.0, 0.56, 0.0)
+		visual.add_child(coil)
+		for cy in [0.42, 0.70]:
+			var cr := MeshInstance3D.new()
+			cr.mesh = assets["item_ring_mesh"]
+			cr.material_override = assets["copper_mat"]
+			cr.position = Vector3(0.0, cy, 0.0)
+			visual.add_child(cr)
+		tag_text = "衝擊波"
+		tag_col = Color(1.0, 0.48, 0.38)
+
+	var lbl := Label3D.new()
+	lbl.text = tag_text
+	lbl.font_size = 34
+	lbl.pixel_size = 0.0082
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.modulate = tag_col
+	lbl.outline_modulate = Color.BLACK
+	lbl.outline_size = 10
+	var tf := load_terminal_font()
+	if tf != null:
+		lbl.font = tf
+	lbl.position = Vector3(0.0, 1.38, 0.0)
+	visual.add_child(lbl)
+	return root
+
+
+static func build_player_shield() -> Node3D:
+	## 角色腰际双环工业力场护盾（取代不透明青色气球，绝不遮挡人物本体）
+	var assets := _get_item_assets()
+	var root := Node3D.new()
+	root.name = "PlayerShield"
+	root.position = Vector3(0.0, 0.92, 0.0)
+	root.visible = false
+	var ra := MeshInstance3D.new()
+	ra.name = "RingA"
+	ra.mesh = assets["shield_ring_mesh"]
+	ra.material_override = assets["shield_mat"]
+	ra.rotation_degrees = Vector3(26.0, 0.0, 18.0)
+	root.add_child(ra)
+	var rb := MeshInstance3D.new()
+	rb.name = "RingB"
+	rb.mesh = assets["shield_ring_mesh"]
+	rb.material_override = assets["shield_mat"]
+	rb.rotation_degrees = Vector3(-26.0, 0.0, -18.0)
+	root.add_child(rb)
+	return root
+
+
+static func build_player_power_aura() -> Node3D:
+	## 角色脚下蓄力光环（持重推 2x 显琥珀金环，持 360° 冲击波显红橘环，双方一眼可见）
+	var assets := _get_item_assets()
+	var root := Node3D.new()
+	root.name = "PlayerPowerAura"
+	root.position = Vector3(0.0, 0.08, 0.0)
+	var gold := MeshInstance3D.new()
+	gold.name = "GoldRing"
+	gold.mesh = assets["aura_ring_mesh"]
+	gold.material_override = assets["aura_gold_mat"]
+	gold.visible = false
+	root.add_child(gold)
+	var red := MeshInstance3D.new()
+	red.name = "RedRing"
+	red.mesh = assets["aura_ring_mesh"]
+	red.material_override = assets["aura_red_mat"]
+	red.visible = false
+	root.add_child(red)
+	return root
+
+
+static func build_shockwave_ring() -> MeshInstance3D:
+	var assets := _get_item_assets()
+	var mi := MeshInstance3D.new()
+	mi.name = "ShockwaveRing"
+	mi.mesh = assets["shock_mesh"]
+	mi.material_override = assets["shock_mat"]
+	mi.position = Vector3(0.0, 0.35, 0.0)
+	return mi
+
+
+static func build_saw_body(radius: float, with_light: bool = false) -> Node3D:
 	## 旋转电锯盘：黄铜齿盘 + 冷钢锯齿，运行时由 game.gd 驱动 rotation.y。
+	var assets := _get_saw_assets(radius)
 	var root := Node3D.new()
 	root.name = "SawBody"
-	var blade := _disc(radius, 0.16, make_std_mat(Color(0.66, 0.68, 0.70), 0.92, 0.22, Color(0.35, 0.38, 0.42), 0.35))
+	var blade := MeshInstance3D.new()
+	blade.mesh = assets["blade_mesh"]
+	blade.material_override = assets["blade_mat"]
 	root.add_child(blade)
-	var tooth_mat := make_std_mat(Color(0.86, 0.88, 0.90), 0.95, 0.18)
+	var tooth_mesh: BoxMesh = assets["tooth_mesh"]
+	var tooth_mat: Material = assets["tooth_mat"]
 	for i in range(12):
 		var a: float = TAU * float(i) / 12.0
-		var tooth := _box(Vector3(0.16, 0.18, 0.20), tooth_mat)
+		var tooth := MeshInstance3D.new()
+		tooth.mesh = tooth_mesh
+		tooth.material_override = tooth_mat
 		tooth.position = Vector3(cos(a) * radius, 0.0, sin(a) * radius)
 		tooth.rotation.y = -a
 		root.add_child(tooth)
-	var hub := _disc(0.18, 0.22, make_std_mat(Color(0.92, 0.62, 0.16), 0.75, 0.3, Color(0.9, 0.5, 0.1), 0.8))
+	var hub := MeshInstance3D.new()
+	hub.mesh = assets["hub_mesh"]
+	hub.material_override = assets["hub_mat"]
 	hub.position = Vector3(0.0, 0.10, 0.0)
 	root.add_child(hub)
-	var spark := OmniLight3D.new()
-	spark.light_color = Color(1.0, 0.72, 0.24)
-	spark.light_energy = 1.6
-	spark.omni_range = 3.0
-	root.add_child(spark)
+	if with_light:
+		var spark := OmniLight3D.new()
+		spark.light_color = Color(1.0, 0.72, 0.24)
+		spark.light_energy = 1.6
+		spark.omni_range = 3.0
+		root.add_child(spark)
 	return root
+
+
+static func build_slap_icon() -> ImageTexture:
+	## 推人技能巴掌图示（64x64 高对比工业剪影 + 挥击弧线），用于冷却进度 HUD。
+	var image := Image.new()
+	image.load_svg_from_string("""
+	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+	  <g fill="#e8ffe8">
+	    <!-- 挥击冲击弧线 -->
+	    <path d="M8 22c3-7 9-12 16-14l2 5c-5 2-10 5-12 11z" opacity="0.85"/>
+	    <path d="M5 32c1-5 3-10 6-14l4 3c-2 3-4 7-5 11z" opacity="0.55"/>
+	    <!-- 张开的巴掌（五指 + 掌心） -->
+	    <rect x="22" y="13" width="6" height="22" rx="3"/>
+	    <rect x="30" y="9" width="6" height="25" rx="3"/>
+	    <rect x="38" y="11" width="6" height="24" rx="3"/>
+	    <rect x="46" y="16" width="5.5" height="20" rx="2.75"/>
+	    <path d="M16 33c-2.5-2-2.5-5.5 0-7.5 2-1.5 5-1 7 1.5l3 4v14l-10-12z"/>
+	    <rect x="22" y="30" width="29.5" height="19" rx="7"/>
+	    <rect x="27" y="47" width="18" height="8" rx="4"/>
+	  </g>
+	</svg>""")
+	return ImageTexture.create_from_image(image)
 
 
 static func build_spike_ring_icon() -> ImageTexture:
