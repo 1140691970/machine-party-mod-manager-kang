@@ -4,6 +4,11 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.4 — 2026-11-21
+
+- Moves mod card covers from built-in desktop UI assets to optional Cloudflare R2 image hosting served through the catalog Worker ([ADR-016](docs/en/architecture/ADR-016-r2-mod-covers.md)), trimming ~5.8 MB from the desktop installer and allowing catalog cover updates without reinstalling the app.
+- Includes **Spike Ring (`v0.1.0`)**, runtime performance optimizations for **Bubble Blitz (`v0.1.2`)**, **Roller Carnival (`v0.1.8`)**, **Standalone HD (`v0.1.2`)**, and **Player Spotlight (`v0.1.1`)** in the live catalog.
+
 ## 0.2.3 — 2026-11-20
 
 - Adds **Bubble Blitz (`v0.1.0`)**, a new first-party 3D hybrid industrial bomb arena minigame with 3 HP, a 4-second downed state (bump rivals to finish, or auto-revive with the syringe), 4 randomized maps including industrial conveyors, vanilla explosion/prop assets, and a local CRT status bar.
