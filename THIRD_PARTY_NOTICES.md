@@ -16,9 +16,9 @@ Mods listed in `catalog/mods.json` are the work of their authors. The manager sh
 
 | File | Source | Owner |
 | --- | --- | --- |
-| `apps/desktop/ui/images/overtime.png` | [Overtime screenshot](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) | DarkJadeStone, MIT ([licence](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE)), showing game content owned by the game's developer |
-| `apps/desktop/ui/images/plus.png` | [MachineParty+ banner](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png) | Ghostx10742, MIT |
-| `apps/desktop/ui/images/roller-carnival.png` | Self-captured preview screenshot from `mods/roller-carnival/` | Project contributors, GPL-3.0-only (rendered scene uses local game assets owned by the game's developer) |
+| `catalog/covers/overtime.png` | [Overtime screenshot](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) | DarkJadeStone, MIT ([licence](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE)), showing game content owned by the game's developer |
+| `catalog/covers/machineparty-plus.png` | [MachineParty+ banner](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png) | Ghostx10742, MIT |
+| `catalog/covers/roller-carnival.png` | Self-captured preview screenshot from `mods/roller-carnival/` | Project contributors, GPL-3.0-only (rendered scene uses local game assets owned by the game's developer) |
 
 ## Software dependencies
 

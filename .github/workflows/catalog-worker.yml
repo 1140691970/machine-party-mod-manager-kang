@@ -52,6 +52,27 @@ jobs:
             test "$actual" = "$size"
           done < <(jq -r '.mods[] | select(.package.mirrorApproved == true) | "\(.package.sha256) \(.package.size)"' catalog/mods.json)
 
+          while read -r filename content_type sha size; do
+            case "$content_type" in
+              image/png) ext=png ;;
+              image/webp) ext=webp ;;
+              image/jpeg) ext=jpg ;;
+              *) echo "Unsupported cover contentType: $content_type" >&2; exit 1 ;;
+            esac
+            src="catalog/covers/$filename"
+            test -f "$src"
+            actual_size=$(wc -c < "$src" | tr -d ' ')
+            actual_sha=$(sha256sum "$src" | awk '{print $1}')
+            test "$actual_size" = "$size"
+            test "$actual_sha" = "$sha"
+            cover_key="covers/sha256/$sha.$ext"
+            if ! r2 head-object --bucket "$BUCKET" --key "$cover_key" >/dev/null 2>&1; then
+              r2 put-object --bucket "$BUCKET" --key "$cover_key" --body "$src" --content-type "$content_type" --if-none-match '*'
+            fi
+            remote_size=$(r2 head-object --bucket "$BUCKET" --key "$cover_key" --query ContentLength --output text)
+            test "$remote_size" = "$size"
+          done < <(jq -r '.mods[] | select(.cover != null) | "\(.cover.filename) \(.cover.contentType) \(.cover.sha256) \(.cover.size)"' catalog/mods.json)
+
           revision=$(jq -er '.revision | select(test("^[a-zA-Z0-9._-]+$"))' catalog/mods.json)
           key="catalog/revisions/$revision.json"
           if ! r2 get-object --bucket "$BUCKET" --key "$key" "$RUNNER_TEMP/catalog.json"; then
@@ -90,3 +111,19 @@ jobs:
             test "$actual" = "$size"
             echo "Verified $url ($actual bytes)"
           done < <(jq -r '.mods[] | select(.package.mirrorApproved == true) | "\(.id) \(.version) \(.package.assetId) \(.package.size)"' catalog/mods.json)
+
+          while read -r id content_type sha size; do
+            case "$content_type" in
+              image/png) ext=png ;;
+              image/webp) ext=webp ;;
+              image/jpeg) ext=jpg ;;
+              *) echo "Unsupported cover contentType: $content_type" >&2; exit 1 ;;
+            esac
+            url="https://machineparty.ailaogong.men/v1/covers/$id/$sha.$ext"
+            headers=$(curl --fail --silent --show-error --retry 3 -I "$url" | tr -d '\r')
+            actual=$(awk 'tolower($1) == "content-length:" { print $2 }' <<< "$headers")
+            actual_type=$(awk 'tolower($1) == "content-type:" { print $2 }' <<< "$headers")
+            test "$actual" = "$size"
+            test "$actual_type" = "$content_type"
+            echo "Verified $url ($actual bytes, $actual_type)"
+          done < <(jq -r '.mods[] | select(.cover != null) | "\(.id) \(.cover.contentType) \(.cover.sha256) \(.cover.size)"' catalog/mods.json)

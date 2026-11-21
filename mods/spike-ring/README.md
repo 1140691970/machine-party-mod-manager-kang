@@ -2,7 +2,7 @@
 
 `spike-ring` 是接入**多小游戏共存注册中心（Multi-Minigame Coexistence Hub）**的俯视 2.5D 圆形机械竞技场生存小游戏模组（通过 R2 + 目录 Worker 发布 ZIP 套件），占用原版未使用的 `Globals.MinigameIdentifier.BurnRecycle = 17` 槽位，可与 [`roller-carnival`](../roller-carnival/README.md)、[`bubble-blitz`](../bubble-blitz/README.md) 同时安装共存，共同出现在官方默认轮换、自定义歌单、街机模式、本地同屏与过场 15 格 CRT 抽签池中。
 
-![尖刺圆环小游戏图示](../../apps/desktop/ui/images/spike-ring.png)
+![尖刺圆环小游戏图示](../../catalog/covers/spike-ring.png)
 
 - **模组 ID**：`spike-ring`
 - **版本**：`0.1.0`（目录清单对应 `v0.1.0`）
@@ -58,7 +58,7 @@
 ./mods/spike-ring/run_mac.sh --self-test
 
 # 3. 截取 1280x720 封面图（需传入绝对路径）
-./mods/spike-ring/run_mac.sh --screenshot "$PWD/apps/desktop/ui/images/spike-ring.png"
+./mods/spike-ring/run_mac.sh --screenshot "$PWD/catalog/covers/spike-ring.png"
 
 # 4. 校验打包、多小游戏共存回归测试与全仓契约
 node scripts/pack-mod.mjs --all --verify-catalog

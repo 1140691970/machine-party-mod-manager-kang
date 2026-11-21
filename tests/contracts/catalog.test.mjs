@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
 import test from "node:test";
 import { installedRows, releaseNotesFor, sortMods, visibleMods } from "../../apps/desktop/ui/catalog.js";
 import { locales, messages } from "../../apps/desktop/ui/languages.js";
@@ -38,9 +39,21 @@ test("update notes come from the selected release and locale", () => {
   assert.equal(releaseNotesFor({version: "v1"}, "en"), "");
 });
 
-test("images referenced by the catalog ship with the UI", async () => {
-  for (const mod of catalog.mods.filter(mod => mod.image))
-    await readFile(new URL(`../../apps/desktop/ui/images/${mod.image}.png`, import.meta.url));
+test("optional mod covers live in catalog/covers with matching hashes and never bundle into the UI", async () => {
+  const uiImages = (await readdir(new URL("../../apps/desktop/ui/images", import.meta.url))).sort();
+  assert.deepEqual(uiImages, ["logo.svg"], "desktop UI must not bundle mod cover images");
+  const exts = {"image/png": /\.png$/i, "image/webp": /\.webp$/i, "image/jpeg": /\.jpe?g$/i};
+  for (const mod of catalog.mods) {
+    assert.equal(mod.image, undefined, `${mod.id}: use optional R2 cover instead of built-in image`);
+    if (!mod.cover) continue;
+    assert.match(mod.cover.filename, /^[a-z0-9-]+\.(?:png|webp|jpe?g)$/i, mod.id);
+    assert.ok(mod.cover.contentType in exts, `${mod.id}: unsupported cover contentType`);
+    assert.match(mod.cover.filename, exts[mod.cover.contentType], `${mod.id}: cover extension mismatch`);
+    const bytes = await readFile(new URL(`../../catalog/covers/${mod.cover.filename}`, import.meta.url));
+    assert.ok(bytes.length > 0 && bytes.length <= 4 * 1024 * 1024, `${mod.id}: cover exceeds 4 MiB budget`);
+    assert.equal(bytes.length, mod.cover.size, `${mod.id}: cover size mismatch`);
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), mod.cover.sha256, `${mod.id}: cover sha256 mismatch`);
+  }
 });
 
 test("search matches partial translated titles only and preserves catalog order", () => {

@@ -16,9 +16,9 @@ Machine Party 及其資源屬於其開發商與發行商。本專案與其無關
 
 | 檔案 | 來源 | 權利人 |
 | --- | --- | --- |
-| `apps/desktop/ui/images/overtime.png` | [Overtime 實機截圖](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) | DarkJadeStone，MIT（[授權](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE)），畫面中的遊戲內容屬於遊戲開發商 |
-| `apps/desktop/ui/images/plus.png` | [MachineParty+ 專案橫幅](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png) | Ghostx10742，MIT |
-| `apps/desktop/ui/images/roller-carnival.png` | `mods/roller-carnival/` 自研玩法預覽截圖 | 本專案貢獻者，GPL-3.0-only（畫面中所呈現的原版美術素材屬於遊戲開發商） |
+| `catalog/covers/overtime.png` | [Overtime 實機截圖](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/images/03_smoke_break_bench.png) | DarkJadeStone，MIT（[授權](https://github.com/DarkJadeStone/MachineParty-Overtime/blob/main/LICENSE)），畫面中的遊戲內容屬於遊戲開發商 |
+| `catalog/covers/machineparty-plus.png` | [MachineParty+ 專案橫幅](https://github.com/Ghostx10742/MachineParty-Plus/blob/main/assets/banner.png) | Ghostx10742，MIT |
+| `catalog/covers/roller-carnival.png` | `mods/roller-carnival/` 自研玩法預覽截圖 | 本專案貢獻者，GPL-3.0-only（畫面中所呈現的原版美術素材屬於遊戲開發商） |
 
 ## 軟體相依套件
 
