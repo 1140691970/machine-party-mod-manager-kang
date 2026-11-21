@@ -9,6 +9,8 @@ const LOCAL_GROUP := &"mpm_local_player"
 const META_ACTIVE := &"mpm_player_spotlight_active"
 const META_ALIVE := &"mpm_alive"
 const SKIP_PATH_TOKENS := ["lobby", "intermission", "main_menu", "mainmenu", "cutscene"]
+const ALIVE_PROPS: Array[StringName] = [&"active", &"alive", &"is_alive"]
+const DEAD_PROPS: Array[StringName] = [&"is_dead", &"dead"]
 const LOCAL_NAME_COLOR := Color(0.62, 1.0, 0.58, 1.0)
 const SPOT_COLOR := Color(0.94, 1.0, 0.88)
 
@@ -42,7 +44,7 @@ func _setup() -> void:
 		tree.node_added.connect(_on_node_added)
 	if _scan_timer == null:
 		_scan_timer = Timer.new()
-		_scan_timer.wait_time = 0.25
+		_scan_timer.wait_time = 1.0
 		_scan_timer.timeout.connect(_scan_tree)
 		add_child(_scan_timer)
 		_scan_timer.start()
@@ -63,25 +65,36 @@ func set_spotlight_enabled(state: bool) -> void:
 func _on_node_added(node: Node) -> void:
 	if node == null or not is_instance_valid(node):
 		return
+	if node.get_script() == null and not (node is Node3D and node.is_in_group(LOCAL_GROUP)):
+		return
 	_inspect_node.call_deferred(node)
 
 
 func _scan_tree() -> void:
 	if not is_inside_tree():
 		return
-	var root := get_tree().root
+	var tree := get_tree()
+	var root := tree.root
 	if root == null:
 		return
-	for node in get_tree().get_nodes_in_group(LOCAL_GROUP):
-		if node is Node3D:
+	for node in tree.get_nodes_in_group(LOCAL_GROUP):
+		if node is Node3D and not _is_skipped_scene_node(node):
 			_ensure_tracked(node as Node3D)
+	if not _tracked.is_empty():
+		return
+	var current_scene := tree.current_scene
+	if current_scene != null and _is_skipped_scene_node(current_scene):
+		return
 	_walk_branch(root)
 
 
 func _walk_branch(node: Node) -> void:
 	if node == null or not is_instance_valid(node):
 		return
-	_inspect_node(node)
+	if _is_skipped_name(node.name):
+		return
+	if node.get_script() != null or (node is Node3D and node.is_in_group(LOCAL_GROUP)):
+		_inspect_node(node)
 	for child in node.get_children():
 		_walk_branch(child)
 
@@ -89,17 +102,21 @@ func _walk_branch(node: Node) -> void:
 func _inspect_node(node: Node) -> void:
 	if node == null or not is_instance_valid(node) or not node.is_inside_tree():
 		return
-	if _is_skipped_scene_node(node):
-		return
 
 	# 1. Explicit first-party mod opt-in group
 	if node is Node3D and node.is_in_group(LOCAL_GROUP):
-		_ensure_tracked(node as Node3D)
+		if not _is_skipped_scene_node(node):
+			_ensure_tracked(node as Node3D)
+		return
+
+	if node.get_script() == null:
 		return
 
 	# 2. Vanilla LocationIndicator (points directly at local player's target_mesh)
-	if _has_property(node, "target_mesh") and _has_property(node, "unproject_camera"):
-		var tm = node.get("target_mesh")
+	if &"target_mesh" in node and &"unproject_camera" in node:
+		if _is_skipped_scene_node(node):
+			return
+		var tm = node.get(&"target_mesh")
 		if tm is Node3D and is_instance_valid(tm) and not _is_skipped_scene_node(tm):
 			var owner_target := _resolve_player_root(tm as Node3D)
 			if owner_target != null and not _is_first_person_rig(owner_target):
@@ -107,15 +124,17 @@ func _inspect_node(node: Node) -> void:
 		return
 
 	# 3. Vanilla BasePlayer / minigame player nodes with player_presence
-	if node is Node3D and _has_property(node, "player_presence"):
-		if _is_local_presence(node.get("player_presence")) and not _is_first_person_rig(node as Node3D):
+	if node is Node3D and &"player_presence" in node:
+		if _is_skipped_scene_node(node):
+			return
+		if _is_local_presence(node.get(&"player_presence")) and not _is_first_person_rig(node as Node3D):
 			_ensure_tracked(node as Node3D)
 
 
 func _resolve_player_root(node: Node3D) -> Node3D:
 	var cur: Node = node
 	while cur != null and cur != get_tree().root:
-		if cur is Node3D and (_has_property(cur, "player_presence") or cur is CharacterBody3D):
+		if cur is Node3D and (&"player_presence" in cur or cur is CharacterBody3D):
 			return cur as Node3D
 		cur = cur.get_parent()
 	return node
@@ -138,8 +157,16 @@ func _is_local_presence(presence) -> bool:
 			return int(presence["network_id"]) == local_id
 		return false
 	if presence is Object:
-		if _has_property(presence, "network_id"):
-			return int(presence.get("network_id")) == local_id
+		if &"network_id" in presence:
+			return int(presence.get(&"network_id")) == local_id
+	return false
+
+
+func _is_skipped_name(node_name: StringName) -> bool:
+	var name_lower := String(node_name).to_lower()
+	for token in SKIP_PATH_TOKENS:
+		if name_lower.contains(token):
+			return true
 	return false
 
 
@@ -162,15 +189,6 @@ func _has_active_camera_descendant(node: Node, depth: int) -> bool:
 		if child is Camera3D and (child as Camera3D).current:
 			return true
 		if _has_active_camera_descendant(child, depth - 1):
-			return true
-	return false
-
-
-func _has_property(obj: Object, prop_name: String) -> bool:
-	if obj == null:
-		return false
-	for p in obj.get_property_list():
-		if str(p.get("name", "")) == prop_name:
 			return true
 	return false
 
@@ -204,33 +222,42 @@ func _ensure_tracked(target: Node3D) -> void:
 	spot.rotation_degrees = Vector3(-87.0, 0.0, 0.0)
 	add_child(spot)
 
+	var alive_props: Array[StringName] = []
+	for prop in ALIVE_PROPS:
+		if prop in target:
+			alive_props.append(prop)
+	var dead_props: Array[StringName] = []
+	for prop in DEAD_PROPS:
+		if prop in target:
+			dead_props.append(prop)
+
 	var lbl := _find_nametag_label(target)
 	var orig_mod := lbl.modulate if lbl != null else Color.WHITE
 	var rec := {
 		"target": target,
 		"spot": spot,
 		"label": lbl,
+		"label_retries": 0 if lbl != null else 3,
 		"orig_modulate": orig_mod,
+		"alive_props": alive_props,
+		"dead_props": dead_props,
+		"last_scale": -1.0,
 	}
 	_tracked[key] = rec
 	_sync_record(rec)
 
 
-func _is_target_alive(target: Node3D) -> bool:
+func _is_target_alive(rec: Dictionary, target: Node3D) -> bool:
 	if not target.visible or not target.is_visible_in_tree():
 		return false
 	if target.has_meta(META_ALIVE) and not bool(target.get_meta(META_ALIVE)):
 		return false
-	if _has_property(target, "active") and not bool(target.get("active")):
-		return false
-	if _has_property(target, "alive") and not bool(target.get("alive")):
-		return false
-	if _has_property(target, "is_alive") and not bool(target.get("is_alive")):
-		return false
-	if _has_property(target, "is_dead") and bool(target.get("is_dead")):
-		return false
-	if _has_property(target, "dead") and bool(target.get("dead")):
-		return false
+	for prop in rec["alive_props"]:
+		if not bool(target.get(prop)):
+			return false
+	for prop in rec["dead_props"]:
+		if bool(target.get(prop)):
+			return false
 	return true
 
 
@@ -239,18 +266,23 @@ func _apply_record_visibility(rec: Dictionary) -> void:
 	var spot: SpotLight3D = rec.get("spot", null)
 	if not is_instance_valid(target) or not is_instance_valid(spot):
 		return
-	var alive := _is_target_alive(target as Node3D)
+	var alive := _is_target_alive(rec, target as Node3D)
 	var show_spot := enabled and alive
-	spot.visible = show_spot
+	if spot.visible != show_spot:
+		spot.visible = show_spot
 
 	var lbl = rec.get("label", null)
-	if lbl == null or not is_instance_valid(lbl):
+	if (lbl == null or not is_instance_valid(lbl)) and int(rec.get("label_retries", 0)) > 0:
+		rec["label_retries"] = int(rec["label_retries"]) - 1
 		lbl = _find_nametag_label(target as Node3D)
 		if lbl != null:
 			rec["label"] = lbl
 			rec["orig_modulate"] = (lbl as Label3D).modulate
+			rec["label_retries"] = 0
 	if is_instance_valid(lbl) and lbl is Label3D:
-		(lbl as Label3D).modulate = LOCAL_NAME_COLOR if show_spot else rec["orig_modulate"]
+		var target_mod: Color = LOCAL_NAME_COLOR if show_spot else rec["orig_modulate"]
+		if (lbl as Label3D).modulate != target_mod:
+			(lbl as Label3D).modulate = target_mod
 
 
 func _sync_record(rec: Dictionary) -> void:
@@ -262,12 +294,13 @@ func _sync_record(rec: Dictionary) -> void:
 
 	var scale_basis := target.global_transform.basis.get_scale()
 	var avg_scale := clampf((absf(scale_basis.x) + absf(scale_basis.y) + absf(scale_basis.z)) / 3.0, 0.5, 2.5)
+	if not is_equal_approx(avg_scale, float(rec["last_scale"])):
+		rec["last_scale"] = avg_scale
+		spot.spot_range = 6.2 * avg_scale
+		spot.light_energy = 16.0 * avg_scale
 	var height := 3.8 * avg_scale
-	spot.spot_range = 6.2 * avg_scale
-	spot.light_energy = 16.0 * avg_scale
 	var gpos := target.global_position
 	spot.global_position = Vector3(gpos.x, gpos.y + height, gpos.z + 0.20 * avg_scale)
-	spot.global_rotation_degrees = Vector3(-87.0, 0.0, 0.0)
 
 
 func _cleanup_record(rec: Dictionary) -> void:

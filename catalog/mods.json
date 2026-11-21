@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-20.9-mpml1",
+  "revision": "2026-11-21.1-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -263,18 +263,18 @@
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "image": "standalone-hd",
-      "version": "v0.1.1",
+      "version": "v0.1.2",
       "releaseNotes": {
-        "version": "v0.1.1",
-        "zh-CN": "修复启用高清渲染后全屏模式和界面尺寸可能改变的问题，现在会保留原有窗口模式和 HUD 布局。",
-        "zh-TW": "修正啟用高畫質渲染後全螢幕模式和介面尺寸可能改變的問題，現在會保留原有視窗模式和 HUD 配置。",
-        "en": "Preserves the existing window mode and HUD layout when high-resolution rendering is enabled."
+        "version": "v0.1.2",
+        "zh-CN": "优化运行流畅度：默认开启垂直同步并限制 3D 缩放不超过窗口高度（默认上限 1.5×，可通过 --party-hd-2x 或 --party-hd-1440 开启 2×），并将后处理滤镜改为事件驱动隐藏，移除每 4 秒全场景树扫描。",
+        "zh-TW": "最佳化執行流暢度：預設開啟垂直同步並限制 3D 縮放不超過視窗高度（預設上限 1.5×，可透過 --party-hd-2x 或 --party-hd-1440 開啟 2×），並將後製濾鏡改為事件驅動隱藏，移除每 4 秒全場景樹掃描。",
+        "en": "Improves frame pacing and reduces GPU/CPU overhead: enables VSync by default, caps 3D scale to window height (1.5× default, 2× with --party-hd-2x or --party-hd-1440), and replaces the 4-second full scene tree scan with event-driven filter hiding."
       },
       "package": {
-        "assetId": "1010",
-        "filename": "standalone-hd-0.1.1.zip",
-        "size": 2990,
-        "sha256": "cde5bf57abb6f0edfbd5ab37b34da7d38a7fc48d91a6984b552a102e2b9c1cb4",
+        "assetId": "1022",
+        "filename": "standalone-hd-0.1.2.zip",
+        "size": 4738,
+        "sha256": "e83bcaba0a826d804f95b06cb2b684f2694af6a6adaef29e3065389f6075205c",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -315,9 +315,9 @@
         "en": "Sharper 3D rendering with your existing fullscreen and interface size."
       },
       "detail": {
-        "zh-CN": "默认目标 1080p、60 FPS。可选 1440p 3D 渲染目标和 120 FPS，3D 放大最高两倍。",
-        "zh-TW": "預設目標 1080p、60 FPS。可選 1440p 3D 渲染目標與 120 FPS，3D 放大最高兩倍。",
-        "en": "Targets 1080p and 60 FPS by default. Optional 1440p 3D rendering and 120 FPS, with up to 2× supersampling."
+        "zh-CN": "默认开启垂直同步与 60 FPS，3D 缩放上限 1.5× 且不超过窗口高度。可选 --party-hd-2x、--party-hd-1440、--party-hd-120 或 --party-hd-no-vsync。",
+        "zh-TW": "預設開啟垂直同步與 60 FPS，3D 縮放上限 1.5× 且不超過視窗高度。可選 --party-hd-2x、--party-hd-1440、--party-hd-120 或 --party-hd-no-vsync。",
+        "en": "Defaults to VSync on, 60 FPS, and up to 1.5× 3D scaling capped to window height. Optional flags: --party-hd-2x, --party-hd-1440, --party-hd-120, or --party-hd-no-vsync."
       },
       "aliases": [
         "高清",
@@ -333,18 +333,18 @@
       "order": 8,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
-      "version": "v0.1.0",
+      "version": "v0.1.1",
       "releaseNotes": {
-        "version": "v0.1.0",
-        "zh-CN": "在所有原版及自研 3D 小游戏中为自己的角色投射仅自己可见的头顶工业聚光灯与淡荧光绿名牌，按 F8 随时开关，淘汰后自动熄灭。",
-        "zh-TW": "在所有原版及自研 3D 小遊戲中為自己的角色投射僅自己可見的頭頂工業聚光燈與淡螢光綠名牌，按 F8 隨時開關，淘汰後自動熄滅。",
-        "en": "Shines a local-only overhead industrial spotlight and subtle CRT green nametag tint on your own character across vanilla and first-party 3D minigames. Press F8 to toggle; turns off on elimination."
+        "version": "v0.1.1",
+        "zh-CN": "修复游戏中周期性卡顿：移除每 0.25 秒全场景树扫描与每帧属性列表反射，改用轻量节点过滤与存活状态缓存，大幅降低 CPU 与内存分配开销。",
+        "zh-TW": "修正遊戲中週期性卡頓：移除每 0.25 秒全場景樹掃描與每幀屬性列表反射，改用輕量節點過濾與存活狀態快取，大幅降低 CPU 與記憶體分配開銷。",
+        "en": "Fixes periodic stuttering by removing the 0.25s full scene-tree walk and per-frame property list reflection in favor of lightweight node filtering and cached alive-state checks."
       },
       "package": {
-        "assetId": "1016",
-        "filename": "player-spotlight-0.1.0.zip",
-        "size": 9124,
-        "sha256": "d5e4259b414af13e15f6884a8267a9ee1f54ed201d268d847db8457b30077c82",
+        "assetId": "1023",
+        "filename": "player-spotlight-0.1.1.zip",
+        "size": 10148,
+        "sha256": "de4df77309b467a5533699c034fd9d166af85d741a243239dcb28dc9ce847679",
         "mirrorApproved": true
       },
       "supportedGameVersions": [

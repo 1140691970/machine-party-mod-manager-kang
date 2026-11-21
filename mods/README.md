@@ -14,8 +14,8 @@ This directory holds GDScript mods authored in `machine-party-mod-manager`. Ever
 | --- | --- | --- | --- | --- | --- | --- |
 | `roller-carnival` | Roller Carnival (滾筒嘉年華) | `0.1.7` | `roller-carnival-0.1.7.zip` | Steam `v2.1.2` | Verified (`v0.1.7` Lobby Bots AI) | [mods/roller-carnival/README.md](roller-carnival/README.md) |
 | `lobby-bots` | Lobby Bots (房間機器人) | `0.2.2` | `lobby-bots-0.2.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Lobby Bots](lobby-bots/README.md) |
-| `standalone-hd` | Standalone HD (獨立高清) | `0.1.1` | `standalone-hd-0.1.1.zip` | Steam `v2.1.2` | Pending physical Windows test | [Standalone HD](standalone-hd/README.md) |
-| `player-spotlight` | Player Spotlight (玩家聚光燈) | `0.1.0` | `player-spotlight-0.1.0.zip` | Steam `v2.1.2` | Pending physical Windows test | [Player Spotlight](player-spotlight/README.md) |
+| `standalone-hd` | Standalone HD (獨立高清) | `0.1.2` | `standalone-hd-0.1.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Standalone HD](standalone-hd/README.md) |
+| `player-spotlight` | Player Spotlight (玩家聚光燈) | `0.1.1` | `player-spotlight-0.1.1.zip` | Steam `v2.1.2` | Pending physical Windows test | [Player Spotlight](player-spotlight/README.md) |
 | `bubble-blitz` | Bubble Blitz (泡泡爆破) | `0.1.1` | `bubble-blitz-0.1.1.zip` | Steam `v2.1.2` | Verified on Windows Steam | [Bubble Blitz](bubble-blitz/README.md) |
 
 ## Deterministic ZIP packaging rules

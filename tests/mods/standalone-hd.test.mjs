@@ -10,7 +10,7 @@ const godot = process.env.GODOT_BIN || (existsSync(bundled) ? bundled : "godot")
 const available = !spawnSync(godot, ["--version"]).error;
 
 test("standalone HD profiles preserve the lobby and camera", {skip: !available && "Godot unavailable"}, () => {
-  for (const flags of [[], ["--party-hd-120"], ["--party-hd-1440"],
+  for (const flags of [[], ["--party-hd-120"], ["--party-hd-2x"], ["--party-hd-no-vsync"], ["--party-hd-1440"],
     ["--party-hd-1440", "--party-hd-120", "--party-hd-internal"], ["--test-broadcast"], ["--test-legacy-broadcast"]]) {
     const run = spawnSync(godot, ["--headless", "--path", local("../../mods/standalone-hd"),
       "--script", local("./standalone_hd_test.gd"), "--", ...flags], {encoding: "utf8", timeout: 10000});

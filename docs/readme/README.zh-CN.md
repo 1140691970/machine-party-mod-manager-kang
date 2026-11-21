@@ -82,8 +82,8 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公开房间、语音与文字聊天 | 原生 MPML |
 | [滚筒嘉年华](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.7` | 机械狂欢躲避小游戏 | 原生 MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可添加或移除默认就绪的测试机器人。 | 原生 MPML |
-| [独立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.1` | 提高 3D 渲染清晰度，保留窗口模式和 HUD 布局 | 原生 MPML |
-| [玩家聚光灯](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.0` | 在所有 3D 小游戏中只为自己点亮头顶工业聚光灯 | 原生 MPML |
+| [独立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.2` | 提高 3D 渲染清晰度，保留窗口模式和 HUD 布局 | 原生 MPML |
+| [玩家聚光灯](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.1` | 在所有 3D 小游戏中只为自己点亮头顶工业聚光灯 | 原生 MPML |
 | [泡泡爆破](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.1` | 3 滴血结合版泡泡堂小游戏，4 套随机地图与传送带互坑 | 原生 MPML |
 
 验收清单、上游授权边界与互斥组规则详见[候选模组与收录规范](../zh-CN/catalog/mods.md)。

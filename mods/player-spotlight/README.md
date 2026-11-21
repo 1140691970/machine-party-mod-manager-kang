@@ -8,7 +8,7 @@
 
 ## Windows 使用與實測流程 / Windows Usage & Test Flow
 
-1. **安裝（Install）**：透過管理器安裝 **Player Spotlight (`v0.1.0`)**，或執行 `node scripts/pack-mod.mjs player-spotlight` 後將 ZIP 解壓至遊戲目錄的 `mods/player-spotlight/`。此模組為純用戶端效果，其他玩家無需安裝。
+1. **安裝（Install）**：透過管理器安裝 **Player Spotlight (`v0.1.1`)**，或執行 `node scripts/pack-mod.mjs player-spotlight` 後將 ZIP 解壓至遊戲目錄的 `mods/player-spotlight/`。此模組為純用戶端效果，其他玩家無需安裝。
 2. **啟動與切換（Play & Toggle）**：從 Steam 照常啟動遊戲；進入任何第三人稱 3D 小遊戲後會自動為自己點亮頭頂聚光燈，對局中隨時按 `F8` 切換開關並即時還原名牌原色。
 3. **實機檢查重點（Checklist）**：
    - 大廳（Lobby）、過場（Intermission）與第一人稱關卡不應出現聚光燈。

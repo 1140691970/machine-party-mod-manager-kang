@@ -103,6 +103,9 @@ func _run() -> void:
 	if not spot.visible:
 		_fail("Local player spotlight should be visible")
 		return
+	if not (rec.get("alive_props", []) as Array).has(&"active"):
+		_fail("Alive property should be cached on tracked record")
+		return
 	if local_lbl.modulate == Color.WHITE:
 		_fail("Local player nametag should be tinted")
 		return

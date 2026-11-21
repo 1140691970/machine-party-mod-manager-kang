@@ -57,8 +57,13 @@ func _run() -> void:
 		if not check(root.content_scale_size == base and root.mode == mode and root.size == size_px and root.position == position_px, "Window and UI geometry must be preserved"):
 			return
 		var height := root.get_texture().get_height()
-		var target := 1440 if args.has("--party-hd-1440") else 1080
-		if height > 0 and not check(is_equal_approx(root.scaling_3d_scale, clampf(float(target) / height, 1, 2)), "Only 3D render scale changes"):
+		var allow_supersample := args.has("--party-hd-1440")
+		var target := 1440 if allow_supersample else 1080
+		var max_scale := 2.0 if (allow_supersample or args.has("--party-hd-2x")) else 1.5
+		var effective_target := target
+		if not allow_supersample and root.size.y > 0:
+			effective_target = mini(target, root.size.y)
+		if height > 0 and not check(is_equal_approx(root.scaling_3d_scale, clampf(float(effective_target) / height, 1.0, max_scale)), "Only 3D render scale changes"):
 			return
 		var next_filter := ColorRect.new()
 		next_filter.name = "Vignette"
@@ -66,8 +71,10 @@ func _run() -> void:
 		if not check(not next_filter.visible and hud.visible, "New scene filters and HUD"):
 			return
 		effect.show()
+		if not check(not effect.visible, "Tracked filters re-hide immediately on visibility_changed"):
+			return
 		hd.get_child(0).timeout.emit()
-		if not check(not effect.visible, "Scene scripts can re-enable filters"):
+		if not check(not effect.visible, "Tracked filter timer keeps filters hidden"):
 			return
 	if not check(host.get_parent() == seat and host.visible and root.get_camera_3d() == camera, "Seat and camera ownership"):
 		return
