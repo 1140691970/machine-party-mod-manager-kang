@@ -1159,13 +1159,20 @@ func _collides_world(p: Dictionary, test_pos: Vector3, radius: float, push_dir: 
 				return true
 
 	var pass_ids: Dictionary = p["pass_bubble_ids"]
+	var cur_p: Vector3 = p["pos"]
+	var min_bubble_dist: float = radius + C.TILE_SIZE * 0.34
 	for b_id in _bubbles.keys():
 		if pass_ids.has(b_id):
 			continue
 		var b: Dictionary = _bubbles[b_id]
 		var bp: Vector3 = b["pos"]
 		var d: float = Vector2(test_pos.x - bp.x, test_pos.z - bp.z).length()
-		if d < radius + C.TILE_SIZE * 0.34:
+		if d < min_bubble_dist:
+			var cur_d: float = Vector2(cur_p.x - bp.x, cur_p.z - bp.z).length()
+			# If already overlapping a bubble (e.g. placed or slid into the player),
+			# allow any movement that increases separation so players can never be stuck.
+			if cur_d < min_bubble_dist and d > cur_d + 0.0001:
+				continue
 			if bool(p["has_kick"]) and not bool(p["trapped"]) and push_dir.length_squared() > 0.5:
 				var kdir := Vector2i(int(round(push_dir.x)), int(round(push_dir.y)))
 				b["slide_dir"] = kdir
@@ -1196,6 +1203,15 @@ func _try_place_bubble(p: Dictionary) -> bool:
 	}
 	p["active_bubbles"] = int(p["active_bubbles"]) + 1
 	(p["pass_bubble_ids"] as Dictionary)[b_id] = true
+	# Grant pass-through to any alive player currently overlapping the new bubble so
+	# dropping a bomb in someone's face on open ground cannot trap them in place.
+	for other_id in _players.keys():
+		var other: Dictionary = _players[other_id]
+		if not bool(other["alive"]):
+			continue
+		var op: Vector3 = other["pos"]
+		if Vector2(op.x - world_pos.x, op.z - world_pos.z).length() <= C.TILE_SIZE * 0.72:
+			(other["pass_bubble_ids"] as Dictionary)[b_id] = true
 	if int(p["network_id"]) == _local_net_id:
 		_update_local_stats_hud()
 
@@ -1991,6 +2007,35 @@ func _run_self_test() -> void:
 		get_tree().quit(1)
 		return
 
-	print("BUBBLE_BLITZ_THEMES_VERIFIED=4, HYBRID_3HP_NEEDLE_POP_OK, CHAIN_DETONATION_OK, WALL_SLIDE_FULL_SPEED_OK")
+	# Verify placing a bomb right in another player's face on open ground does not trap them.
+	p1["active_bubbles"] = 0
+	p1["max_bubbles"] = 2
+	p2["alive"] = true
+	p2["trapped"] = false
+	p2["pass_bubble_ids"] = {}
+	var open_cell := Vector2i(1, 1)
+	var open_pos: Vector3 = C.grid_to_world(open_cell, _map_width, _map_height)
+	p1["pos"] = open_pos
+	p2["pos"] = open_pos + Vector3(C.TILE_SIZE * 0.45, 0.0, 0.0)
+	if not _try_place_bubble(p1):
+		push_error("SELF_TEST_FAIL: face-drop test failed to place bubble")
+		get_tree().quit(1)
+		return
+	var p2_before: Vector3 = p2["pos"]
+	var p2_after: Vector3 = _move_player_with_collision(p2, p2_before, Vector3(C.BASE_MOVE_SPEED, 0.0, 0.0), C.BASE_MOVE_SPEED, 0.1)
+	if (p2_after.x - p2_before.x) < C.BASE_MOVE_SPEED * 0.1 * 0.9:
+		push_error("SELF_TEST_FAIL: player trapped by face-dropped bubble: dx=" + str(p2_after.x - p2_before.x))
+		get_tree().quit(1)
+		return
+	# Also verify defensive escape when already inside collision radius without pass-through.
+	p2["pass_bubble_ids"] = {}
+	p2["pos"] = p2_before
+	var p2_escape: Vector3 = _move_player_with_collision(p2, p2_before, Vector3(C.BASE_MOVE_SPEED, 0.0, 0.0), C.BASE_MOVE_SPEED, 0.1)
+	if (p2_escape.x - p2_before.x) < C.BASE_MOVE_SPEED * 0.1 * 0.9:
+		push_error("SELF_TEST_FAIL: player could not escape bubble overlap: dx=" + str(p2_escape.x - p2_before.x))
+		get_tree().quit(1)
+		return
+
+	print("BUBBLE_BLITZ_THEMES_VERIFIED=4, HYBRID_3HP_NEEDLE_POP_OK, CHAIN_DETONATION_OK, WALL_SLIDE_FULL_SPEED_OK, FACE_BOMB_NO_TRAP_OK")
 	print("SELF_TEST_PASSED")
 	get_tree().quit(0)

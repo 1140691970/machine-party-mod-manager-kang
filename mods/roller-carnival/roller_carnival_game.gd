@@ -1094,9 +1094,8 @@ func _evaluate_roller_interactions(r: Dictionary) -> void:
 	var rx: float = float(r["x"])
 	var ry: float = float(r["y"])
 	var rad: float = float(r["radius"])
-	var r_bottom: float = ry - rad
-	var r_top: float = ry + rad
-	var r_left: float = rx - rad
+	var hit_rad: float = maxf(0.05, rad - 0.06)
+	var hit_rad_sq: float = hit_rad * hit_rad
 	var r_right: float = rx + rad
 
 	var hit_map: Dictionary = r["hit_players"]
@@ -1107,15 +1106,18 @@ func _evaluate_roller_interactions(r: Dictionary) -> void:
 			continue
 		var pid: int = int(p["id"])
 		var px: float = float(p["x"])
-		var p_half_w: float = 0.28
+		var p_half_w: float = 0.22
 		var p_bottom: float = float(p["y"])
 		var p_height: float = config.crouch_height if bool(p["crouching"]) else config.standing_height
 		var p_top: float = p_bottom + p_height
 
-		var x_overlap: bool = (px + p_half_w >= r_left) and (px - p_half_w <= r_right)
-		var y_overlap: bool = (p_top >= r_bottom) and (p_bottom <= r_top)
+		var closest_x: float = clampf(rx, px - p_half_w, px + p_half_w)
+		var closest_y: float = clampf(ry, p_bottom, p_top)
+		var dx: float = rx - closest_x
+		var dy: float = ry - closest_y
+		var hit: bool = (dx * dx + dy * dy) <= hit_rad_sq
 
-		if x_overlap and y_overlap:
+		if hit:
 			if not hit_map.has(pid) and float(p["knockback_cooldown"]) <= 0.0:
 				hit_map[pid] = true
 				_apply_knockback_to_player(p)
@@ -1833,8 +1835,8 @@ func _run_self_tests() -> void:
 	_apply_input(42, 1)
 	if not _assert_true(_players[1].crouching and not _players[0].crouching, "Only sender crouches"):
 		return
-	_tick_crouch(_players[1], 0.74)
-	if not _assert_true(_players[1].crouching, "Crouch lasts 0.75 seconds"):
+	_tick_crouch(_players[1], config.crouch_duration - 0.01)
+	if not _assert_true(_players[1].crouching, "Crouch lasts configured duration"):
 		return
 	_tick_crouch(_players[1], 0.02)
 	if not _assert_true(not _players[1].crouching, "Held crouch expires"):

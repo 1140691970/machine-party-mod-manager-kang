@@ -736,10 +736,10 @@ func _read_local_input() -> void:
 			dir = dir.normalized()
 		# 屏幕意图 -> 世界 XZ：无论相机角度/是否被替换，W 永远朝屏幕正上方。
 		dir = _screen_dir_to_world(dir)
-		# 纯键盘操作（对齐官方 Disco Dodge）：WASD/方向键移动并自动转向，Space（备用 J/E）直接推搡，无需鼠标介入。
+		# 纯键盘操作（对齐官方 Disco Dodge）：WASD/方向键移动并自动转向，按住 Space（备用 J/E）持续推人，无需鼠标介入。
 		var push_now: bool = Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_J) or Input.is_key_pressed(KEY_E)
 		jump_edge = false
-		push_edge = push_now and not _prev_push_pressed
+		push_edge = push_now
 		_prev_jump_pressed = false
 		_prev_push_pressed = push_now
 
@@ -871,11 +871,15 @@ func _step_player_motions(delta: float, prep: bool) -> void:
 			p["pos"] = new_pos
 			p["knock_vel"] = kv.move_toward(Vector2.ZERO, C.PUSH_DECAY * delta)
 			if float(p["state_timer"]) >= C.FALL_DURATION_SEC:
-				p["state"] = C.ST_INVULN
 				p["state_timer"] = 0.0
-				p["invuln_timer"] = C.RECOVERY_IMMUNITY_SEC
 				p["knock_dir"] = Vector2.ZERO
 				p["knock_vel"] = Vector2.ZERO
+				if C.RECOVERY_IMMUNITY_SEC > 0.0:
+					p["state"] = C.ST_INVULN
+					p["invuln_timer"] = C.RECOVERY_IMMUNITY_SEC
+				else:
+					p["state"] = C.ST_NORMAL
+					p["invuln_timer"] = 0.0
 		else:
 			# --- 平滑加减速移动（消除起步/急停顿挫）---
 			var target_vel: Vector2 = dir * C.PLAYER_MOVE_SPEED
@@ -975,7 +979,7 @@ func _try_push(attacker: Dictionary) -> void:
 	var power_item: int = int(attacker.get("power_item", C.ITEM_NONE))
 	var is_shockwave: bool = (power_item == C.ITEM_SHOCKWAVE)
 	var is_power_shove: bool = (power_item == C.ITEM_POWER_SHOVE)
-	attacker["shove_anim_timer"] = 0.34
+	attacker["shove_anim_timer"] = 0.26
 	attacker["push_cooldown"] = C.PUSH_COOLDOWN_SEC
 
 	var victims: Array = []
@@ -2599,22 +2603,31 @@ func _run_self_test() -> void:
 		_fail("prep must transition to LIVE after 3s")
 		return
 
-	# --- 摔倒固定 0.3s + 爬起免推 0.2s ---
+	# --- 持续按住推人：动作前摇后摇决定冷却、推到人才加分、加分无内置冷却 ---
 	_client_inputs.clear()
 	var a: Dictionary = _players[1]
 	var v: Dictionary = _players[2]
+	var v_was_ai: bool = bool(v["is_ai"])
+	v["is_ai"] = false
 	a["pos"] = Vector3(0.0, 0.0, 0.0)
-	v["pos"] = Vector3(1.0, 0.0, 0.0)
+	v["pos"] = Vector3(5.0, 0.0, 0.0)
 	a["facing"] = Vector2(1.0, 0.0)
 	a["state"] = C.ST_NORMAL
 	a["push_cooldown"] = 0.0
 	v["state"] = C.ST_NORMAL
 	v["invuln_timer"] = 0.0
+	# 空推不加分
+	_try_push(a)
+	if int(a["pushes"]) != 0 or int(a["score"]) != 0:
+		_fail("push whiff must not award score")
+		return
+	# 命中加分并进入动作冷却
+	v["pos"] = Vector3(1.0, 0.0, 0.0)
+	a["push_cooldown"] = 0.0
 	_try_push(a)
 	if int(v["state"]) != C.ST_FALLEN or int(a["pushes"]) != 1 or int(a["score"]) != C.PUSH_SCORE:
 		_fail("push hit / +2 score failed")
 		return
-	# 冷却 1.5s 生效
 	if float(a["push_cooldown"]) < C.PUSH_COOLDOWN_SEC - 0.001:
 		_fail("push cooldown not applied")
 		return
@@ -2624,15 +2637,18 @@ func _run_self_test() -> void:
 	if int(v["state"]) != C.ST_FALLEN:
 		_fail("fall must last exactly 0.30s")
 		return
+	# 按住推人键在动作冷却结束后自动继续推，一路顶人并再次加分
+	_client_inputs[1] = {"dir": Vector2.ZERO, "aim": Vector2(1.0, 0.0), "jump": false, "push": true}
 	_step_player_motions(0.02, false)
-	if int(v["state"]) != C.ST_INVULN or float(v["invuln_timer"]) <= 0.0:
-		_fail("fall recovery immunity failed")
+	if int(v["state"]) != C.ST_NORMAL:
+		_fail("victim should recover to normal after 0.30s fall")
 		return
-	a["push_cooldown"] = 0.0
-	_try_push(a)
-	if int(v["hits_taken"]) != 1:
-		_fail("immunity after recovery must block re-push")
+	_step_player_motions(C.PUSH_COOLDOWN_SEC - C.FALL_DURATION_SEC + 0.01, false)
+	if int(v["hits_taken"]) != 2 or int(a["pushes"]) != 2 or int(a["score"]) != C.PUSH_SCORE * 2:
+		_fail("hold-to-push continuous shove failed")
 		return
+	_client_inputs.clear()
+	v["is_ai"] = v_was_ai
 
 	# --- 计分：每秒 +1 / 存活奖励 +10 / 出局停止 ---
 	for net_id in _players.keys():
@@ -2721,7 +2737,7 @@ func _run_self_test() -> void:
 		return
 
 	print("SPIKE_RING_SPAWNS_2_4_8_16_OK, PREP_3S_NO_ELIM_OK, FALL_0.30S_IMMUNITY_0.20S_OK")
-	print("PUSH_COOLDOWN_1.5S_OK, SCORE_PER_SEC_AND_SURVIVAL_BONUS_OK, RANK_TIEBREAK_OK")
+	print("HOLD_PUSH_CONTINUOUS_OK, SCORE_PER_SEC_AND_SURVIVAL_BONUS_OK, RANK_TIEBREAK_OK")
 	print("SAFETY_GRID_BFS_CORRIDOR_CONNECTIVITY_OK, ROUND_END_GATE_OK, DIFFICULTY_PHASES_OK")
 	print("SELF_TEST_PASSED")
 	get_tree().quit(0)
