@@ -57,6 +57,23 @@ export function matchesStatusFilter(filter, row) {
   return true;
 }
 
+export function statusCounts(mods, statusOf) {
+  const counts = {all: 0, installed: 0, notInstalled: 0, updatable: 0};
+  for (const mod of mods || []) {
+    counts.all++;
+    const status = modFilterStatus(statusOf ? statusOf(mod) : undefined);
+    if (status === "updatable") {
+      counts.updatable++;
+      counts.installed++;
+    } else if (status === "installed") {
+      counts.installed++;
+    } else {
+      counts.notInstalled++;
+    }
+  }
+  return counts;
+}
+
 export function visibleMods(mods, {query = "", category = "all", status = "all", statusOf} = {}) {
   const term = query.trim().toLowerCase();
   return mods.filter(mod => {

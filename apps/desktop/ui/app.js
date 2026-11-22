@@ -12,7 +12,7 @@ import { loadCatalog, restoreCatalog } from "./online-catalog.js";
 
 let catalogStatus = "catalogLoading";
 let catalogError = "";
-let shownPage = "";
+let entered = false;
 
 function applyLocale() {
   document.documentElement.lang = state.locale;
@@ -25,60 +25,83 @@ function applyLocale() {
   const refresh = $("#refresh-catalog");
   refresh.title = t("refreshCatalog");
   refresh.setAttribute("aria-label", refresh.title);
+  const settingsBtn = $("#open-settings");
+  settingsBtn.title = t("settings");
+  settingsBtn.setAttribute("aria-label", settingsBtn.title);
+  $("#settingsTitle").textContent = t("settings");
   $("#close").setAttribute("aria-label", t("close"));
-  for (const el of document.querySelectorAll("[data-page]")) {
-    el.title = t(el.dataset.page);
-    el.setAttribute("aria-label", el.title);
-    el.querySelector(".nav-label").textContent = el.title;
-  }
+  $("#close-settings").setAttribute("aria-label", t("close"));
+}
+
+function renderSettingsDialog() {
+  const dialog = $("#settings-dialog");
+  if (!dialog?.open) return;
+  const body = $("#settingsBody");
+  body.replaceChildren();
+  renderSettings(body, applyLocale);
+}
+
+function openSettings() {
+  if (state.batch?.phase === "running") return;
+  const dialog = $("#settings-dialog");
+  if (!dialog) return;
+  $("#settingsTitle").textContent = t("settings");
+  const body = $("#settingsBody");
+  body.replaceChildren();
+  renderSettings(body, applyLocale);
+  if (!dialog.open) dialog.showModal();
+}
+
+function closeSettings() {
+  const dialog = $("#settings-dialog");
+  if (dialog?.open) dialog.close();
 }
 
 function render() {
-  document.querySelectorAll("[data-page]").forEach(el => {
-    const active = el.dataset.page === state.page;
-    el.classList.toggle("active", active);
-    if (active) el.setAttribute("aria-current", "page");
-    else el.removeAttribute("aria-current");
-  });
-  const settingsNav = document.querySelector('[data-page="settings"]');
-  const existingDot = settingsNav?.querySelector(".update-dot");
-  if (state.release && settingsNav && !existingDot) {
+  const settingsBtn = $("#open-settings");
+  const existingDot = settingsBtn?.querySelector(".update-dot");
+  if (state.release && settingsBtn && !existingDot) {
     const dot = element("span", "", "update-dot");
     dot.setAttribute("aria-hidden", "true");
-    settingsNav.append(dot);
+    settingsBtn.append(dot);
   } else if (!state.release && existingDot) {
     existingDot.remove();
   }
-  $("h1").textContent = t(state.page);
-  $("#subtitle").textContent = state.page === "settings" ? "" : t(state.page + "Sub");
-  $("#search").hidden = state.page !== "catalog";
   const busyBatch = state.batch?.phase === "running";
   $("#search input").disabled = busyBatch;
+  settingsBtn.disabled = busyBatch;
   const refresh = $("#refresh-catalog");
   const loading = catalogStatus === "catalogLoading";
-  refresh.hidden = state.page !== "catalog";
   refresh.disabled = loading || Boolean(state.busyMod) || busyBatch;
   refresh.setAttribute("aria-busy", String(loading));
   const content = $("#content");
   content.replaceChildren();
-  content.className = state.page === shownPage ? "" : "entering";
-  shownPage = state.page;
-  if (state.page === "settings") renderSettings(content, applyLocale);
-  else {
-    if (catalogStatus) {
-      const status = element("section", "", "list-status" + (state.mods.length ? " compact" : ""));
-      status.setAttribute("role", "status");
-      status.append(icon(catalogStatus === "catalogLoading" ? "refresh" : "catalog"), element("p", [t(catalogStatus), t(catalogError) || catalogError].filter(Boolean).join(" · ")));
-      if (catalogStatus !== "catalogLoading") status.append(button(t("retryCatalog"), refreshCatalog, "link", "refresh"));
-      content.append(status);
+  content.className = entered ? "" : "entering";
+  entered = true;
+  if (catalogStatus) {
+    const isLoading = catalogStatus === "catalogLoading";
+    const status = element("section", "", [
+      "list-status",
+      state.mods.length ? "compact" : "",
+      isLoading ? "is-loading" : "is-warning"
+    ].filter(Boolean).join(" "));
+    status.setAttribute("role", "status");
+    status.append(
+      icon(isLoading ? "refresh" : "catalog"),
+      element("p", [t(catalogStatus), t(catalogError) || catalogError].filter(Boolean).join(" · "))
+    );
+    if (!isLoading) {
+      const retry = button(t("retryCatalog"), refreshCatalog, "secondary", "refresh");
+      retry.classList.add("btn-sm");
+      status.append(retry);
     }
-    if (!catalogStatus || state.mods.length || state.page === "installed") renderModList(content);
+    content.append(status);
   }
+  if (!catalogStatus || state.mods.length) renderModList(content);
+  renderSettingsDialog();
 }
 
 if (isDesktop) document.addEventListener("contextmenu", event => event.preventDefault());
-const previousPage = sessionStorage.getItem("page");
-if (["installed", "settings"].includes(previousPage)) state.page = previousPage;
 onRender(render);
 state.appVersion = await appVersion();
 const bundled = isDesktop ? await bundledCatalog() : {mods: []};
@@ -112,19 +135,16 @@ async function refreshCatalog() {
     catalogStatus = catalog ? "catalogCached" : "catalogUnavailable";
   }
   render();
-
 }
 
 hydrateIcons();
-document.querySelectorAll("[data-page]").forEach(el => el.onclick = () => {
-  if (state.batch?.phase === "running") return;
-  if (state.batch?.phase === "done") state.batch = null;
-  state.page = el.dataset.page;
-  sessionStorage.setItem("page", state.page);
-  render();
-});
 $("#search input").oninput = render;
 $("#refresh-catalog").onclick = refreshCatalog;
+$("#open-settings").onclick = openSettings;
+$("#close-settings").onclick = closeSettings;
+$("#settings-dialog").addEventListener("click", event => {
+  if (event.target === event.currentTarget) closeSettings();
+});
 $("#close").onclick = closeDialog;
 applyLocale();
 void refreshCatalog();

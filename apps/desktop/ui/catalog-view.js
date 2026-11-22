@@ -7,7 +7,7 @@ import {
 import { installationProblem, catalogAction, uninstallEntry } from "./mod-action.js";
 import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
 import { confirmGameExit } from "./game-exit-dialog.js";
-import { FILTER_STATUSES, catalogCategories, inventoryKey, installedRows, releaseNotesFor, visibleMods } from "./catalog.js";
+import { FILTER_STATUSES, catalogCategories, inventoryKey, installedRows, releaseNotesFor, statusCounts, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
 import { applyValidation, syncGameMods, withGameCopy } from "./game-folder.js";
 import { icon } from "./icons.js";
@@ -422,6 +422,14 @@ function card(mod, index) {
 
   const footer = element("div", "", "card-actions");
   footer.append(primaryAction(mod));
+  if (state.page === "catalog" && currentAction(mod) === "updateMod" && removalEntry(mod)) {
+    const removeBtn = button("", () => withGameCopy(() => removalEntry(mod) ? uninstallDialog(mod) : details(mod)), "secondary", "close");
+    removeBtn.classList.add("card-remove-btn");
+    removeBtn.title = t("uninstall");
+    removeBtn.setAttribute("aria-label", t("uninstall") + " · " + name);
+    removeBtn.disabled = Boolean(state.busyMod) || state.batchMode;
+    footer.append(removeBtn);
+  }
   const coverBox = cover(mod, name);
   if (state.page === "catalog" && state.batchMode) {
     const checked = state.selectedMods.includes(mod.id);
@@ -531,21 +539,26 @@ function renderCatalogToolbar(content, visible) {
   const row = element("div", "", "toolbar-row");
   const filters = element("div", "", "toolbar-filters");
 
-  // Status filter tabs (clean underline style)
+  // Status filter tabs (clean underline style with live counts scoped to search & category)
   const statusGroup = element("div", "", "filter-tabs");
   statusGroup.setAttribute("role", "group");
   statusGroup.setAttribute("aria-label", t("filterStatus"));
-  const updatableCount = state.mods.filter(mod => statusRow(mod).action === "updateMod").length;
+  const query = $("#search input")?.value || "";
+  const scopedMods = visibleMods(state.mods, {query, category: state.filterCategory});
+  const counts = statusCounts(scopedMods, statusRow);
+  const extraInstalled = unlistedInstalledCount(query);
+  counts.all += extraInstalled;
+  counts.installed += extraInstalled;
   for (const status of FILTER_STATUSES) {
     const active = state.filterStatus === status;
+    const num = counts[status] ?? 0;
     const tab = element("button", "", "filter-tab" + (active ? " active" : ""));
     tab.type = "button";
     tab.disabled = running;
     tab.setAttribute("aria-pressed", String(active));
     tab.append(element("span", t(STATUS_KEYS[status])));
-    if (status === "updatable" && updatableCount > 0) {
-      tab.append(element("span", String(updatableCount), "toolbar-badge"));
-    }
+    const badgeClass = status === "updatable" && num > 0 ? "toolbar-badge toolbar-badge-accent" : "toolbar-count";
+    tab.append(element("span", String(num), badgeClass));
     tab.onclick = () => {
       if (state.filterStatus === status) return;
       state.filterStatus = status;
@@ -854,8 +867,34 @@ async function runBatchDialog(batch, queue) {
     button(t("close"), closeDialog, "primary"));
 }
 
+function unlistedInstalledRows(query) {
+  if (state.filterCategory !== "all") return [];
+  const listed = new Set(state.mods.map(mod => inventoryKey(mod)));
+  const term = query.trim().toLowerCase();
+  return installedRows(state.inventory, state.mods, [...state.removalMods, ...state.pinned])
+    .filter(({repo, mod}) => !listed.has(repo) && (!term || repo.toLowerCase().includes(term) || (mod && nameOf(mod).toLowerCase().includes(term))));
+}
+
+function unlistedInstalledCount(query) {
+  return unlistedInstalledRows(query).length;
+}
+
+function unlistedInstalledCards(query) {
+  if (state.filterStatus !== "all" && state.filterStatus !== "installed") return [];
+  return unlistedInstalledRows(query)
+    .map(({repo, version, mod}, index) => {
+      if (mod) return card(mod, state.mods.length + index);
+      const row = element("article", "", "card");
+      const body = element("div", "", "card-body");
+      body.append(element("h2", repo, "card-title"), element("p", t("local") + " · " + version));
+      row.append(body);
+      return row;
+    });
+}
+
 export function renderModList(content) {
   if (state.scan === "failed") content.append(button(t("retryCheck"), () => withGameCopy(undefined, true), "secondary", "refresh"));
+  const query = $("#search input")?.value || "";
   const visible = state.page === "catalog" ? filteredCatalogMods() : [];
   if (state.page === "catalog") renderCatalogToolbar(content, visible);
   const cards = state.page === "installed"
@@ -867,7 +906,7 @@ export function renderModList(content) {
       row.append(body);
       return row;
     })
-    : visible.map(card);
+    : [...visible.map(card), ...unlistedInstalledCards(query)];
   if (cards.length) {
     const grid = element("div", "", "grid");
     grid.append(...cards);

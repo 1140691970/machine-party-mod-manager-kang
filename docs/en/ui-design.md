@@ -24,10 +24,9 @@ Taken from the game's wine-red overalls and brass machinery: deep wine backgroun
 
 ## Layout
 
-- **Sidebar**: the mark with `MACHINE PARTY` and the "Mod Manager" subtitle at the top. Primary navigation "Mod catalog" and "Installed", each with an icon and at least 44px high; the selected item has a wine fill and a brass icon. "Settings" at the bottom shows a small red `.update-dot` when a newer manager release is available.
-- **Header**: a condensed page title and subtitle on the left; on the catalog page a pill search box on the right with the placeholder "Search mod titles". The refresh button beside the catalog title spins while the list reloads.
-- **Content**: an equal-height card grid that fills the available width, with a minimum card width of about 280px. Settings is a vertical list of panels up to 720px wide.
-- **Narrow windows (≤760px)**: the sidebar collapses to the mark and icons, the header stacks vertically and search takes the full width.
+- **Top bar**: sticky translucent bar spanning the window with the `MACHINE PARTY` mark and "Mod Manager" subtitle on the left, and the pill search box ("Search mod titles"), refresh icon button (spins while reloading), and settings gear button on the right. The settings button displays a small red `.update-dot` when a newer manager release is available.
+- **Content**: a full-width centered container (`max-width: 1440px`) holding the catalog toolbar and an equal-height card grid with a minimum card width of about 280px. There is no separate sidebar or "Installed" page; status filtering handles Installed, Not installed and Updates in place (and also lists any unlisted installed records under All / Installed).
+- **Narrow windows (≤680px)**: the top bar wraps onto two rows so search expands across the full width cleanly.
 
 ## Mod card
 

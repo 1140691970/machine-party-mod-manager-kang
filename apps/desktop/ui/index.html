@@ -11,32 +11,22 @@
     <script type="module" src="app.js"></script>
   </head>
   <body>
-    <aside class="sidebar">
-      <div class="brand" aria-label="Machine Party 模组管理器">
-        <img src="images/logo.svg" alt="" />
-        <div><b>MACHINE PARTY</b><small>模组管理器</small></div>
-      </div>
-      <nav class="nav">
-        <button class="nav-item" data-page="catalog" data-icon="catalog"><span class="nav-label">模组目录</span></button>
-        <button class="nav-item" data-page="installed" data-icon="installed"><span class="nav-label">已安装</span></button>
-      </nav>
-      <div class="sidebar-footer">
-        <button class="nav-item" data-page="settings" data-icon="settings"><span class="nav-label">设置</span></button>
-      </div>
-    </aside>
-    <main>
-      <header class="page-head">
-        <div>
-          <div class="page-title">
-            <h1></h1>
-            <button id="refresh-catalog" class="btn btn-ghost btn-icon" data-icon="refresh" hidden></button>
-          </div>
-          <p id="subtitle"></p>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand" aria-label="Machine Party 模组管理器">
+          <img src="images/logo.svg" alt="" />
+          <div><b>MACHINE PARTY</b><small>模组管理器</small></div>
         </div>
-        <label id="search" class="field search" data-icon="search">
-          <input type="search" placeholder="搜索模组名称" aria-label="搜索模组" />
-        </label>
-      </header>
+        <div class="topbar-tools">
+          <label id="search" class="field search" data-icon="search">
+            <input type="search" placeholder="搜索模组名称" aria-label="搜索模组" />
+          </label>
+          <button id="refresh-catalog" class="btn btn-ghost btn-icon topbar-btn" type="button" data-icon="refresh"></button>
+          <button id="open-settings" class="btn btn-ghost btn-icon topbar-btn" type="button" data-icon="settings"></button>
+        </div>
+      </div>
+    </header>
+    <main>
       <div id="content"></div>
     </main>
     <dialog class="dialog" aria-labelledby="dialogTitle">
@@ -45,6 +35,13 @@
         <button id="close" class="btn btn-ghost btn-icon" aria-label="关闭" data-icon="close"></button>
       </div>
       <div id="dialogBody" class="dialog-body"></div>
+    </dialog>
+    <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settingsTitle">
+      <div class="dialog-head">
+        <h2 id="settingsTitle"></h2>
+        <button id="close-settings" class="btn btn-ghost btn-icon" type="button" aria-label="关闭" data-icon="close"></button>
+      </div>
+      <div id="settingsBody" class="settings-body"></div>
     </dialog>
   </body>
 </html>

@@ -6,7 +6,7 @@ import {
   batchSelectedCount, batchSummary, batchTargets, batchToggle, canRunBatch
 } from "../../apps/desktop/ui/batch.js";
 import {
-  catalogCategories, matchesStatusFilter, modFilterStatus, visibleMods
+  catalogCategories, matchesStatusFilter, modFilterStatus, statusCounts, visibleMods
 } from "../../apps/desktop/ui/catalog.js";
 
 const row = (overrides = {}) => ({ready: true, action: "install", removable: false, ...overrides});
@@ -129,6 +129,7 @@ test("status and category filters compose with search queries", () => {
   assert.equal(matchesStatusFilter("updatable", {action: "uninstall", removable: true}), false);
 
   const statusOf = mod => ({action: mod.action, removable: mod.removable, installed: mod.removable});
+  assert.deepEqual(statusCounts(mods, statusOf), {all: 5, installed: 2, notInstalled: 3, updatable: 1});
   assert.deepEqual(visibleMods(mods, {query: "", category: "game"}).map(m => m.id), ["b", "c"]);
   assert.deepEqual(visibleMods(mods, {query: "", status: "installed", statusOf}).map(m => m.id), ["b", "c"]);
   assert.deepEqual(visibleMods(mods, {query: "", status: "updatable", statusOf}).map(m => m.id), ["b"]);
