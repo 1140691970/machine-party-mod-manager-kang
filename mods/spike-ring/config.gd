@@ -39,11 +39,11 @@ const PLAYER_LABEL_HEIGHT := 1.95           # 名牌高度
 # ---------------------------------------------------------------- 2. 推人 / 摔倒
 const PUSH_RANGE := 2.1                     # 扇形推人检测半径（米）
 const PUSH_HALF_ANGLE_COS := 0.7071         # cos(45°)，半角 45° 的扇形
-const PUSH_COOLDOWN_SEC := 1.5              # 推人冷却
+const PUSH_COOLDOWN_SEC := 0.34             # 推人冷却仅由动作前摇后摇决定
 const PUSH_KNOCKBACK_SPEED := 15.0          # 对齐官方 Disco Dodge shove_strength=15.0
 const PUSH_DECAY := 30.0                    # 对齐官方 Disco Dodge shove_decay=30.0
 const FALL_DURATION_SEC := 0.30             # 摔倒固定 0.30 秒爬起（硬约束）
-const RECOVERY_IMMUNITY_SEC := 0.20         # 爬起后 0.20 秒免推（防锁死）
+const RECOVERY_IMMUNITY_SEC := 0.0          # 无爬起免推，允许按住推人一路往边缘顶
 const PUSH_SCORE := 2                       # 每次成功推倒 +2 分
 
 # ---------------------------------------------------------------- 3. 玩家状态机

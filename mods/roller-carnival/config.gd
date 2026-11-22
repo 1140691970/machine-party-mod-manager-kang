@@ -16,7 +16,7 @@ var speed_curve_mode: String = "linear"
 # --- Spawn Intervals & Safety Floor ---
 var pair_start_time := 10.0
 var triple_start_time := 32.0
-var min_safe_reaction_time: float = 0.26
+var min_safe_reaction_time: float = 0.34
 
 # --- Gold (High / Crouch) & Silver (Low / Jump) Rollers ---
 var gold_roller_probability: float = 0.50
@@ -33,11 +33,11 @@ var knockback_cooldown: float = 0.40
 
 # --- Player Heights, Jump & Crouch ---
 var standing_height: float = 1.50
-var crouch_duration := 0.75
+var crouch_duration := 0.82
 var crouch_recovery := 0.10
 var crouch_height: float = 0.72
 var jump_height: float = 1.65
-var jump_air_time: float = 0.58
+var jump_air_time: float = 0.62
 var landing_recovery_time: float = 0.08
 
 # --- Stage & Lava Boundaries ---
