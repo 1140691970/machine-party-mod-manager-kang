@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-22.1-mpml1",
+  "revision": "2026-11-22.2-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -141,18 +141,18 @@
         "size": 387168,
         "sha256": "e1c83c2e7f39555a36c2490593e47ca00bc964c3570b7e4b9188c0915d45c49a"
       },
-      "version": "v0.1.9",
+      "version": "v0.1.10",
       "releaseNotes": {
-        "version": "v0.1.9",
-        "zh-CN": "优化跳/蹲躲避安全距离：滚筒碰撞改为更贴合圆柱的宽容判定，并适度放宽跳跃滞空、下蹲时长与连发波次间隔。",
-        "zh-TW": "最佳化跳／蹲躲避安全距離：滾筒碰撞改為更貼合圓柱的寬容判定，並適度放寬跳躍滯空、下蹲時長與連發波次間隔。",
-        "en": "Improves jump and crouch dodge forgiveness with a cylinder-fitted roller hitbox, slightly longer jump air time and crouch window, and extra spacing between consecutive wave rollers."
+        "version": "v0.1.10",
+        "zh-CN": "撞击血花、淘汰血雾与血迹贴花改为常驻对象池复用，并改为相机视锥内预热，消除多人同帧挨撞时的掉帧。",
+        "zh-TW": "撞擊血花、淘汰血霧與血跡貼花改為常駐物件池複用，並改為相機視錐內預熱，消除多人同幀挨撞時的掉幀。",
+        "en": "Pools hit/elimination GPU particle effects and blood decals with in-frustum warmup to eliminate hitches when multiple players are hit simultaneously."
       },
       "package": {
-        "assetId": "1027",
-        "filename": "roller-carnival-0.1.9.zip",
-        "size": 153017,
-        "sha256": "0d82ba6b9b44a61e5d79ceece6524d794515fa4864285381e0465cf90b014a3a",
+        "assetId": "1030",
+        "filename": "roller-carnival-0.1.10.zip",
+        "size": 154326,
+        "sha256": "867e233e4117ac6233592c42c443cf8660a893662ffef1d5c53f10ae1419a337",
         "mirrorApproved": true
       },
       "supportedGameVersions": ["v2.1.2"],
@@ -434,18 +434,18 @@
         "size": 287193,
         "sha256": "19b1bc1396da255b91ad8d952a1b084eff3c6a28c4fe69ea4bcaf90a862d152c"
       },
-      "version": "v0.1.3",
+      "version": "v0.1.4",
       "releaseNotes": {
-        "version": "v0.1.3",
-        "zh-CN": "修复空地放炸弹贴脸卡住玩家的 bug：新炸弹重叠范围内的所有玩家都会获得穿出许可，且碰撞判定允许从重叠状态向远离炸弹方向走脱。",
-        "zh-TW": "修正空地放炸彈貼臉卡住玩家的 bug：新炸彈重疊範圍內的所有玩家都會獲得穿出許可，且碰撞判定允許從重疊狀態往遠離炸彈方向走脫。",
-        "en": "Fixes a bug where dropping a bomb in another player's face on open ground trapped them in place: overlapping players now receive pass-through clearance and can always walk out of bubble overlap."
+        "version": "v0.1.4",
+        "zh-CN": "大幅消除多弹连锁爆炸卡顿（粒子/贴花/灯光/火焰格全量常驻对象池 + 0.05 秒错帧连锁引爆 + 同格火焰去重），并修复移动中按一下空格误放两颗炸弹的问题。",
+        "zh-TW": "大幅消除多彈連鎖爆炸卡頓（粒子／貼花／燈光／火焰格全量常駐物件池 + 0.05 秒錯幀連鎖引爆 + 同格火焰去重），並修正移動中按一下空白鍵誤放兩顆炸彈的問題。",
+        "en": "Eliminates multi-bomb explosion stutter with persistent FX/decal/light/blast-cell pooling, 0.05s staggered chain detonation, and blast-cell deduplication; fixes single Space press dropping two bombs while crossing tile boundaries."
       },
       "package": {
-        "assetId": "1028",
-        "filename": "bubble-blitz-0.1.3.zip",
-        "size": 167027,
-        "sha256": "644d447992c3ddb75d65cf7d1265a5152cc35c0a451d63dbcad0da992b41d2e0",
+        "assetId": "1031",
+        "filename": "bubble-blitz-0.1.4.zip",
+        "size": 175414,
+        "sha256": "db525952c08cfb0d92440c18eec9bc6fe41514733a4a9bdcf5f894a6f05d1bc4",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -520,18 +520,18 @@
         "size": 832988,
         "sha256": "7bdc73af6c0187543e7a2178129f0531464a9bee8823b7696754fb1a24424174"
       },
-      "version": "v0.1.1",
+      "version": "v0.1.2",
       "releaseNotes": {
-        "version": "v0.1.1",
-        "zh-CN": "推人改为按住键持续顶推：仅由动作前摇后摇决定冷却（0.34 秒），取消爬起免推窗口，可一路把对手推向边缘；推到人才加分且无加分内置冷却。",
-        "zh-TW": "推人改為按住鍵持續頂推：僅由動作前搖後搖決定冷卻（0.34 秒），取消爬起免推視窗，可一路把對手推向邊緣；推到人才加分且無加分內建冷卻。",
-        "en": "Holding the shove key now continuously pushes rivals toward the edge on the 0.34s shove action cadence with no post-fall immunity window; points are awarded on each hit with no score cooldown."
+        "version": "v0.1.2",
+        "zh-CN": "推人命中与出局粒子改为常驻对象池复用并加入视锥内预热，避免多人连续按住互推时高频创建粒子造成掉帧。",
+        "zh-TW": "推人命中與出局粒子改為常駐物件池複用並加入視錐內預熱，避免多人連續按住互推時高頻建立粒子造成掉幀。",
+        "en": "Pools shove-hit and elimination GPU particles with in-frustum warmup so continuous multiplayer shoving runs with zero runtime particle allocations."
       },
       "package": {
-        "assetId": "1029",
-        "filename": "spike-ring-0.1.1.zip",
-        "size": 220628,
-        "sha256": "9d36b3180ae5ccc7d2d26b8e100a24c1d4dd74e189bd194dff759a6c62fdef00",
+        "assetId": "1032",
+        "filename": "spike-ring-0.1.2.zip",
+        "size": 221829,
+        "sha256": "bcd743ddf3d833422d95a77b53d2622d88ce5596e549e5fb8eb88ff95733a9f9",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
