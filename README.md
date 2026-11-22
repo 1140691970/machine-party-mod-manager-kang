@@ -29,7 +29,7 @@ Browse hand-curated mods for [Machine Party](https://store.steampowered.com/app/
   <img src="docs/images/screenshot-catalog.png" width="100%" alt="Mod catalog with version and category tags">
 </p>
 
-<p align="center"><sub>The catalog shows each mod’s version and category.</sub></p>
+<p align="center"><sub>The catalog shows each mod’s version, category, live-counted status &amp; category filters, and batch mode.</sub></p>
 
 ## At a glance
 
@@ -45,7 +45,7 @@ Download builds directly from the project mirror below or from [GitHub Releases]
 
 | Platform | Architecture | Download | Notes |
 | --- | --- | --- | --- |
-| Windows | x64 | [Stable v0.2.3 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.3/setup.exe) | NSIS installer, signed in-app updates |
+| Windows | x64 | [Stable v0.2.5 (`setup.exe`)](https://machineparty.ailaogong.men/v1/app-downloads/0.2.5/setup.exe) | NSIS installer, signed in-app updates |
 
 Run the Windows x64 NSIS installer.
 
@@ -60,15 +60,15 @@ Machine Party is available on Windows. macOS support is planned for a future rel
 1. Launch the manager — it automatically locates your Steam copy of *Machine Party* (App ID `4108000`), or lets you pick a game folder manually in Settings.
 2. Browse or search mods across all three languages; open any entry to check multiplayer requirements, conflicts, supported game versions and the author's repository.
 3. Select **Install**. If the game is running, save your progress and choose **Close game and continue**. The manager verifies the package and backs up the files before applying it.
-4. Use **Installed** to uninstall offline and verify clean restoration, or open **Settings** to switch UI language, change game folders and review app updates.
+4. Filter by status (**All**, **Installed**, **Not installed**, **Updates**) or category (**Expansion**, **Game**, **Tool**, **Graphics**), enter **Batch** mode to install, update or uninstall multiple mods at once, or click the top-right gear icon to open **Settings** (language, game folder, built-in loader, Steam restore and app updates).
 
 ## The desktop app
 
-| Settings | In-app update prompt |
+| Settings modal | In-app update prompt |
 | --- | --- |
-| ![Settings](docs/images/screenshot-settings.png) | ![In-app update prompt](docs/images/screenshot-update.png) |
+| ![Settings modal](docs/images/screenshot-settings.png) | ![In-app update prompt](docs/images/screenshot-update.png) |
 
-**v0.2.2** · Settings → Built-in loader (v5, auto-upgrade & Reload loader) · Restore the Steam original
+**v0.2.5** · Streamlined top-bar layout · Live-counted status & category filters · Batch mode · Settings modal (built-in loader & Steam restore)
 
 The update prompt illustrates a simulated upgrade from 0.1.2-11 to 0.1.2-12.
 
@@ -91,7 +91,7 @@ See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance
 
 ## Release notes
 
-**v0.2.3** · Adds **Bubble Blitz (`v0.1.0`)**, a new first-party 3D hybrid industrial bomb arena minigame across 4 randomized maps, and introduces the Multi-Minigame Coexistence Hub ([ADR-015](docs/en/architecture/ADR-015-multi-minigame-hub.md)) with **Roller Carnival `v0.1.6`** so multiple custom minigames stay installed together. [Full changelog](CHANGELOG.md).
+**v0.2.5** · Replaces the sidebar with a full-width top-bar layout and dedicated Settings modal, adds live-counted status and category filters, and introduces **Batch** mode for serial multi-mod install/update and uninstall. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 
