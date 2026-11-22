@@ -4,6 +4,12 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.5 — 2026-11-22
+
+- Replaces the left sidebar and separate Installed page with a streamlined sticky top bar (brand, search, refresh, and a dedicated Settings modal with update indicator), expanding the catalog grid across the full window width.
+- Adds a unified catalog toolbar with live-counted status tabs (**All**, **Installed**, **Not installed**, **Updates** — scoped dynamically to the active category and search query) and category filters (**Expansion**, **Game**, **Tool**, **Graphics**).
+- Adds **Batch mode** to the toolbar: enter batch mode to tick multiple cards (or select/deselect visible results) and run **Install** (automatically handling both fresh installs and approved updates) or **Uninstall** serially with confirmation, per-mod progress, game-closed checks, and a succeeded / failed / skipped summary. (Inspired by PR #3.)
+
 ## 0.2.4 — 2026-11-21
 
 - Moves mod card covers from built-in desktop UI assets to optional Cloudflare R2 image hosting served through the catalog Worker ([ADR-016](docs/en/architecture/ADR-016-r2-mod-covers.md)), trimming ~5.8 MB from the desktop installer and allowing catalog cover updates without reinstalling the app.
