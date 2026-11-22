@@ -152,6 +152,367 @@ main {
 }
 
 /* Catalog */
+.catalog-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--line);
+}
+.toolbar-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.filter-tabs {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.filter-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: 500 var(--text-sm) / 1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.filter-tab:hover:not(.active):not(:disabled) {
+  color: var(--text);
+  background: #ffffff08;
+}
+.filter-tab.active {
+  color: var(--text);
+  font-weight: 600;
+}
+.filter-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(var(--space-2) * -1 - 1px);
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.filter-tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.toolbar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 700 11px / 1 var(--font-mono);
+}
+.toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--line-strong);
+  flex: none;
+}
+.filter-chips {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.filter-chip {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: 500 var(--text-sm) / 1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.filter-chip:hover:not(.active):not(:disabled) {
+  background: #ffffff08;
+  color: var(--text-secondary);
+}
+.filter-chip.active {
+  background: #c9a24a1f;
+  color: var(--brass-400);
+  font-weight: 600;
+}
+.filter-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex: none;
+}
+.toolbar-batch-toggle {
+  white-space: nowrap;
+}
+.toolbar-batch-toggle.active {
+  background: var(--selected);
+  color: #fff1df;
+  box-shadow: inset 0 0 0 1px var(--selected-line);
+}
+
+/* Batch strip inside the toolbar */
+.batch-strip {
+  position: sticky;
+  top: var(--space-3);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: 8px 12px 8px 14px;
+  background: linear-gradient(180deg, #2d1e20f2, #221618f2);
+  border: 1px solid #c9a24a42;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 #ffffff0e, 0 8px 22px #00000059;
+  backdrop-filter: blur(10px);
+}
+.batch-strip-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.batch-strip-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.btn-sm {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: var(--text-sm);
+}
+.btn-sm .icon {
+  width: 15px;
+  height: 15px;
+}
+.batch-count {
+  color: var(--brass-400);
+  font: 600 var(--text-sm) / 1 var(--font-ui);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.batch-sep {
+  width: 1px;
+  height: 14px;
+  margin-inline: 4px;
+  background: var(--line-strong);
+  flex: none;
+}
+.batch-link-btn {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-secondary);
+  font: 500 var(--text-sm) / 1 var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+.batch-link-btn:hover:not(:disabled) {
+  background: #ffffff10;
+  color: var(--text);
+}
+.batch-link-btn:disabled {
+  color: var(--text-muted);
+  opacity: 0.45;
+  cursor: default;
+}
+.batch-op-btn {
+  gap: 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+.batch-op-idle {
+  background: #140d0eb3;
+  color: var(--text-secondary);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.batch-op-idle:hover:not(:disabled) {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+.batch-op-danger {
+  background: var(--wine-600);
+  color: #fff1df;
+  box-shadow: inset 0 0 0 1px var(--selected-line);
+}
+.batch-op-danger:hover:not(:disabled) {
+  background: var(--wine-500);
+}
+.batch-btn-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: #ffffff14;
+  color: inherit;
+  font: 600 11px / 1 var(--font-mono);
+}
+.btn-primary .batch-btn-count {
+  background: #00000026;
+}
+.batch-op-idle .batch-btn-count {
+  background: #ffffff0d;
+  color: var(--text-muted);
+}
+
+/* Batch checkboxes & card states */
+.card.batch-card {
+  cursor: pointer;
+}
+.card.batch-selected {
+  box-shadow: 0 0 0 2px var(--accent), var(--shadow-card);
+}
+.batch-check {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px;
+  border-radius: var(--radius-pill);
+  background: #120c0de6;
+  box-shadow: inset 0 0 0 1px #ffffff2b;
+  cursor: pointer;
+}
+.batch-check:hover {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.batch-check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.batch-check-box {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--wine-900);
+  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+}
+.batch-check input:checked + .batch-check-box {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.batch-check input:checked + .batch-check-box::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid var(--on-accent);
+  border-bottom: 2px solid var(--on-accent);
+  transform: rotate(-45deg);
+}
+.batch-check input:focus-visible + .batch-check-box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.batch-check input:disabled + .batch-check-box {
+  opacity: 0.6;
+}
+.batch-check:has(input:disabled) {
+  cursor: default;
+}
+
+/* Batch dialogs */
+.batch-confirm-list {
+  width: 100%;
+  max-height: 34vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.batch-confirm-list li {
+  padding-block: 3px;
+  color: var(--text);
+}
+.batch-steps {
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.batch-steps li span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.batch-steps li span:last-child {
+  flex: none;
+  max-width: 55%;
+  text-align: right;
+}
+.batch-steps li.batch-ok span:last-child { color: var(--success); }
+.batch-steps li.batch-fail span:last-child { color: var(--danger); }
+.batch-steps li.batch-skip span:last-child { color: var(--warning); }
+.batch-summary {
+  width: 100%;
+  font-weight: 600;
+  color: var(--text);
+}
+.empty-filtered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));

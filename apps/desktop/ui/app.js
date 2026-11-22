@@ -52,10 +52,12 @@ function render() {
   $("h1").textContent = t(state.page);
   $("#subtitle").textContent = state.page === "settings" ? "" : t(state.page + "Sub");
   $("#search").hidden = state.page !== "catalog";
+  const busyBatch = state.batch?.phase === "running";
+  $("#search input").disabled = busyBatch;
   const refresh = $("#refresh-catalog");
   const loading = catalogStatus === "catalogLoading";
   refresh.hidden = state.page !== "catalog";
-  refresh.disabled = loading || Boolean(state.busyMod);
+  refresh.disabled = loading || Boolean(state.busyMod) || busyBatch;
   refresh.setAttribute("aria-busy", String(loading));
   const content = $("#content");
   content.replaceChildren();
@@ -115,6 +117,8 @@ async function refreshCatalog() {
 
 hydrateIcons();
 document.querySelectorAll("[data-page]").forEach(el => el.onclick = () => {
+  if (state.batch?.phase === "running") return;
+  if (state.batch?.phase === "done") state.batch = null;
   state.page = el.dataset.page;
   sessionStorage.setItem("page", state.page);
   render();

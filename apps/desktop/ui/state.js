@@ -24,6 +24,13 @@ export const state = {
   checking: false,
   installing: false,
   busyMod: "",
+  filterStatus: "all",
+  filterCategory: "all",
+  batchMode: false,
+  // Persistent card selection while batch mode is active, keyed by mod id.
+  selectedMods: [],
+  // Batch run state: null, or {kind, phase: "running"|"done", ids: string[]}.
+  batch: null,
   checkResult: "",
   loaderNote: null
 };

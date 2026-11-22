@@ -28,7 +28,41 @@ export function installedRows(inventory, online, bundled) {
     .sort((a, b) => (a.mod?.order ?? Infinity) - (b.mod?.order ?? Infinity) || a.repo.localeCompare(b.repo));
 }
 
-export function visibleMods(mods, {query}) {
+export const FILTER_STATUSES = ["all", "installed", "notInstalled", "updatable"];
+
+export function catalogCategories(mods) {
+  const seen = new Set();
+  const list = [];
+  for (const mod of mods || []) {
+    if (mod.category && !seen.has(mod.category)) {
+      seen.add(mod.category);
+      list.push(mod.category);
+    }
+  }
+  return list;
+}
+
+export function modFilterStatus({action, removable, installed} = {}) {
+  if (action === "updateMod") return "updatable";
+  if (removable || installed || action === "uninstall") return "installed";
+  return "notInstalled";
+}
+
+export function matchesStatusFilter(filter, row) {
+  if (!filter || filter === "all") return true;
+  const status = modFilterStatus(row);
+  if (filter === "updatable") return status === "updatable";
+  if (filter === "installed") return status === "installed" || status === "updatable";
+  if (filter === "notInstalled") return status === "notInstalled";
+  return true;
+}
+
+export function visibleMods(mods, {query = "", category = "all", status = "all", statusOf} = {}) {
   const term = query.trim().toLowerCase();
-  return mods.filter(mod => locales.some(locale => mod.name[locale].toLowerCase().includes(term)));
+  return mods.filter(mod => {
+    if (term && !locales.some(locale => mod.name[locale].toLowerCase().includes(term))) return false;
+    if (category && category !== "all" && mod.category !== category) return false;
+    if (status && status !== "all" && statusOf && !matchesStatusFilter(status, statusOf(mod))) return false;
+    return true;
+  });
 }

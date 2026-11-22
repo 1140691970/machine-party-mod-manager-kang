@@ -35,6 +35,14 @@ Taken from the game's wine-red overalls and brass machinery: deep wine backgroun
 2. The title opens details. The summary and supported game version appear below. Managed installations also show the local and catalog versions.
 3. The catalog offers an update when the installed version is eligible. Installed uses the uninstall action for that same mod. Scan or repair issues lead to the existing recovery actions.
 
+## Catalog toolbar, filters and batch mode
+
+Above the catalog grid sits a compact toolbar combining filters on the left and a **Batch** mode toggle on the right (keeping the header clean with only the search box).
+
+- **Filters**: lightweight underline status tabs (`All` · `Installed` · `Not installed` · `Updates`, with a live brass count badge when updates are available), separated by a subtle divider from dynamic category tags (`All types`, `Expansion`, `Game`, `Tool`, `Graphics`). Filtering composes with the search query and offers a "Reset filters" action when nothing matches.
+- **Batch mode**: cards stay clean during normal browsing. Clicking **Batch** enters batch mode: each card displays a top-left checkbox (clicking the card body also toggles selection while individual card buttons pause), and an inline action strip expands inside the toolbar with the selected count, **Select visible / Deselect visible**, **Clear**, and direct **Install** (covering both fresh installs and approved updates) and **Uninstall** buttons showing live counts of ticked, matching mods.
+- **Execution**: clicking an action confirms the exact queue (reporting any ticked cards skipped as ineligible) and runs the existing single-mod commands serially inside a modal progress dialog, rechecking eligibility and the game-closed state before every write, rescanning after failures, and reporting succeeded / failed / skipped counts. Successful mods are unticked while failed and skipped ones remain selected for retry.
+
 ## Details dialog
 
 In order: the detailed description (multiplayer conditions, required loader, conflicts), supported game version, catalog version, local version and state note when present, optional cache-clear action, package download link (when mirror-approved), and the author page link with an external-link icon.
