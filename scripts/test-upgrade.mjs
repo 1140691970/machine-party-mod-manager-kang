@@ -15,7 +15,7 @@ assert.ok(manifest.platforms["windows-x86_64"].signature);
 const current = 'window.__TAURI__.core.invoke("app_version")';
 const old = await until(connect,"Opening installed bootstrap");
 assert.equal(await old.evaluate(current),"0.0.1");
-await until(()=>old.evaluate('Boolean(document.querySelector("[data-page=settings] .update-dot"))'),"Background update check");
+await until(()=>old.evaluate('Boolean(document.querySelector("#open-settings .update-dot, [data-page=settings] .update-dot"))'),"Background update check");
 await old.evaluate(`
   localStorage.setItem("upgrade-test","retained");
   const dialog = document.querySelector("dialog");

@@ -86,7 +86,7 @@ try {
   const hash = await app.evaluate('window.__TAURI__.core.invoke("validate_game_mods",{path:localStorage.getItem("game-path")}).then(x=>x.pckSha256)');
   assert.match(hash,/^[0-9a-f]{64}$/);
 
-  // Exercise both views with one synthetic scan after the real disk checks.
+  // Exercise status filters, card actions and settings modal with one synthetic scan.
   const version = await app.evaluate(`(async () => {
     const {state} = await import("./state.js");
     const {syncGameMods, applyValidation} = await import("./game-folder.js");
@@ -96,18 +96,29 @@ try {
       modStates:{...state.lastScan.modStates, [mod.id]:"installed"}}, state.game);
     return mod.version;
   })()`);
-  const view = async page => app.evaluate(`(() => {
-    document.querySelector('[data-page="${page}"]').click();
+  const inspectFilter = async label => app.evaluate(`(() => {
+    [...document.querySelectorAll(".filter-tab")].find(el => el.textContent.includes(${JSON.stringify(label)})).click();
     const card = [...document.querySelectorAll("article")].find(el => el.querySelector(".card-title")?.textContent === "Overtime");
     return {
-      actions: card && [...card.querySelectorAll(".card-actions button")].filter(b => b.checkVisibility()).map(b => b.innerText.trim()),
+      cards: document.querySelectorAll("article").length,
+      actions: card && [...card.querySelectorAll(".card-actions button")].filter(b => b.checkVisibility()).map(b => b.innerText.trim() || b.getAttribute("aria-label")),
       refresh: document.querySelector("#refresh-catalog").checkVisibility(),
       checkUpdates: [...document.querySelectorAll("main button")].some(b => b.checkVisibility() && b.textContent.trim() === "檢查模組更新")
     };
   })()`);
-  assert.deepEqual(await view("catalog"), {actions:["更新至 " + version], refresh:true, checkUpdates:false});
-  assert.deepEqual(await view("installed"), {actions:["解除安裝"], refresh:false, checkUpdates:false});
-  await view("catalog");
+  const allView = await inspectFilter("全部");
+  assert.ok(allView.cards >= 2);
+  assert.deepEqual(allView.actions, ["更新至 " + version, "解除安裝 · Overtime"]);
+  assert.equal(allView.refresh, true);
+  assert.equal(allView.checkUpdates, false);
+  const installedView = await inspectFilter("已安裝");
+  assert.equal(installedView.cards, 1);
+  assert.deepEqual(installedView.actions, ["更新至 " + version, "解除安裝 · Overtime"]);
+  await inspectFilter("全部");
+  await app.evaluate('document.querySelector("#open-settings").click()');
+  assert.equal(await app.evaluate('Boolean(document.querySelector("#settings-dialog[open]"))'), true);
+  await app.evaluate('document.querySelector("#close-settings").click()');
+  assert.equal(await app.evaluate('Boolean(document.querySelector("#settings-dialog[open]"))'), false);
   await app.evaluate('document.querySelector("article .card-title a").click()');
   await app.evaluate('[...document.querySelectorAll("#dialogBody button")].find(b => b.textContent === "解除安裝").click()');
   assert.match(await app.evaluate('document.querySelector("#dialogTitle").innerText'), /解除安裝.*Overtime.*v1\.6/);
