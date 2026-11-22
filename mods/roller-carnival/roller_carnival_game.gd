@@ -83,6 +83,14 @@ var _fx_hit_blood_scene: PackedScene = null
 var _fx_bloodmist_scene: PackedScene = null
 var _blood_tex_01: Texture2D = null
 var _blood_tex_02: Texture2D = null
+const POOL_HIT_BLOOD_FX := 6
+const POOL_BLOODMIST_FX := 4
+const POOL_IMPACT_DECALS := 24
+var _hit_blood_pool: Array[Dictionary] = []
+var _bloodmist_pool: Array[Dictionary] = []
+var _hit_blood_cursor: int = 0
+var _bloodmist_cursor: int = 0
+var _decal_cursor: int = 0
 
 
 class YouMarkerOverlay extends Control:
@@ -375,6 +383,11 @@ func _start_new_round() -> void:
 	_rollers.clear()
 	_decals.clear()
 	_particles.clear()
+	_hit_blood_pool.clear()
+	_bloodmist_pool.clear()
+	_hit_blood_cursor = 0
+	_bloodmist_cursor = 0
+	_decal_cursor = 0
 
 	_elapsed = 0.0
 	_time_left = config.round_duration
@@ -404,6 +417,7 @@ func _start_new_round() -> void:
 
 	if _meshes != null:
 		_meshes.update_starting_line(_scene_props, config)
+	_init_fx_pools()
 	_spawn_players()
 
 
@@ -488,6 +502,7 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 	_animate_environment(delta)
 	_update_particles(delta)
+	_step_fx_pools(delta)
 	_update_you_marker(delta)
 
 	if _go_timer > 0.0 and _go_label != null:
@@ -1181,107 +1196,128 @@ func _eliminate_player(p: Dictionary) -> void:
 
 
 func _warmup_fx_pipelines() -> void:
-	if _is_self_test or not is_inside_tree() or _fx_layer == null:
-		return
-	var warmup_nodes: Array[Node] = []
-	var hidden_pos := Vector3(0.0, -3.5, 0.0)
-	if _blood_tex_02 != null or _blood_tex_01 != null:
-		var dec := Decal.new()
-		dec.size = Vector3(0.05, 0.05, 0.05)
-		dec.texture_albedo = _blood_tex_02 if _blood_tex_02 != null else _blood_tex_01
-		dec.modulate = Color(0.3809, 0.0189, 0.0, 1.0)
-		dec.position = hidden_pos
-		_fx_layer.add_child(dec)
-		warmup_nodes.append(dec)
-	for packed in [_fx_hit_blood_scene, _fx_bloodmist_scene]:
-		if packed == null:
-			continue
+	# Handled by _init_fx_pools() inside _start_new_round() with in-frustum warmup.
+	pass
+
+
+func _build_fx_pool(packed: PackedScene, count: int) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	if packed == null or _fx_layer == null:
+		return pool
+	for _i in range(count):
 		var inst = packed.instantiate()
 		if inst is Node3D:
-			inst.set_script(null)
 			var n3 := inst as Node3D
-			n3.position = hidden_pos
-			n3.scale = Vector3(0.001, 0.001, 0.001)
-			_fx_layer.add_child(n3)
+			n3.set_script(null)
+			var emitters: Array[GPUParticles3D] = []
 			for child in n3.get_children():
 				if child is GPUParticles3D:
 					var gp := child as GPUParticles3D
 					gp.one_shot = true
-					gp.emitting = true
-			warmup_nodes.append(n3)
+					gp.emitting = false
+					emitters.append(gp)
+			n3.position = Vector3(0.0, -50.0, 0.0)
+			n3.visible = false
+			_fx_layer.add_child(n3)
+			pool.append({"node": n3, "emitters": emitters, "timer": 0.0})
 		elif inst is Node:
 			(inst as Node).queue_free()
-	if warmup_nodes.is_empty():
+	return pool
+
+
+func _init_fx_pools() -> void:
+	if _is_self_test or _fx_layer == null:
 		return
-	var timer := get_tree().create_timer(0.25)
-	timer.timeout.connect(func():
-		for n in warmup_nodes:
-			if is_instance_valid(n):
-				n.queue_free()
-	)
+	_hit_blood_pool = _build_fx_pool(_fx_hit_blood_scene, POOL_HIT_BLOOD_FX)
+	_bloodmist_pool = _build_fx_pool(_fx_bloodmist_scene, POOL_BLOODMIST_FX)
+	if _blood_tex_01 != null or _blood_tex_02 != null:
+		for i in range(POOL_IMPACT_DECALS):
+			var dec := Decal.new()
+			dec.size = Vector3(1.4, 0.42, 1.4)
+			dec.texture_albedo = _blood_tex_02 if (i % 3 != 0 and _blood_tex_02 != null) else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
+			dec.modulate = Color(0.3809, 0.0189, 0.0, 1.0)
+			dec.upper_fade = 0.3
+			dec.lower_fade = 0.3
+			dec.position = Vector3(0.0, -50.0, 0.0)
+			dec.visible = false
+			_fx_layer.add_child(dec)
+			_decals.append(dec)
+	if _screenshot_path.is_empty():
+		var warm_pos := Vector3(config.player_spawn_x, 0.35, 0.0)
+		for pool in [_hit_blood_pool, _bloodmist_pool]:
+			if not pool.is_empty():
+				_trigger_fx_entry(pool[0], warm_pos, 0.01, 0.08)
+		if not _decals.is_empty() and _decals[0] is Decal:
+			var wd := _decals[0] as Decal
+			wd.position = warm_pos
+			wd.size = Vector3(0.05, 0.05, 0.05)
+			wd.visible = true
+			get_tree().create_timer(0.08).timeout.connect(func():
+				if not _decals.is_empty() and _decals[0] is Decal and is_instance_valid(_decals[0]):
+					var d0 := _decals[0] as Decal
+					if d0.size.x <= 0.1:
+						d0.visible = false
+						d0.position = Vector3(0.0, -50.0, 0.0)
+			)
+
+
+func _trigger_fx_entry(entry: Dictionary, origin: Vector3, eff_scale: float, lifetime: float) -> void:
+	var n3: Node3D = entry["node"]
+	if not is_instance_valid(n3):
+		return
+	n3.position = origin
+	n3.scale = Vector3.ONE * eff_scale
+	n3.visible = true
+	entry["timer"] = lifetime
+	for gp in entry["emitters"]:
+		if is_instance_valid(gp):
+			gp.restart()
+			gp.emitting = true
+
+
+func _step_fx_pools(delta: float) -> void:
+	for pool in [_hit_blood_pool, _bloodmist_pool]:
+		for entry in pool:
+			var rem: float = float(entry["timer"])
+			if rem > 0.0:
+				rem -= delta
+				entry["timer"] = rem
+				if rem <= 0.0:
+					var n3: Node3D = entry["node"]
+					if is_instance_valid(n3):
+						n3.visible = false
+						n3.position = Vector3(0.0, -50.0, 0.0)
 
 
 func _spawn_vanilla_effect(scene_path: String, origin: Vector3, eff_scale: float, lifetime: float) -> bool:
 	if _is_self_test:
 		return true
-	var packed: PackedScene = null
-	if scene_path.ends_with("hit_blood.tscn"):
-		packed = _fx_hit_blood_scene
-	elif scene_path.ends_with("bloodmist_01.tscn"):
-		packed = _fx_bloodmist_scene
-	if packed == null:
-		var loaded = _meshes.load_optional(scene_path)
-		if loaded is PackedScene:
-			packed = loaded as PackedScene
-	if packed == null:
-		return false
-	var inst = packed.instantiate()
-	if not (inst is Node3D):
-		if inst is Node:
-			(inst as Node).queue_free()
-		return false
-	inst.set_script(null)
-	var node3d := inst as Node3D
-	node3d.position = origin
-	node3d.scale = Vector3.ONE * eff_scale
-	_fx_layer.add_child(node3d)
-	for child in node3d.get_children():
-		if child is GPUParticles3D:
-			var gp := child as GPUParticles3D
-			gp.one_shot = true
-			gp.restart()
-			gp.emitting = true
-	var timer := get_tree().create_timer(lifetime)
-	timer.timeout.connect(func():
-		if is_instance_valid(node3d):
-			node3d.queue_free()
-	)
-	return true
+	if scene_path.ends_with("hit_blood.tscn") and not _hit_blood_pool.is_empty():
+		var entry: Dictionary = _hit_blood_pool[_hit_blood_cursor % _hit_blood_pool.size()]
+		_hit_blood_cursor += 1
+		_trigger_fx_entry(entry, origin, eff_scale, lifetime)
+		return true
+	if scene_path.ends_with("bloodmist_01.tscn") and not _bloodmist_pool.is_empty():
+		var entry: Dictionary = _bloodmist_pool[_bloodmist_cursor % _bloodmist_pool.size()]
+		_bloodmist_cursor += 1
+		_trigger_fx_entry(entry, origin, eff_scale, lifetime)
+		return true
+	return false
 
 
 func _spawn_impact_decal(pos: Vector3, scale_mul: float = 1.0) -> void:
-	if _decals.size() >= 28:
-		var old: Node3D = _decals.pop_front()
-		if is_instance_valid(old):
-			old.queue_free()
-	var blood_tex: Texture2D = _blood_tex_02 if (_rng.randf() < 0.7 and _blood_tex_02 != null) else _blood_tex_01
-	if blood_tex == null:
-		var tex_path := "res://textures/decals/blood decals/blood_splat_02.png" if _rng.randf() < 0.7 else "res://textures/decals/blood decals/blood_splat_01.png"
-		var loaded = _meshes.load_optional(tex_path)
-		if loaded is Texture2D:
-			blood_tex = loaded as Texture2D
-	if blood_tex != null:
-		var dec := Decal.new()
-		var sz := _rng.randf_range(1.25, 1.75) * scale_mul
-		dec.size = Vector3(sz, 0.42, sz)
-		dec.texture_albedo = blood_tex
-		dec.modulate = Color(0.3809, 0.0189, 0.0, 1.0)
-		dec.upper_fade = 0.3
-		dec.lower_fade = 0.3
-		dec.position = Vector3(pos.x, 0.04, pos.z)
-		dec.rotation.y = _rng.randf_range(0.0, TAU)
-		_fx_layer.add_child(dec)
-		_decals.append(dec)
+	if _is_self_test:
+		return
+	if not _decals.is_empty() and _decals[0] is Decal:
+		var dec := _decals[_decal_cursor % _decals.size()] as Decal
+		_decal_cursor += 1
+		if is_instance_valid(dec):
+			var sz := _rng.randf_range(1.25, 1.75) * scale_mul
+			dec.size = Vector3(sz, 0.42, sz)
+			dec.position = Vector3(pos.x, 0.04, pos.z)
+			dec.rotation.y = _rng.randf_range(0.0, TAU)
+			dec.visible = true
+		return
 	else:
 		var mark := MeshInstance3D.new()
 		var cm := CylinderMesh.new()

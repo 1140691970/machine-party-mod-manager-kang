@@ -79,17 +79,38 @@ var _explosion_mark_tex: Texture2D = null
 var _blood_tex_01: Texture2D = null
 var _blood_tex_02: Texture2D = null
 
-const MAX_EXPLOSION_DECALS := 24
-const MAX_BLOOD_DECALS := 16
-const MAX_ACTIVE_VANILLA_FX := 6
-const MAX_ACTIVE_BLAST_LIGHTS := 2
+const POOL_EXPLOSION_FX := 4
+const POOL_HIT_BLOOD_FX := 3
+const POOL_BLOODMIST_FX := 2
+const POOL_EXPLOSION_DECALS := 16
+const POOL_BLOOD_DECALS := 12
+const POOL_BLAST_LIGHTS := 2
+const POOL_BLAST_CENTER_CELLS := 12
+const POOL_BLAST_ARM_CELLS := 48
 const EXPLOSION_SFX_MIN_INTERVAL_MS := 45
+const CHAIN_DETONATE_DELAY_SEC := 0.05
 
-var _explosion_decals: Array[Node3D] = []
-var _blood_decals: Array[Node3D] = []
-var _active_fx_count: int = 0
-var _active_blast_lights: int = 0
+var _explosion_fx_pool: Array[Dictionary] = []
+var _hit_blood_fx_pool: Array[Dictionary] = []
+var _bloodmist_fx_pool: Array[Dictionary] = []
+var _explosion_fx_cursor: int = 0
+var _hit_blood_fx_cursor: int = 0
+var _bloodmist_fx_cursor: int = 0
+
+var _explosion_decals: Array[Decal] = []
+var _blood_decals: Array[Decal] = []
+var _explosion_decal_cursor: int = 0
+var _blood_decal_cursor: int = 0
+
+var _blast_light_pool: Array[Dictionary] = []
+var _blast_light_cursor: int = 0
+
+var _blast_center_pool: Array[Node3D] = []
+var _blast_arm_pool: Array[Node3D] = []
+var _active_blast_visuals: Dictionary = {} # Vector2i -> { "node": Node3D, "is_center": bool, "timer": float }
+
 var _last_explosion_sfx_ms: int = 0
+var _prev_drop_pressed: bool = false
 var _is_self_test: bool = false
 
 var _screenshot_path: String = ""
@@ -127,8 +148,6 @@ func _ready() -> void:
 			return
 		if a.begins_with("--capture-screenshot="):
 			_screenshot_path = a.substr("--capture-screenshot=".length())
-
-	_warmup_fx_pipelines.call_deferred()
 
 	_standalone_mode = (get_parent() == get_tree().root)
 	if _standalone_mode:
@@ -438,11 +457,23 @@ func _clear_arena() -> void:
 	_bubbles.clear()
 	_blasts.clear()
 	_items.clear()
+	_explosion_fx_pool.clear()
+	_hit_blood_fx_pool.clear()
+	_bloodmist_fx_pool.clear()
+	_explosion_fx_cursor = 0
+	_hit_blood_fx_cursor = 0
+	_bloodmist_fx_cursor = 0
 	_explosion_decals.clear()
 	_blood_decals.clear()
-	_active_fx_count = 0
-	_active_blast_lights = 0
+	_explosion_decal_cursor = 0
+	_blood_decal_cursor = 0
+	_blast_light_pool.clear()
+	_blast_light_cursor = 0
+	_blast_center_pool.clear()
+	_blast_arm_pool.clear()
+	_active_blast_visuals.clear()
 	_client_inputs.clear()
+	_prev_drop_pressed = false
 	_monitor_timer = null
 	_monitor_theme = null
 
@@ -560,6 +591,7 @@ func _setup_match_local(theme_id: int, seed_val: int, roster: Array, is_preview:
 		}
 		_update_player_hud_3d(_players[net_id])
 
+	_init_fx_pools()
 	_update_crt_monitor()
 	_update_local_stats_hud()
 	_banner_label.text = "3" if _intro_timer > 0.0 else ""
@@ -691,117 +723,225 @@ func _update_player_hud_3d(p: Dictionary) -> void:
 				ap.play(&"mp_mod/idle")
 
 
-func _activate_particles_recursive(node: Node) -> void:
+func _collect_particles_recursive(node: Node, out: Array[Node], trim_smoke: bool) -> void:
 	if node is GPUParticles3D:
 		var gp: GPUParticles3D = node
-		gp.restart()
-		gp.emitting = true
+		gp.emitting = false
+		if trim_smoke and (gp.name == "Upsmoke" or gp.name == "CircleSmoke"):
+			gp.amount = maxi(4, int(gp.amount / 2))
+		out.append(gp)
 	elif node is CPUParticles3D:
 		var cp: CPUParticles3D = node
-		cp.restart()
-		cp.emitting = true
+		cp.emitting = false
+		out.append(cp)
 	for child in node.get_children():
-		_activate_particles_recursive(child)
+		_collect_particles_recursive(child, out, trim_smoke)
 
 
-func _warmup_fx_pipelines() -> void:
-	if _is_self_test or not is_inside_tree() or _fx_root == null:
-		return
-	var warmup_nodes: Array[Node] = []
-	var hidden_pos := Vector3(0.0, -4.0, 0.0)
-	var warm_tex: Texture2D = _explosion_mark_tex if _explosion_mark_tex != null else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
-	if warm_tex != null:
-		var dec := Decal.new()
-		dec.size = Vector3(0.05, 0.05, 0.05)
-		dec.texture_albedo = warm_tex
-		dec.position = hidden_pos
-		_fx_root.add_child(dec)
-		warmup_nodes.append(dec)
-	if M != null and C != null:
-		var warm_blast: Node3D = M.build_blast_cell(C.TILE_SIZE, true, true)
-		warm_blast.position = hidden_pos
-		warm_blast.scale = Vector3(0.001, 0.001, 0.001)
-		_fx_root.add_child(warm_blast)
-		warmup_nodes.append(warm_blast)
-	for packed in [_fx_explosion_scene, _fx_dustplume_scene, _fx_hit_blood_scene, _fx_bloodmist_scene]:
-		if packed == null:
-			continue
-		var inst = packed.instantiate()
+func _build_fx_pool(scene: PackedScene, count: int, trim_smoke: bool) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	if scene == null or _fx_root == null:
+		return pool
+	for _i in range(count):
+		var inst = scene.instantiate()
 		if inst is Node3D:
 			var n3: Node3D = inst
 			if n3.get_script() != null:
 				n3.set_script(null)
-			n3.position = hidden_pos
-			n3.scale = Vector3(0.001, 0.001, 0.001)
+			var emitters: Array[Node] = []
+			_collect_particles_recursive(n3, emitters, trim_smoke)
+			n3.position = Vector3(0.0, -50.0, 0.0)
+			n3.visible = false
 			_fx_root.add_child(n3)
-			_activate_particles_recursive(n3)
-			warmup_nodes.append(n3)
+			pool.append({"node": n3, "emitters": emitters, "timer": 0.0})
 		elif inst is Node:
 			(inst as Node).queue_free()
-	if warmup_nodes.is_empty():
+	return pool
+
+
+func _init_fx_pools() -> void:
+	if _fx_root == null or _blast_root == null or M == null or C == null:
 		return
-	get_tree().create_timer(0.25).timeout.connect(func():
-		for n in warmup_nodes:
-			if is_instance_valid(n):
-				n.queue_free()
-	)
+	for _i in range(POOL_BLAST_CENTER_CELLS):
+		var cn: Node3D = M.build_blast_cell(C.TILE_SIZE, true, false)
+		cn.position = Vector3(0.0, -50.0, 0.0)
+		cn.visible = false
+		_blast_root.add_child(cn)
+		_blast_center_pool.append(cn)
+	for _i in range(POOL_BLAST_ARM_CELLS):
+		var an: Node3D = M.build_blast_cell(C.TILE_SIZE, false, false)
+		an.position = Vector3(0.0, -50.0, 0.0)
+		an.visible = false
+		_blast_root.add_child(an)
+		_blast_arm_pool.append(an)
+
+	if _is_self_test:
+		return
+
+	_explosion_fx_pool = _build_fx_pool(_fx_explosion_scene, POOL_EXPLOSION_FX, true)
+	_hit_blood_fx_pool = _build_fx_pool(_fx_hit_blood_scene, POOL_HIT_BLOOD_FX, false)
+	_bloodmist_fx_pool = _build_fx_pool(_fx_bloodmist_scene, POOL_BLOODMIST_FX, false)
+
+	if _explosion_mark_tex != null:
+		for _i in range(POOL_EXPLOSION_DECALS):
+			var dec := Decal.new()
+			dec.size = Vector3(C.TILE_SIZE * 1.45, 0.35, C.TILE_SIZE * 1.45)
+			dec.texture_albedo = _explosion_mark_tex
+			dec.position = Vector3(0.0, -50.0, 0.0)
+			dec.visible = false
+			_fx_root.add_child(dec)
+			_explosion_decals.append(dec)
+
+	if _blood_tex_01 != null or _blood_tex_02 != null:
+		for i in range(POOL_BLOOD_DECALS):
+			var dec := Decal.new()
+			dec.size = Vector3(1.15, 0.35, 1.15)
+			dec.texture_albedo = _blood_tex_02 if (i % 2 == 1 and _blood_tex_02 != null) else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
+			dec.position = Vector3(0.0, -50.0, 0.0)
+			dec.visible = false
+			_fx_root.add_child(dec)
+			_blood_decals.append(dec)
+
+	for _i in range(POOL_BLAST_LIGHTS):
+		var flash := OmniLight3D.new()
+		flash.light_color = Color(1.0, 0.55, 0.20)
+		flash.light_energy = 0.0
+		flash.omni_range = C.TILE_SIZE * 3.2
+		flash.position = Vector3(0.0, -50.0, 0.0)
+		flash.visible = false
+		_fx_root.add_child(flash)
+		_blast_light_pool.append({"light": flash, "timer": 0.0})
+
+	# Warm up shaders & GPU particle pipelines in camera frustum during intro so first real blast has zero hitch.
+	if _screenshot_path.is_empty():
+		var warm_pos := Vector3(0.0, 0.2, 0.0)
+		for pool in [_explosion_fx_pool, _hit_blood_fx_pool, _bloodmist_fx_pool]:
+			if not pool.is_empty():
+				_trigger_fx_entry(pool[0], warm_pos, 0.01, 0.08)
+		if not _blast_center_pool.is_empty():
+			var wc: Node3D = _blast_center_pool[0]
+			wc.position = warm_pos
+			wc.scale = Vector3(0.01, 0.01, 0.01)
+			wc.visible = true
+		if not _explosion_decals.is_empty():
+			var wd: Decal = _explosion_decals[0]
+			wd.position = warm_pos
+			wd.size = Vector3(0.05, 0.05, 0.05)
+			wd.visible = true
+		if not _blast_light_pool.is_empty():
+			var wl: OmniLight3D = _blast_light_pool[0]["light"]
+			wl.position = warm_pos
+			wl.light_energy = 0.05
+			wl.visible = true
+			_blast_light_pool[0]["timer"] = 0.08
+		get_tree().create_timer(0.08).timeout.connect(func():
+			if not _blast_center_pool.is_empty() and is_instance_valid(_blast_center_pool[0]):
+				_blast_center_pool[0].visible = false
+				_blast_center_pool[0].scale = Vector3.ONE
+				_blast_center_pool[0].position = Vector3(0.0, -50.0, 0.0)
+			if not _explosion_decals.is_empty() and is_instance_valid(_explosion_decals[0]):
+				_explosion_decals[0].visible = false
+				_explosion_decals[0].position = Vector3(0.0, -50.0, 0.0)
+		)
+
+
+func _trigger_fx_entry(entry: Dictionary, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
+	var n3: Node3D = entry["node"]
+	if not is_instance_valid(n3):
+		return
+	n3.position = world_pos
+	n3.scale = Vector3.ONE * scale_val
+	n3.visible = true
+	entry["timer"] = lifetime
+	for em in entry["emitters"]:
+		if em is GPUParticles3D:
+			var gp: GPUParticles3D = em
+			gp.restart()
+			gp.emitting = true
+		elif em is CPUParticles3D:
+			var cp: CPUParticles3D = em
+			cp.restart()
+			cp.emitting = true
+
+
+func _step_fx_pools(delta: float) -> void:
+	for pool in [_explosion_fx_pool, _hit_blood_fx_pool, _bloodmist_fx_pool]:
+		for entry in pool:
+			var rem: float = float(entry["timer"])
+			if rem > 0.0:
+				rem -= delta
+				entry["timer"] = rem
+				if rem <= 0.0:
+					var n3: Node3D = entry["node"]
+					if is_instance_valid(n3):
+						n3.visible = false
+						n3.position = Vector3(0.0, -50.0, 0.0)
+	for entry in _blast_light_pool:
+		var rem: float = float(entry["timer"])
+		if rem > 0.0:
+			rem -= delta
+			entry["timer"] = rem
+			var fl: OmniLight3D = entry["light"]
+			if is_instance_valid(fl):
+				if rem <= 0.0:
+					fl.light_energy = 0.0
+					fl.visible = false
+				else:
+					fl.light_energy = 4.5 * clampf(rem / maxf(0.05, C.BLAST_DURATION_SEC), 0.0, 1.0)
+
+
+func _trigger_blast_light(world_pos: Vector3) -> void:
+	if _is_self_test or _blast_light_pool.is_empty():
+		return
+	var entry: Dictionary = _blast_light_pool[_blast_light_cursor % _blast_light_pool.size()]
+	_blast_light_cursor += 1
+	var fl: OmniLight3D = entry["light"]
+	if is_instance_valid(fl):
+		fl.position = Vector3(world_pos.x, 0.65, world_pos.z)
+		fl.light_energy = 4.5
+		fl.visible = true
+		entry["timer"] = C.BLAST_DURATION_SEC
 
 
 func _spawn_vanilla_fx(scene: PackedScene, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	if _is_self_test or scene == null or _fx_root == null:
+	if _is_self_test or scene == null:
 		return
-	if _active_fx_count >= MAX_ACTIVE_VANILLA_FX:
-		return
-	var inst = scene.instantiate()
-	if inst is Node3D:
-		var n3: Node3D = inst
-		# Detach managed_effect.gd so standalone / custom arenas trigger GPU particles immediately.
-		if n3.get_script() != null:
-			n3.set_script(null)
-		n3.position = world_pos
-		n3.scale = Vector3.ONE * scale_val
-		_fx_root.add_child(n3)
-		_active_fx_count += 1
-		_activate_particles_recursive(n3)
-		get_tree().create_timer(lifetime).timeout.connect(func():
-			if is_instance_valid(n3):
-				_active_fx_count = maxi(0, _active_fx_count - 1)
-				n3.queue_free()
-		)
-	elif inst is Node:
-		(inst as Node).queue_free()
+	if scene == _fx_explosion_scene and not _explosion_fx_pool.is_empty():
+		var entry: Dictionary = _explosion_fx_pool[_explosion_fx_cursor % _explosion_fx_pool.size()]
+		_explosion_fx_cursor += 1
+		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
+	elif scene == _fx_hit_blood_scene and not _hit_blood_fx_pool.is_empty():
+		var entry: Dictionary = _hit_blood_fx_pool[_hit_blood_fx_cursor % _hit_blood_fx_pool.size()]
+		_hit_blood_fx_cursor += 1
+		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
+	elif scene == _fx_bloodmist_scene and not _bloodmist_fx_pool.is_empty():
+		var entry: Dictionary = _bloodmist_fx_pool[_bloodmist_fx_cursor % _bloodmist_fx_pool.size()]
+		_bloodmist_fx_cursor += 1
+		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
 
 
 func _spawn_explosion_mark(world_pos: Vector3, size_val: float) -> void:
-	if _fx_root == null or _explosion_mark_tex == null:
+	if _is_self_test or _explosion_decals.is_empty():
 		return
-	while _explosion_decals.size() >= MAX_EXPLOSION_DECALS:
-		var old: Node3D = _explosion_decals.pop_front()
-		if is_instance_valid(old):
-			old.queue_free()
-	var dec := Decal.new()
-	dec.size = Vector3(size_val, 0.35, size_val)
-	dec.texture_albedo = _explosion_mark_tex
-	dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
-	dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
-	_fx_root.add_child(dec)
-	_explosion_decals.append(dec)
+	var dec: Decal = _explosion_decals[_explosion_decal_cursor % _explosion_decals.size()]
+	_explosion_decal_cursor += 1
+	if is_instance_valid(dec):
+		dec.size = Vector3(size_val, 0.35, size_val)
+		dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
+		dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
+		dec.visible = true
 
 
 func _spawn_blood_decal(world_pos: Vector3) -> void:
-	if _fx_root == null or (_blood_tex_01 == null and _blood_tex_02 == null):
+	if _is_self_test or _blood_decals.is_empty():
 		return
-	while _blood_decals.size() >= MAX_BLOOD_DECALS:
-		var old: Node3D = _blood_decals.pop_front()
-		if is_instance_valid(old):
-			old.queue_free()
-	var dec := Decal.new()
-	dec.size = Vector3(1.15, 0.35, 1.15)
-	dec.texture_albedo = _blood_tex_02 if _rng.randf() > 0.5 and _blood_tex_02 != null else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
-	dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
-	dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
-	_fx_root.add_child(dec)
-	_blood_decals.append(dec)
+	var dec: Decal = _blood_decals[_blood_decal_cursor % _blood_decals.size()]
+	_blood_decal_cursor += 1
+	if is_instance_valid(dec):
+		dec.size = Vector3(1.15, 0.35, 1.15)
+		dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
+		dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
+		dec.visible = true
 
 
 func _process(delta: float) -> void:
@@ -869,8 +1009,10 @@ func _is_input_blocked_by_ui() -> bool:
 
 func _read_local_input() -> void:
 	var dir := Vector2.ZERO
-	var drop := false
-	if not _is_input_blocked_by_ui():
+	var drop_edge := false
+	if _is_input_blocked_by_ui():
+		_prev_drop_pressed = false
+	else:
 		if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 			dir.x -= 1.0
 		if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
@@ -881,12 +1023,19 @@ func _read_local_input() -> void:
 			dir.y += 1.0
 		if dir.length_squared() > 0.0:
 			dir = dir.normalized()
-		drop = Input.is_key_pressed(KEY_SPACE)
+		var drop_now: bool = Input.is_key_pressed(KEY_SPACE)
+		drop_edge = drop_now and not _prev_drop_pressed
+		_prev_drop_pressed = drop_now
 
 	if _is_server_sim:
-		_client_inputs[_local_net_id] = {"dir": dir, "drop": drop}
+		var prev_drop: bool = false
+		if _client_inputs.has(_local_net_id):
+			prev_drop = bool(_client_inputs[_local_net_id].get("drop", false))
+		_client_inputs[_local_net_id] = {"dir": dir, "drop": prev_drop or drop_edge}
 	else:
-		_rpc_client_input.rpc_id(1, dir, drop)
+		_rpc_client_input.rpc_id(1, dir, false)
+		if drop_edge:
+			_rpc_request_drop.rpc_id(1)
 
 
 @rpc("any_peer", "call_remote", "unreliable_ordered")
@@ -896,7 +1045,23 @@ func _rpc_client_input(dir: Vector2, drop: bool) -> void:
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender <= 0:
 		return
-	_client_inputs[sender] = {"dir": dir.limit_length(1.0), "drop": drop}
+	var prev_drop: bool = false
+	if _client_inputs.has(sender):
+		prev_drop = bool(_client_inputs[sender].get("drop", false))
+	_client_inputs[sender] = {"dir": dir.limit_length(1.0), "drop": prev_drop or drop}
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_drop() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender <= 0:
+		return
+	var prev_dir: Vector2 = Vector2.ZERO
+	if _client_inputs.has(sender):
+		prev_dir = _client_inputs[sender].get("dir", Vector2.ZERO)
+	_client_inputs[sender] = {"dir": prev_dir, "drop": true}
 
 
 func _step_simulation(delta: float) -> void:
@@ -1022,6 +1187,7 @@ func _step_players(delta: float) -> void:
 			var ci: Dictionary = _client_inputs[net_id]
 			input_dir = ci["dir"]
 			want_drop = bool(ci["drop"])
+			ci["drop"] = false
 
 		var speed: float = C.BASE_MOVE_SPEED + float(p["speed_level"]) * C.SPEED_STEP_BONUS
 		if bool(p["trapped"]):
@@ -1356,7 +1522,8 @@ func _detonate_bubble(b_id: int) -> void:
 
 	for cid in chain_ids:
 		if _bubbles.has(cid):
-			_detonate_bubble(cid)
+			# Stagger chain detonations across frames to prevent single-frame spikes and create a chain ripple.
+			_bubbles[cid]["fuse"] = minf(float(_bubbles[cid]["fuse"]), CHAIN_DETONATE_DELAY_SEC)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -1379,24 +1546,30 @@ func _rpc_detonate(b_id: int, cells: Array, destroyed_crates: Array) -> void:
 
 
 func _spawn_blast_visual(cells: Array, owner_id: int) -> void:
-	var blast_nodes: Array = []
-	var use_flash: bool = _active_blast_lights < MAX_ACTIVE_BLAST_LIGHTS
-	if use_flash:
-		_active_blast_lights += 1
 	for i in range(cells.size()):
 		var c: Vector2i = cells[i]
 		var wpos: Vector3 = C.grid_to_world(c, _map_width, _map_height)
 		var is_center: bool = (i == 0)
-		var n: Node3D = M.build_blast_cell(C.TILE_SIZE, is_center, use_flash and is_center)
-		n.position = wpos
-		_blast_root.add_child(n)
-		blast_nodes.append(n)
+		if _active_blast_visuals.has(c):
+			var existing: Dictionary = _active_blast_visuals[c]
+			existing["timer"] = maxf(float(existing["timer"]), C.BLAST_DURATION_SEC)
+		else:
+			var pool: Array[Node3D] = _blast_center_pool if is_center else _blast_arm_pool
+			if not pool.is_empty():
+				var n: Node3D = pool.pop_back()
+				if is_instance_valid(n):
+					n.position = wpos
+					n.scale = Vector3.ONE
+					n.visible = true
+					_active_blast_visuals[c] = {
+						"node": n,
+						"is_center": is_center,
+						"timer": C.BLAST_DURATION_SEC,
+					}
 		if is_center:
 			_spawn_vanilla_fx(_fx_explosion_scene, Vector3(wpos.x, 0.25, wpos.z), 0.22, 1.8)
-			_spawn_vanilla_fx(_fx_dustplume_scene, Vector3(wpos.x, 0.15, wpos.z), 0.28, 1.6)
 			_spawn_explosion_mark(wpos, C.TILE_SIZE * 1.45)
-		elif i % 2 == 0:
-			_spawn_explosion_mark(wpos, C.TILE_SIZE * 0.95)
+			_trigger_blast_light(wpos)
 	if _sfx_explosion != null and _screenshot_path.is_empty():
 		var now_ms := Time.get_ticks_msec()
 		if now_ms - _last_explosion_sfx_ms >= EXPLOSION_SFX_MIN_INTERVAL_MS:
@@ -1406,8 +1579,6 @@ func _spawn_blast_visual(cells: Array, owner_id: int) -> void:
 		"cells": cells,
 		"owner_id": owner_id,
 		"timer": C.BLAST_DURATION_SEC,
-		"nodes": blast_nodes,
-		"has_light": use_flash,
 	})
 
 
@@ -1429,13 +1600,25 @@ func _step_blasts(delta: float) -> void:
 
 		if float(b["timer"]) > 0.0:
 			kept.append(b)
-		else:
-			if bool(b.get("has_light", false)):
-				_active_blast_lights = maxi(0, _active_blast_lights - 1)
-			for n in b["nodes"]:
-				if is_instance_valid(n):
-					(n as Node3D).queue_free()
 	_blasts = kept
+
+	var expired_cells: Array[Vector2i] = []
+	for cell_key in _active_blast_visuals.keys():
+		var entry: Dictionary = _active_blast_visuals[cell_key]
+		entry["timer"] = float(entry["timer"]) - delta
+		if float(entry["timer"]) <= 0.0:
+			expired_cells.append(cell_key)
+	for c in expired_cells:
+		var entry: Dictionary = _active_blast_visuals[c]
+		_active_blast_visuals.erase(c)
+		var n: Node3D = entry["node"]
+		if is_instance_valid(n):
+			n.visible = false
+			n.position = Vector3(0.0, -50.0, 0.0)
+			if bool(entry["is_center"]):
+				_blast_center_pool.append(n)
+			else:
+				_blast_arm_pool.append(n)
 
 
 func _hit_player_by_blast(p: Dictionary, attacker_id: int) -> void:
@@ -1762,6 +1945,7 @@ func _animate_visuals(delta: float) -> void:
 			if spin != null:
 				spin.rotation.y += delta * 2.6
 				spin.position.y = C.TILE_SIZE * 0.42 + sin(t * 4.5 + float(item_id)) * 0.08
+	_step_fx_pools(delta)
 
 
 func player_disconnected(network_id: int) -> void:
@@ -1981,8 +2165,25 @@ func _run_self_test() -> void:
 		return
 	var first_id: int = int(_bubbles.keys()[0])
 	_detonate_bubble(first_id)
+	if _bubbles.size() != 1:
+		push_error("SELF_TEST_FAIL: staggered chain detonation should queue second bubble instead of same-frame recursion")
+		get_tree().quit(1)
+		return
+	var second_id: int = int(_bubbles.keys()[0])
+	if float(_bubbles[second_id]["fuse"]) > CHAIN_DETONATE_DELAY_SEC + 0.001:
+		push_error("SELF_TEST_FAIL: chained bubble fuse not shortened")
+		get_tree().quit(1)
+		return
+	_step_bubbles(CHAIN_DETONATE_DELAY_SEC + 0.02)
 	if not _bubbles.is_empty():
 		push_error("SELF_TEST_FAIL: chain detonation left residual bubbles")
+		get_tree().quit(1)
+		return
+	# Verify blast cell visuals are pooled and returned cleanly after blast duration.
+	var pooled_total_before: int = _blast_center_pool.size() + _blast_arm_pool.size() + _active_blast_visuals.size()
+	_step_blasts(C.BLAST_DURATION_SEC + 0.05)
+	if not _active_blast_visuals.is_empty() or (_blast_center_pool.size() + _blast_arm_pool.size()) != pooled_total_before:
+		push_error("SELF_TEST_FAIL: blast cell pool leak detected")
 		get_tree().quit(1)
 		return
 
@@ -2036,6 +2237,24 @@ func _run_self_test() -> void:
 		get_tree().quit(1)
 		return
 
-	print("BUBBLE_BLITZ_THEMES_VERIFIED=4, HYBRID_3HP_NEEDLE_POP_OK, CHAIN_DETONATION_OK, WALL_SLIDE_FULL_SPEED_OK, FACE_BOMB_NO_TRAP_OK")
+	# Verify single drop press while crossing tile boundary places only 1 bomb (never double-drops).
+	for b_id in _bubbles.keys():
+		if _bubble_nodes.has(b_id) and is_instance_valid(_bubble_nodes[b_id]):
+			_bubble_nodes[b_id].queue_free()
+	_bubbles.clear()
+	_bubble_nodes.clear()
+	p1["active_bubbles"] = 0
+	p1["max_bubbles"] = 3
+	p1["pos"] = C.grid_to_world(Vector2i(1, 1), _map_width, _map_height) + Vector3(C.TILE_SIZE * 0.45, 0.0, 0.0)
+	_client_inputs[1] = {"dir": Vector2(1.0, 0.0), "drop": true}
+	for _f in range(6):
+		_step_players(1.0 / 60.0)
+	if _bubbles.size() != 1:
+		push_error("SELF_TEST_FAIL: single drop press spawned %d bubbles instead of 1" % _bubbles.size())
+		get_tree().quit(1)
+		return
+	_client_inputs.clear()
+
+	print("BUBBLE_BLITZ_THEMES_VERIFIED=4, HYBRID_3HP_NEEDLE_POP_OK, CHAIN_DETONATION_OK, WALL_SLIDE_FULL_SPEED_OK, FACE_BOMB_NO_TRAP_OK, SINGLE_DROP_OK")
 	print("SELF_TEST_PASSED")
 	get_tree().quit(0)

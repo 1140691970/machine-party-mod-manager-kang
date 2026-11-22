@@ -88,10 +88,14 @@ var _ambience: AudioStreamPlayer = null
 var _fx_hit_scene: PackedScene = null
 var _fx_dust_scene: PackedScene = null
 
-const MAX_ACTIVE_FX := 6
+const POOL_HIT_FX := 6
+const POOL_DUST_FX := 4
 const MAX_ACTIVE_SAW_LIGHTS := 2
 
-var _active_fx_count: int = 0
+var _hit_fx_pool: Array[Dictionary] = []
+var _dust_fx_pool: Array[Dictionary] = []
+var _hit_fx_cursor: int = 0
+var _dust_fx_cursor: int = 0
 var _active_saw_lights: int = 0
 var _is_self_test: bool = false
 var _cam_base_pos: Vector3 = Vector3(0.0, 14.0, 8.8)
@@ -507,7 +511,10 @@ func _clear_arena() -> void:
 	_airdrop_next_idx = 0
 	_popups.clear()
 	_shockwaves.clear()
-	_active_fx_count = 0
+	_hit_fx_pool.clear()
+	_dust_fx_pool.clear()
+	_hit_fx_cursor = 0
+	_dust_fx_cursor = 0
 	_active_saw_lights = 0
 	_players.clear()
 	_client_inputs.clear()
@@ -618,6 +625,7 @@ func _setup_match_local(round_index: int, seed_val: int, roster: Array, is_previ
 		}
 		_pos_history[net_id] = [[0.0, Vector3(spawn.x, 0.0, spawn.y)]]
 
+	_init_fx_pools()
 	_banner_label.text = str(int(ceil(_prep_remaining))) if _prep_remaining > 0.0 else ""
 	_update_hud()
 	if _ambience != null and not _ambience.playing and _screenshot_path.is_empty():
@@ -2108,73 +2116,101 @@ func _activate_particles_recursive(node: Node) -> void:
 		_activate_particles_recursive(child)
 
 
-func _warmup_fx_pipelines() -> void:
-	if _is_self_test or not is_inside_tree() or _fx_root == null:
-		return
-	var warmup_nodes: Array[Node] = []
-	var hidden_pos := Vector3(0.0, -4.5, 0.0)
-	if M != null and C != null:
-		var a := Vector2(-0.5, 0.0)
-		var b := Vector2(0.5, 0.0)
-		for n in [
-			M.build_hazard_warning(C.HZ_SAW, a, b, 0.4),
-			M.build_hazard_active(C.HZ_FLAME, a, b, 0.4),
-			M.build_laser_rig(a, b, 0.4, 0.5, 0.4),
-			M.build_saw_body(C.SAW_RADIUS, true),
-			M.build_shockwave_ring(),
-		]:
-			var n3: Node3D = n as Node3D
-			n3.position = hidden_pos
-			n3.scale = Vector3(0.001, 0.001, 0.001)
-			_fx_root.add_child(n3)
-			warmup_nodes.append(n3)
-	for packed in [_fx_hit_scene, _fx_dust_scene]:
-		if packed == null:
-			continue
-		var inst: Node = packed.instantiate()
+func _collect_particles_recursive(node: Node, out: Array[Node]) -> void:
+	if node is GPUParticles3D:
+		var gp: GPUParticles3D = node
+		gp.emitting = false
+		out.append(gp)
+	elif node is CPUParticles3D:
+		var cp: CPUParticles3D = node
+		cp.emitting = false
+		out.append(cp)
+	for child in node.get_children():
+		_collect_particles_recursive(child, out)
+
+
+func _build_fx_pool(scene: PackedScene, count: int) -> Array[Dictionary]:
+	var pool: Array[Dictionary] = []
+	if scene == null or _fx_root == null:
+		return pool
+	for _i in range(count):
+		var inst: Node = scene.instantiate()
 		if inst is Node3D:
 			var n3: Node3D = inst as Node3D
 			if n3.get_script() != null:
 				n3.set_script(null)
-			n3.position = hidden_pos
-			n3.scale = Vector3(0.001, 0.001, 0.001)
+			var emitters: Array[Node] = []
+			_collect_particles_recursive(n3, emitters)
+			n3.position = Vector3(0.0, -50.0, 0.0)
+			n3.visible = false
 			_fx_root.add_child(n3)
-			_activate_particles_recursive(n3)
-			warmup_nodes.append(n3)
+			pool.append({"node": n3, "emitters": emitters, "timer": 0.0})
 		elif inst != null:
 			inst.queue_free()
-	if warmup_nodes.is_empty():
+	return pool
+
+
+func _warmup_fx_pipelines() -> void:
+	# Handled by _init_fx_pools() inside _setup_match_local() with in-frustum warmup.
+	pass
+
+
+func _init_fx_pools() -> void:
+	if _is_self_test or _fx_root == null:
 		return
-	get_tree().create_timer(0.25).timeout.connect(func():
-		for n in warmup_nodes:
-			if is_instance_valid(n):
-				n.queue_free()
-	)
+	_hit_fx_pool = _build_fx_pool(_fx_hit_scene, POOL_HIT_FX)
+	_dust_fx_pool = _build_fx_pool(_fx_dust_scene, POOL_DUST_FX)
+	if _screenshot_path.is_empty():
+		var warm_pos := Vector3(0.0, 0.3, 0.0)
+		for pool in [_hit_fx_pool, _dust_fx_pool]:
+			if not pool.is_empty():
+				_trigger_fx_entry(pool[0], warm_pos, 0.01, 0.08)
+
+
+func _trigger_fx_entry(entry: Dictionary, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
+	var n3: Node3D = entry["node"]
+	if not is_instance_valid(n3):
+		return
+	n3.position = world_pos
+	n3.scale = Vector3.ONE * scale_val
+	n3.visible = true
+	entry["timer"] = lifetime
+	for em in entry["emitters"]:
+		if em is GPUParticles3D:
+			var gp: GPUParticles3D = em
+			gp.restart()
+			gp.emitting = true
+		elif em is CPUParticles3D:
+			var cp: CPUParticles3D = em
+			cp.restart()
+			cp.emitting = true
+
+
+func _step_fx_pools(delta: float) -> void:
+	for pool in [_hit_fx_pool, _dust_fx_pool]:
+		for entry in pool:
+			var rem: float = float(entry["timer"])
+			if rem > 0.0:
+				rem -= delta
+				entry["timer"] = rem
+				if rem <= 0.0:
+					var n3: Node3D = entry["node"]
+					if is_instance_valid(n3):
+						n3.visible = false
+						n3.position = Vector3(0.0, -50.0, 0.0)
 
 
 func _spawn_fx(scene: PackedScene, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	if _is_self_test or scene == null or _fx_root == null:
+	if _is_self_test or scene == null:
 		return
-	if _active_fx_count >= MAX_ACTIVE_FX:
-		return
-	var inst: Node = scene.instantiate()
-	if inst is Node3D:
-		var n3: Node3D = inst as Node3D
-		if n3.get_script() != null:
-			n3.set_script(null)
-		n3.position = world_pos
-		n3.scale = Vector3.ONE * scale_val
-		_fx_root.add_child(n3)
-		_active_fx_count += 1
-		_activate_particles_recursive(n3)
-		var timer: SceneTreeTimer = get_tree().create_timer(lifetime)
-		timer.timeout.connect(func():
-			if is_instance_valid(n3):
-				_active_fx_count = maxi(0, _active_fx_count - 1)
-				n3.queue_free()
-		)
-	elif inst != null:
-		inst.queue_free()
+	if scene == _fx_hit_scene and not _hit_fx_pool.is_empty():
+		var entry: Dictionary = _hit_fx_pool[_hit_fx_cursor % _hit_fx_pool.size()]
+		_hit_fx_cursor += 1
+		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
+	elif scene == _fx_dust_scene and not _dust_fx_pool.is_empty():
+		var entry: Dictionary = _dust_fx_pool[_dust_fx_cursor % _dust_fx_pool.size()]
+		_dust_fx_cursor += 1
+		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
 
 
 func _animate_visuals(delta: float) -> void:
@@ -2325,6 +2361,7 @@ func _animate_visuals(delta: float) -> void:
 		_slap_box.scale = Vector2(s, s)
 	elif _slap_box != null and _slap_box.scale != Vector2.ONE:
 		_slap_box.scale = Vector2.ONE
+	_step_fx_pools(delta)
 
 	# 观战：保持俯视全景相机不动，出局玩家仍能完整看到整个场地与所有存活玩家，
 	# 不切到低空斜视，避免「看不全」与方向错乱（相机由 _frame_arena 固定）。
