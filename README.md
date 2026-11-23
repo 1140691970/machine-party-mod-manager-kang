@@ -92,7 +92,7 @@ See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance
 
 ## Release notes
 
-**v0.2.5** · Replaces the sidebar with a full-width top-bar layout and dedicated Settings modal, adds live-counted status and category filters, and introduces **Batch** mode for serial multi-mod install/update and uninstall. [Full changelog](CHANGELOG.md).
+**v0.2.6** · Adds **Team Party (`v0.1.0`)**, native squad support in **Bubble Blitz**, **Spike Ring**, and **Roller Carnival**, per-mod Enable/Disable toggles, **`mpm-core`** dependency management, and R2 covers for Team Party and Player Spotlight. [Full changelog](CHANGELOG.md).
 
 ## Documentation
 

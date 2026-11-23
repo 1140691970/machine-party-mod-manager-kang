@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-23.3-mpml1",
+  "revision": "2026-11-23.4-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -411,6 +411,12 @@
       "order": 8,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
+      "cover": {
+        "filename": "player-spotlight.png",
+        "contentType": "image/png",
+        "size": 1294194,
+        "sha256": "eade690614e4a00bd825447479cab221e837669bf1175d7adfb1fc2231b924f3"
+      },
       "version": "v0.1.1",
       "releaseNotes": {
         "version": "v0.1.1",
@@ -673,6 +679,12 @@
       "order": 11,
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
+      "cover": {
+        "filename": "team-party.png",
+        "contentType": "image/png",
+        "size": 1433634,
+        "sha256": "a34ec1e2cf8a646c1c72527fcb85c6c0a4c2c7e83c8bb140cef83efa458e407b"
+      },
       "version": "v0.1.0",
       "releaseNotes": {
         "version": "v0.1.0",
@@ -719,7 +731,7 @@
         ],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {
         "zh-CN": "组队派对",
         "zh-TW": "組隊派對",
@@ -731,9 +743,9 @@
         "en": "Room-level 2-4 team setup and chair swapping, vanilla minigame team hooks, and shared team registry API."
       },
       "detail": {
-        "zh-CN": "负责房间层与官方原版关卡的组队逻辑：房主可在大厅切换个人混战、2人一队、4人一队或自由 2/3/4 队并单键洗牌或拖拽人物换椅（仅分配房内既有玩家与 lobby-bots 机器人，绝不自动补位），客机可点空椅入座或向玩家发起换位请求。局内通过共享注册表向泡泡爆破、尖刺圆环、滚筒嘉年华等自研小游戏提供原生地组队数据（各小游戏内建自身团队规则），并对官方原版关卡直接注入名牌染色、防友军推搡与小队同步加分。Windows 实机验证待确认，发布前暂未标为已验证。",
-        "zh-TW": "負責房間層與官方原版關卡的組隊邏輯：房主可在大廳切換個人混戰、2人一隊、4人一隊或自由 2/3/4 隊並單鍵洗牌或拖曳人物換椅（僅分配房內既有玩家與 lobby-bots 機器人，絕不自動補位），客機可點空椅入座或向玩家發起換位請求。局內透過共享註冊表向泡泡爆破、尖刺圓環、滾筒嘉年華等自研小遊戲提供原生組隊資料（各小遊戲內建自身團隊規則），並對官方原版關卡直接注入名牌染色、防友軍推搡與小隊同步加分。Windows 實機驗證待確認，發布前暫未標為已驗證。",
-        "en": "Owns lobby team assignment and vanilla minigame hooks: the host chooses FFA, 2/team, 4/team, or free 2-4 teams and drags chairs or shuffles existing humans and lobby-bots bots (zero auto-fill); guests claim empty chairs or request swaps. Exposes the shared team registry consumed natively by first-party minigames (Bubble Blitz, Spike Ring, Roller Carnival, each implementing its own team rules) while injecting team badges, friendly-fire shove filtering, and Squads score sync into official minigames. Pending Windows multiplayer confirmation."
+        "zh-CN": "负责房间层与官方原版关卡的组队逻辑：房主可在大厅切换个人混战、2人一队、4人一队或自由 2/3/4 队并单键洗牌或拖拽人物换椅（仅分配房内既有玩家与 lobby-bots 机器人，绝不自动补位），客机可点空椅入座或向玩家发起换位请求。局内通过共享注册表向泡泡爆破、尖刺圆环、滚筒嘉年华等自研小游戏提供原生地组队数据（各小游戏内建自身团队规则），并对官方原版关卡直接注入名牌染色、防友军推搡与小队同步加分。",
+        "zh-TW": "負責房間層與官方原版關卡的組隊邏輯：房主可在大廳切換個人混戰、2人一隊、4人一隊或自由 2/3/4 隊並單鍵洗牌或拖曳人物換椅（僅分配房內既有玩家與 lobby-bots 機器人，絕不自動補位），客機可點空椅入座或向玩家發起換位請求。局內透過共享註冊表向泡泡爆破、尖刺圓環、滾筒嘉年華等自研小遊戲提供原生組隊資料（各小遊戲內建自身團隊規則），並對官方原版關卡直接注入名牌染色、防友軍推搡與小隊同步加分。",
+        "en": "Owns lobby team assignment and vanilla minigame hooks: the host chooses FFA, 2/team, 4/team, or free 2-4 teams and drags chairs or shuffles existing humans and lobby-bots bots (zero auto-fill); guests claim empty chairs or request swaps. Exposes the shared team registry consumed natively by first-party minigames (Bubble Blitz, Spike Ring, Roller Carnival, each implementing its own team rules) while injecting team badges, friendly-fire shove filtering, and Squads score sync into official minigames."
       },
       "aliases": [
         "组队",
@@ -801,7 +813,7 @@
         ],
         "upstreamUninstall": false
       },
-      "verified": false,
+      "verified": true,
       "name": {
         "zh-CN": "MPM 核心运行库",
         "zh-TW": "MPM 核心運行庫",
@@ -813,9 +825,9 @@
         "en": "Shared runtime library providing Minigame Hub v2, Lobby UI Coordinator v2, and event bus."
       },
       "detail": {
-        "zh-CN": "以最高优先级（priority: -100）加载的共用基础库模组，集中维护 Minigame Hub v2（平滑升级旧版 HUB_VERSION = 1）、Lobby UI 协调器 v2（通知引导加载器让步）以及跨模组事件总线与语系工具。由管理器在安装依赖模组时自动装配，Windows 实机验证前暂标为未验证。",
-        "zh-TW": "以最高優先權（priority: -100）載入的共用基礎庫模組，集中維護 Minigame Hub v2（平滑升級舊版 HUB_VERSION = 1）、Lobby UI 協調器 v2（通知引導載入器讓步）以及跨模組事件匯流排與語系工具。由管理器在安裝依賴模組時自動裝配，Windows 實機驗證前暫標為未驗證。",
-        "en": "Early-loading shared library mod (priority -100) bundling Minigame Hub v2 (superseding HUB_VERSION = 1), Lobby UI Coordinator v2, cross-mod event bus, and locale helpers. Automatically managed by dependency resolution; pending Windows multiplayer verification."
+        "zh-CN": "以最高优先级（priority: -100）加载的共用基础库模组，集中维护 Minigame Hub v2（平滑升级旧版 HUB_VERSION = 1）、Lobby UI 协调器 v2（通知引导加载器让步）以及跨模组事件总线与语系工具，由管理器在安装依赖模组时自动装配。",
+        "zh-TW": "以最高優先權（priority: -100）載入的共用基礎庫模組，集中維護 Minigame Hub v2（平滑升級舊版 HUB_VERSION = 1）、Lobby UI 協調器 v2（通知引導載入器讓步）以及跨模組事件匯流排與語系工具，由管理器在安裝依賴模組時自動裝配。",
+        "en": "Early-loading shared library mod (priority -100) bundling Minigame Hub v2 (superseding HUB_VERSION = 1), Lobby UI Coordinator v2, cross-mod event bus, and locale helpers; automatically managed by dependency resolution."
       },
       "aliases": [
         "mpm-core",
