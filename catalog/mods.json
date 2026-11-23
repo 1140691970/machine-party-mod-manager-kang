@@ -592,6 +592,77 @@
         "ring",
         "spike ring"
       ]
+    },
+    {
+      "id": "team-party",
+      "category": "tool",
+      "order": 11,
+      "repo": "JamesGZM/machine-party-mod-manager",
+      "inventoryById": true,
+      "version": "v0.1.0",
+      "releaseNotes": {
+        "version": "v0.1.0",
+        "zh-CN": "首个独立版本（不改动任何现有模组）：在大厅提供自由混战 / 2 / 3 / 4 队手动与一键随机洗牌分队（支持调整房内既有 lobby-bots 机器人，绝不自动补位），并在局内动态接入队伍名牌染色、分关卡友军规则与小队同步计分。",
+        "zh-TW": "首個獨立版本（不改動任何現有模組）：在大廳提供自由混戰 / 2 / 3 / 4 隊手動與單鍵隨機洗牌分隊（支援調整房內既有 lobby-bots 機器人，絕不自動補位），並在局內動態接入隊伍名牌染色、依關卡友軍規則與小隊同步計分。",
+        "en": "Initial standalone release (zero edits to existing mods): adds FFA / 2 / 3 / 4 team selection and one-click shuffle in the lobby (supporting existing lobby-bots bots with zero auto-fill), team nametag coloring and badges, dynamic minigame-tailored friendly-fire hooks, and Fall Guys Squads-style score synchronization."
+      },
+      "package": {
+        "assetId": "1033",
+        "filename": "team-party-0.1.0.zip",
+        "size": 163315,
+        "sha256": "5a028f27fc3ca6a127826df9efa23e28393eb91f5c5a765368e98f241696aac1",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.1.2-13",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
+        "target": "pckDir",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "main.gd",
+          "mod.json"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": false,
+      "name": {
+        "zh-CN": "组队派对",
+        "zh-TW": "組隊派對",
+        "en": "Team Party"
+      },
+      "summary": {
+        "zh-CN": "独立外挂式大厅 2–4 队分队、名牌染色、分关卡友军规则与小队同步计分。",
+        "zh-TW": "獨立外掛式大廳 2–4 隊分隊、名牌染色、依關卡友軍規則與小隊同步計分。",
+        "en": "Standalone room-level 2-4 team selection and shuffle, team nametags, tailored friendly-fire rules, and synchronized squad scoring."
+      },
+      "detail": {
+        "zh-CN": "纯独立运行，不修改其他现有模组。房主可在大厅切换自由混战或 2/3/4 队并单键随机洗牌（仅分配房内既有玩家与 lobby-bots 机器人，绝不自动补位），全员可自选队伍。局内动态挂接原版推挤与泡泡爆破、尖刺圆环、滚筒嘉年华，分别套用经典友军机制与小队同步加分。Windows 实机验证待确认，发布前暂未标为已验证。",
+        "zh-TW": "純獨立運行，不修改其他現有模組。房主可在大廳切換自由混戰或 2/3/4 隊並單鍵隨機洗牌（僅分配房內既有玩家與 lobby-bots 機器人，絕不自動補位），全員可自選隊伍。局內動態掛接原版推擠與泡泡爆破、尖刺圓環、滾筒嘉年華，分別套用經典友軍機制與小隊同步加分。Windows 實機驗證待確認，發布前暫未標為已驗證。",
+        "en": "Standalone mod leaving other mods untouched. Host switches FFA or 2/3/4 teams and shuffles existing humans and lobby-bots bots with one click (zero auto-fill); all guests can choose teams too. Dynamically hooks vanilla push games plus Bubble Blitz, Spike Ring, and Roller Carnival with fixed game-appropriate friendly-fire rules and synchronized squad scores. Pending Windows multiplayer confirmation."
+      },
+      "aliases": [
+        "组队",
+        "組隊",
+        "team",
+        "squad",
+        "分队",
+        "分隊"
+      ]
     }
   ]
 }

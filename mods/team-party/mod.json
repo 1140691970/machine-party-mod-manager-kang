@@ -1,0 +1,9 @@
+{
+  "id": "team-party",
+  "name": "Team Party (組隊派對)",
+  "version": "0.1.0",
+  "authors": ["MachineParty Mod Team"],
+  "entry": "main.gd",
+  "priority": -5,
+  "requires": []
+}

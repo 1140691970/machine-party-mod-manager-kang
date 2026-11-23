@@ -86,6 +86,7 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | [Player Spotlight](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.1` | Local-only overhead industrial spotlight on your own character across 3D minigames | Native MPML |
 | [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.4` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
 | [Spike Ring](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.2` | 60s circular pit survival: wall-mounted gapped lasers, saws, floor spikes, shrinking ring & visible airdrops | Native MPML |
+| [Team Party](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/team-party) | `v0.1.0` | Standalone room-level 2-4 team setup, nametag colors, friendly-fire rules & squad score sync | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 

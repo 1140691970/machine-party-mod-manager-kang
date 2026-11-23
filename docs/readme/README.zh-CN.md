@@ -86,6 +86,7 @@ Steam 目录自动检测 · 离线缓存与还原 · 简体中文 / 繁體中文
 | [玩家聚光灯](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.1` | 在所有 3D 小游戏中只为自己点亮头顶工业聚光灯 | 原生 MPML |
 | [泡泡爆破](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.4` | 3 滴血结合版泡泡堂小游戏，4 套随机地图与传送带互坑 | 原生 MPML |
 | [尖刺圆环](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.2` | 60 秒重工业环形生存赛：墙壁缺口激光、电锯、伸缩地刺、缩圈尖刺环与空投道具互推 | 原生 MPML |
+| [组队派对](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/team-party) | `v0.1.0` | 独立外挂式房间 2–4 队手动/洗牌分队、名牌染色、分关卡友军规则与小队同步计分 | 原生 MPML |
 
 验收清单、上游授权边界与互斥组规则详见[候选模组与收录规范](../zh-CN/catalog/mods.md)。
 

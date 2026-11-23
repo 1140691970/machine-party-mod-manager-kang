@@ -18,6 +18,7 @@ This directory holds GDScript mods authored in `machine-party-mod-manager`. Ever
 | `player-spotlight` | Player Spotlight (玩家聚光燈) | `0.1.1` | `player-spotlight-0.1.1.zip` | Steam `v2.1.2` | Pending physical Windows test | [Player Spotlight](player-spotlight/README.md) |
 | `bubble-blitz` | Bubble Blitz (泡泡爆破) | `0.1.2` | `bubble-blitz-0.1.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Bubble Blitz](bubble-blitz/README.md) |
 | `spike-ring` | Spike Ring (尖刺圆环) | `0.1.0` | `spike-ring-0.1.0.zip` | Steam `v2.1.2` | Pending physical Windows test | [Spike Ring](spike-ring/README.md) |
+| `team-party` | Team Party (組隊派對) | `0.1.0` | `team-party-0.1.0.zip` | Steam `v2.1.2` | Pending physical Windows test | [Team Party](team-party/README.md) |
 
 ## Deterministic ZIP packaging rules
 
