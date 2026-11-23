@@ -111,7 +111,7 @@ try {
   assert.deepEqual(allView.actions, ["更新至 " + version, "解除安裝 · Overtime"]);
   assert.equal(allView.refresh, true);
   assert.equal(allView.checkUpdates, false);
-  const installedView = await inspectFilter("已安裝");
+  const installedView = await inspectFilter("已啟用");
   assert.equal(installedView.cards, 1);
   assert.deepEqual(installedView.actions, ["更新至 " + version, "解除安裝 · Overtime"]);
   await inspectFilter("全部");
