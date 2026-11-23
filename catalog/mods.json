@@ -189,8 +189,8 @@
       "package": {
         "assetId": "1034",
         "filename": "roller-carnival-0.1.11.zip",
-        "size": 181992,
-        "sha256": "dc88bbaf585a2e797b316e3429d0660d3fdce6dc94fabba6bb44ef19f2ab9bb9",
+        "size": 182073,
+        "sha256": "a38a5c9a42505f58e260eac93328284b441c8682eaf75f2e894c7aab57ecfb8a",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -509,8 +509,8 @@
       "package": {
         "assetId": "1035",
         "filename": "bubble-blitz-0.1.5.zip",
-        "size": 205334,
-        "sha256": "2bd8fd2388d17f423f496527ce7b8518554fb4a0fefa7aafe71853accbb1ffd3",
+        "size": 205415,
+        "sha256": "2fdd9b400b173719a4416fed1757c7e7ce4aff9cd9a34115f5eea6ce32fb1df2",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -605,8 +605,8 @@
       "package": {
         "assetId": "1036",
         "filename": "spike-ring-0.1.3.zip",
-        "size": 250884,
-        "sha256": "8f46c987dfdf16b09c14cb7f2b8c269c2d5eeb343fce51abfc103b673b445016",
+        "size": 250965,
+        "sha256": "38fa5847d14d076671da65d35a3e9fd69c4bcf8e7492e3a790d215fa401a70fb",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -773,8 +773,8 @@
       "package": {
         "assetId": "1037",
         "filename": "mpm-core-0.1.0.zip",
-        "size": 66836,
-        "sha256": "d9b7db227f12f85ff75dfe163c596bbd2610538fb6561ad67c6e5175330fac6c",
+        "size": 66917,
+        "sha256": "5f73812ace0b5b3c8d41e6097d4b05531353156de18e6df54e5d27868cd7a5ad",
         "mirrorApproved": true
       },
       "supportedGameVersions": [

@@ -202,6 +202,11 @@ func load_current_playlist() -> void:
 				break
 
 
+func _on_reset_button_pressed() -> void:
+	super()
+	_refresh_admission_states()
+
+
 func _on_default_button_pressed() -> void:
 	var custom_map: Dictionary = _get_custom_minigames()
 	_on_reset_button_pressed()
