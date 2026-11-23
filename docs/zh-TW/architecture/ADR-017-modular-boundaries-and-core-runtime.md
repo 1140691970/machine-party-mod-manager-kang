@@ -2,7 +2,7 @@
 
 [English](../../en/architecture/ADR-017-modular-boundaries-and-core-runtime.md) · [简体中文](../../zh-CN/architecture/ADR-017-modular-boundaries-and-core-runtime.md) · **繁體中文**
 
-日期：2026-11-23。狀態：階段 1–5 已落地並通過自動化與無頭測試驗收（依階段 5 條件暫不拆倉；仍待 Windows Steam `v2.1.2` 實機驗證）。
+日期：2026-11-23。狀態：已落地並驗收（自動化測試與 Windows Steam `v2.1.2` 實機測試均已通過；依階段 5 條件暫不拆倉）。
 
 ## 問題
 

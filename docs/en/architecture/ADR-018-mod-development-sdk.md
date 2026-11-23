@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/architecture/ADR-018-mod-development-sdk.md) · [繁體中文](../../zh-TW/architecture/ADR-018-mod-development-sdk.md)
 
-- **Status**: Implemented (Headless Verified; Windows Steam `v2.1.2` physical test pending)
+- **Status**: Implemented & Verified (Headless tests + Windows Steam `v2.1.2` physical test passed)
 - **Date**: 2026-11-23
 - **Related**: [ADR-001](ADR-001-project-boundaries.md), [ADR-009](ADR-009-bundled-first-party-mods.md), [ADR-015](ADR-015-multi-minigame-hub.md), [ADR-017](ADR-017-modular-boundaries-and-core-runtime.md), [Mod SDK Reference](../development/mod-sdk.md)
 

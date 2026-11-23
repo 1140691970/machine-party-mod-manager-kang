@@ -2,7 +2,7 @@
 
 [English](../../en/architecture/ADR-018-mod-development-sdk.md) · **简体中文** · [繁體中文](../../zh-TW/architecture/ADR-018-mod-development-sdk.md)
 
-- **状态**：已落地（无头测试已验收；仍待 Windows Steam `v2.1.2` 实机验证）
+- **状态**：已落地并验收（无头测试与 Windows Steam `v2.1.2` 实机测试均已通过）
 - **日期**：2026-11-23
 - **关联决策**：[ADR-001](ADR-001-project-boundaries.md)、[ADR-009](ADR-009-bundled-first-party-mods.md)、[ADR-015](ADR-015-multi-minigame-hub.md)、[ADR-017](ADR-017-modular-boundaries-and-core-runtime.md)、[模组 SDK 参考手册](../development/mod-sdk.md)
 

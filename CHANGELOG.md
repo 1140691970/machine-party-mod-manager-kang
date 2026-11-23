@@ -4,6 +4,13 @@
 
 Notable changes for players and contributors. Versions follow the desktop app version.
 
+## 0.2.6 — 2026-11-23
+
+- Adds **Team Party (`v0.1.0`)**, a room-level 2–4 team setup & chair-swapping mod with vanilla minigame hooks, plus native squad support in **Bubble Blitz (`v0.1.5`)**, **Spike Ring (`v0.1.3`)**, and **Roller Carnival (`v0.1.11`)**.
+- Adds per-mod **Enable / Disable** toggles, extends **Batch mode** with Enable / Disable actions and automatic dependency resolution, and introduces declarative `requires` dependency management backed by **`mpm-core` (`v0.1.0`)** (hidden from player Browse lists as a library mod).
+- Adds R2 cover images for **Team Party** and **Player Spotlight**.
+- Completes the architecture modularization ([ADR-017](docs/en/architecture/ADR-017-modular-boundaries-and-core-runtime.md)) and MPM Mod Development SDK ([ADR-018](docs/en/architecture/ADR-018-mod-development-sdk.md)).
+
 ## 0.2.5 — 2026-11-22
 
 - Replaces the left sidebar and separate Installed page with a streamlined sticky top bar (brand, search, refresh, and a dedicated Settings modal with update indicator), expanding the catalog grid across the full window width.

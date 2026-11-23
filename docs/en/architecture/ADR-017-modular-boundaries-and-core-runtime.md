@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/architecture/ADR-017-modular-boundaries-and-core-runtime.md) · [繁體中文](../../zh-TW/architecture/ADR-017-modular-boundaries-and-core-runtime.md)
 
-Date: 2026-11-23. Status: Phases 1–5 implemented & verified in automated/headless checks (repo split intentionally deferred per Phase 5 criteria; Windows Steam `v2.1.2` physical verification pending).
+Date: 2026-11-23. Status: Implemented & Verified (automated checks and Windows Steam `v2.1.2` physical verification passed; repo split intentionally deferred per Phase 5 criteria).
 
 ## Problem
 
