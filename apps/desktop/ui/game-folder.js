@@ -14,6 +14,7 @@ export function applyValidation(validation, path) {
   active = null;
   state.inventory = validation.installed;
   state.modStates = validation.modStates;
+  state.disabledMods = validation.disabledMods || [];
   state.pckDir = validation.pckDir;
   state.lastScan = validation;
   state.scan = "ready";
@@ -47,6 +48,7 @@ export function syncGameMods(force = false) {
       if (generation !== token) return;
       state.lastScan = null;
       state.modStates = {};
+      state.disabledMods = [];
       state.scan = "failed";
       state.scanError = String(error);
       render();
@@ -66,6 +68,7 @@ async function loadGame(path) {
     active = null;
     state.inventory = {};
     state.modStates = {};
+    state.disabledMods = [];
     state.pckDir = "";
     state.lastScan = null;
     state.loaderNote = null;
@@ -145,6 +148,7 @@ export async function detectGame(rescan = false) {
     state.game = "";
     state.inventory = {};
     state.modStates = {};
+    state.disabledMods = [];
     state.pckDir = "";
     generation++;
     active = null;

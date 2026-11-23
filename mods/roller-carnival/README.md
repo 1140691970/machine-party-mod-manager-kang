@@ -5,7 +5,7 @@
 ![滾筒嘉年華小遊戲圖示](../../catalog/covers/roller-carnival.png)
 
 - **模組 ID**：`roller-carnival`
-- **版本**：`0.1.8`（目錄清單對應 `v0.1.8`）
+- **版本**：`0.1.11`（目錄清單對應 `v0.1.11`）
 - **授權**：`GPL-3.0-only`
 - **目標遊戲版本**：Steam Windows `v2.1.2`
 - **開發與打包規範**：[自研模組開發、測試、接入與打包規範](../../docs/zh-TW/development/mod-development.md) · [ADR-009](../../docs/zh-TW/architecture/ADR-009-bundled-first-party-mods.md)
@@ -28,6 +28,8 @@
   - 滾筒生成間隔強制滿足 `jump_air_time + landing_recovery_time + min_safe_reaction_time`，避免無解連發陷阱；另有 `max_same_type_streak` 限制同型連發。
 - **依躲避數排名與階梯加分**：
   - 每次安全閃過滾筒累積 +1 次躲避；回合結束依躲避數排序發放排名加分（原始分為人數減名次加一，同躲避數並列；雙人第一、第二名分別提交 2、1 分，官方主遊戲套用倍率）。
+- **原生組隊模式（配合 `team-party`）**：
+  - 透過共享輔助模組 `team_support.gd` 讀取房間組隊註冊表（未安裝或未開啟 `team-party` 時無痕降級為個人混戰）。支援依隊伍分道排列 Z 軸起跑線、腳下隊色底座與隊伍前綴名牌、僅剩一隊存活提前勝出以及 Fall Guys Squads 式小隊同步計分。
 
 ## 操作按鍵
 
@@ -39,7 +41,7 @@
 ## Windows 實機安裝、使用與驗收流程
 
 ### 1. 安裝方式
-- **透過管理器安裝（推薦）**：確認 Windows 已安裝 Steam 版 *Machine Party* `v2.1.2`（遊戲需先關閉），於管理器點選安裝／更新 **Roller Carnival (`v0.1.5`)**；若需同時啟用僅自己可見的頭頂聚光燈，一併安裝 **Player Spotlight (`v0.1.0`)**。管理器會自動設定內建載入器。
+- **透過管理器安裝（推薦）**：確認 Windows 已安裝 Steam 版 *Machine Party* `v2.1.2`（遊戲需先關閉），於管理器點選安裝／更新 **Roller Carnival (`v0.1.11`)**；若需同時啟用僅自己可見的頭頂聚光燈，一併安裝 **Player Spotlight (`v0.1.0`)**。管理器會自動設定內建載入器。
 - **本機開發包直接實測**：在倉庫執行 `node scripts/pack-mod.mjs roller-carnival`（以及 `node scripts/pack-mod.mjs player-spotlight`），將對應 ZIP 解壓至遊戲目錄的 `mods/roller-carnival/`（與 `mods/player-spotlight/`），確認載入器已啟用後從 Steam 啟動遊戲。
 
 ### 2. 遊戲內使用流程
@@ -57,7 +59,7 @@
 
 ## 檔案結構（打入 R2 ZIP vs. 本機開發檔案）
 
-依 [`scripts/pack-mod.mjs`](../../scripts/pack-mod.mjs) 規則，僅以下**執行期檔案**會被封裝為確定性 `roller-carnival-0.1.5.zip` 並隨目錄 Worker 與 R2 分發：
+依 [`scripts/pack-mod.mjs`](../../scripts/pack-mod.mjs) 規則，僅以下**執行期檔案**會被封裝為確定性 `roller-carnival-0.1.11.zip` 並隨目錄 Worker 與 R2 分發：
 
 | 檔案 | 打入 R2 ZIP | 職責 |
 | --- | --- | --- |
@@ -65,7 +67,11 @@
 | `main.gd` | 是 | MPML API v2 入口：註冊虛擬腳本、場景 Hook與 `ShapeCutter` 替換 |
 | `config.gd` | 是 | 預設平衡參數、安全生成間隔底線與積分計算 |
 | `carnival_meshes.gd` | 是 | 程序化 3D 齒輪、滾筒、岩漿池、齊平起跑線與燈泡框舞台建構器 |
-| `roller_carnival_game.gd` | 是 | 主遊戲場景迴圈、跳蹲物理、純擊退與淘汰判定、精簡 HUD 與 `--self-test` |
+| `fx_pool.gd` | 是 | 撞擊血花、淘汰血霧與地面血跡貼花常駐物件池與視錐預熱 |
+| `hud_ui.gd` | 是 | CRT 黑幕過場、四角定位框、倒數與分數結算面板 UI |
+| `team_support.gd` | 是 | 共享可選組隊輔助模組（讀取 `team-party` 註冊表並降級支援 FFA） |
+| `roller_carnival_game.gd` | 是 | 主遊戲場景迴圈、跳蹲物理、純擊退與淘汰判定、原生小隊規則與聯機同步 |
+| `self_test.gd` | 是 | Godot headless `--self-test` 與封面截圖套件 |
 | `official_minigame.gd` | 是 | 官方開局、參賽名單與結算入口 |
 | `override_game.gd` | 是 | 多小遊戲共存中心覆寫 `res://scripts/scenes/game/game.gd`，將所有已註冊自研小遊戲納入官方預設與街機輪換池 |
 | `override_local_game.gd` | 是 | 多小遊戲共存中心覆寫 `res://scenes/local_game/script/local_game.gd`，支援本機同螢幕輪換 |
@@ -97,7 +103,7 @@ npm run check:architecture && npm test && npm run lint:rust && npm run test:rust
 
 ## 安裝、共存與驗證狀態
 
-- **R2 鏡像分發與自動載入器**：桌面端透過目錄 Worker 從 R2 下載並校驗 `roller-carnival-0.1.5.zip` 的 SHA-256；首次安裝且偵測不到外部載入器時，管理器會透過潔淨室 `pck_loader.rs` + `mpm_bootstrap.gd` 自動設定載入環境；解除安裝最後一個受管模組時會無損截斷還原原版 `Machine Party.pck`。
+- **R2 鏡像分發與自動載入器**：桌面端透過目錄 Worker 從 R2 下載並校驗 `roller-carnival-0.1.11.zip` 的 SHA-256；首次安裝且偵測不到外部載入器時，管理器會透過潔淨室 `pck_loader.rs` + `mpm_bootstrap.gd` 自動設定載入環境；解除安裝最後一個受管模組時會無損截斷還原原版 `Machine Party.pck`。
 - **外部載入器與互斥**：若玩家遊戲目錄已有 `MachinePartyModLoader.exe`，會保留原有載入器僅放入 `mods/roller-carnival/`；與 `overtime` 等直接修補 PCK 檔案的模組保持互斥保護。
 - **目前驗證狀態**：
   - ✅ macOS Godot 4.5.2 語法檢查與 `--self-test` 通過、`scripts/pack-mod.mjs` 確定性 ZIP 與 Rust L1/L3 原版 Steam v2.1.2 `Machine Party.pck` 寫入/無損還原模擬測試通過。

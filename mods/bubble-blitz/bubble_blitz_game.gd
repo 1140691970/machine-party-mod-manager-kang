@@ -8,9 +8,19 @@ signal round_finished(scores: Dictionary)
 
 const CONFIG_RES := "res://mods_bubble_blitz/config.gd"
 const MESHES_RES := "res://mods_bubble_blitz/arena_meshes.gd"
+const TEAM_RES := "res://mods_bubble_blitz/team_support.gd"
+const FX_POOL_RES := "res://mods_bubble_blitz/fx_pool.gd"
+const AI_RES := "res://mods_bubble_blitz/ai_controller.gd"
+const SELF_TEST_RES := "res://mods_bubble_blitz/self_test.gd"
+const CHAIN_DETONATE_DELAY_SEC := 0.05
 
 var C = null
 var M = null
+var _team = null
+var _fx_pool = null
+var _ai_ctrl = null
+var _self_test_runner = null
+var _mpm_last_scores: Dictionary = {}
 
 var _standalone_mode: bool = false
 var _is_server_sim: bool = true
@@ -79,57 +89,55 @@ var _explosion_mark_tex: Texture2D = null
 var _blood_tex_01: Texture2D = null
 var _blood_tex_02: Texture2D = null
 
-const POOL_EXPLOSION_FX := 4
-const POOL_HIT_BLOOD_FX := 3
-const POOL_BLOODMIST_FX := 2
-const POOL_EXPLOSION_DECALS := 16
-const POOL_BLOOD_DECALS := 12
-const POOL_BLAST_LIGHTS := 2
-const POOL_BLAST_CENTER_CELLS := 12
-const POOL_BLAST_ARM_CELLS := 48
-const EXPLOSION_SFX_MIN_INTERVAL_MS := 45
-const CHAIN_DETONATE_DELAY_SEC := 0.05
-
-var _explosion_fx_pool: Array[Dictionary] = []
-var _hit_blood_fx_pool: Array[Dictionary] = []
-var _bloodmist_fx_pool: Array[Dictionary] = []
-var _explosion_fx_cursor: int = 0
-var _hit_blood_fx_cursor: int = 0
-var _bloodmist_fx_cursor: int = 0
-
-var _explosion_decals: Array[Decal] = []
-var _blood_decals: Array[Decal] = []
-var _explosion_decal_cursor: int = 0
-var _blood_decal_cursor: int = 0
-
-var _blast_light_pool: Array[Dictionary] = []
-var _blast_light_cursor: int = 0
-
-var _blast_center_pool: Array[Node3D] = []
-var _blast_arm_pool: Array[Node3D] = []
-var _active_blast_visuals: Dictionary = {} # Vector2i -> { "node": Node3D, "is_center": bool, "timer": float }
-
-var _last_explosion_sfx_ms: int = 0
 var _prev_drop_pressed: bool = false
 var _is_self_test: bool = false
-
 var _screenshot_path: String = ""
 var _screenshot_frames: int = 0
 
 
+func _load_sibling_script(reg_res: String, filename: String):
+	if ResourceLoader.exists(reg_res):
+		return ResourceLoader.load(reg_res)
+	var self_script: Script = get_script() as Script
+	if self_script != null and not self_script.resource_path.is_empty():
+		var abs_path: String = self_script.resource_path.get_base_dir().path_join(filename)
+		if ResourceLoader.exists(abs_path):
+			return ResourceLoader.load(abs_path)
+	return load("res://" + filename)
+
+
 func _load_helpers() -> void:
 	if C == null:
-		if ResourceLoader.exists(CONFIG_RES):
-			C = ResourceLoader.load(CONFIG_RES)
-		else:
-			C = load("res://config.gd")
+		C = _load_sibling_script(CONFIG_RES, "config.gd")
 	if M == null:
-		if ResourceLoader.exists(MESHES_RES):
-			M = ResourceLoader.load(MESHES_RES)
-		else:
-			M = load("res://arena_meshes.gd")
+		M = _load_sibling_script(MESHES_RES, "arena_meshes.gd")
 	if M != null:
 		M.ensure_game_pck_mounted()
+	if _team == null:
+		var ts = _load_sibling_script(TEAM_RES, "team_support.gd")
+		if ts != null:
+			_team = ts.new()
+	if _fx_pool == null:
+		var fp = _load_sibling_script(FX_POOL_RES, "fx_pool.gd")
+		if fp != null:
+			_fx_pool = fp.new()
+	if _ai_ctrl == null:
+		var ai = _load_sibling_script(AI_RES, "ai_controller.gd")
+		if ai != null:
+			_ai_ctrl = ai.new()
+	if _self_test_runner == null:
+		var st = _load_sibling_script(SELF_TEST_RES, "self_test.gd")
+		if st != null:
+			_self_test_runner = st.new()
+
+
+func _exit_tree() -> void:
+	if _fx_pool != null:
+		_fx_pool.clear()
+	_team = null
+	_fx_pool = null
+	_ai_ctrl = null
+	_self_test_runner = null
 
 
 func _ready() -> void:
@@ -457,21 +465,8 @@ func _clear_arena() -> void:
 	_bubbles.clear()
 	_blasts.clear()
 	_items.clear()
-	_explosion_fx_pool.clear()
-	_hit_blood_fx_pool.clear()
-	_bloodmist_fx_pool.clear()
-	_explosion_fx_cursor = 0
-	_hit_blood_fx_cursor = 0
-	_bloodmist_fx_cursor = 0
-	_explosion_decals.clear()
-	_blood_decals.clear()
-	_explosion_decal_cursor = 0
-	_blood_decal_cursor = 0
-	_blast_light_pool.clear()
-	_blast_light_cursor = 0
-	_blast_center_pool.clear()
-	_blast_arm_pool.clear()
-	_active_blast_visuals.clear()
+	if _fx_pool != null:
+		_fx_pool.clear()
 	_client_inputs.clear()
 	_prev_drop_pressed = false
 	_monitor_timer = null
@@ -480,6 +475,10 @@ func _clear_arena() -> void:
 
 func _setup_match_local(theme_id: int, seed_val: int, roster: Array, is_preview: bool) -> void:
 	_clear_arena()
+	if _team != null:
+		_team.begin_match(self, roster)
+	var synced_roster: Array = _team.annotate_roster(roster) if (_team != null and _team.is_active()) else roster
+	_mpm_last_scores.clear()
 	_theme_id = theme_id
 	_map_seed = seed_val
 	_rng.seed = seed_val
@@ -495,7 +494,7 @@ func _setup_match_local(theme_id: int, seed_val: int, roster: Array, is_preview:
 	_next_bubble_id = 1
 	_next_item_id = 1
 
-	var map_data: Dictionary = C.generate_map(roster.size(), theme_id, seed_val)
+	var map_data: Dictionary = C.generate_map(synced_roster.size(), theme_id, seed_val)
 	_map_width = int(map_data["width"])
 	_map_height = int(map_data["height"])
 	_tiles = map_data["tiles"]
@@ -541,8 +540,8 @@ func _setup_match_local(theme_id: int, seed_val: int, roster: Array, is_preview:
 	_camera.position = Vector3(0.0, cam_dist * 0.84, cam_dist * 0.64)
 	_camera.look_at(Vector3(0.0, 0.25, -0.45), Vector3.UP)
 
-	for i in range(roster.size()):
-		var entry: Dictionary = roster[i]
+	for i in range(synced_roster.size()):
+		var entry: Dictionary = synced_roster[i]
 		var net_id: int = int(entry.get("network_id", i + 1))
 		var spawn_cell: Vector2i = spawns[i % spawns.size()]
 		var world_pos: Vector3 = C.grid_to_world(spawn_cell, _map_width, _map_height)
@@ -584,12 +583,32 @@ func _setup_match_local(theme_id: int, seed_val: int, roster: Array, is_preview:
 			"pops": 0,
 			"traps": 0,
 			"last_attacker": 0,
+			"mpm_team_id": 0,
+			"mpm_rescues": 0,
 			"pass_bubble_ids": {},
 			"ai_cooldown": 0.0,
 			"ai_dir": Vector2.ZERO,
 			"node": node,
 		}
 		_update_player_hud_3d(_players[net_id])
+
+	if _team != null and _team.is_active() and not _players.is_empty():
+		_team.group_radial_spawns(_players, synced_roster)
+		var cjk_font: Font = _team.tp_font()
+		for raw_nid in _players.keys():
+			var nid: int = int(raw_nid)
+			var tid: int = _team.player_team(nid)
+			var p: Dictionary = _players[raw_nid] as Dictionary
+			p["mpm_team_id"] = tid
+			if tid > 0:
+				var pnode: Node3D = p.get("node", null) as Node3D
+				if pnode != null:
+					_team.attach_foot_ring(pnode, tid)
+					var np := pnode.get_node_or_null("Nameplate") as Label3D
+					p["nickname"] = _team.apply_nameplate(np, str(p.get("nickname", "")), tid)
+					var hp_lbl := pnode.get_node_or_null("HpBar") as Label3D
+					if hp_lbl != null and cjk_font != null and hp_lbl.font != cjk_font:
+						hp_lbl.font = cjk_font
 
 	_init_fx_pools()
 	_update_crt_monitor()
@@ -698,8 +717,18 @@ func _update_player_hud_3d(p: Dictionary) -> void:
 		elif bool(p["trapped"]):
 			hp_label.visible = true
 			var rem: float = maxf(0.0, C.TRAPPED_DURATION_SEC - float(p["trapped_timer"]))
-			hp_label.text = "[CRITICAL %.1fs]" % rem if not bool(p["has_needle"]) else "[SYRINGE...]"
-			hp_label.modulate = Color(1.0, 0.24, 0.18) if not bool(p["has_needle"]) else Color(1.0, 0.84, 0.28)
+			if _team != null and _team.is_active() and not bool(p["has_needle"]):
+				var is_zh: bool = _team.is_tw_locale() or _team.is_cn_locale()
+				hp_label.text = ("[救命! %.1fs]" % rem) if is_zh else ("[HELP! %.1fs]" % rem)
+				var cf: Font = _team.tp_font()
+				if cf != null and hp_label.font != cf:
+					hp_label.font = cf
+				var tid: int = _team.player_team(int(p["network_id"]))
+				var flash_on: bool = int(floor(Time.get_ticks_msec() * 0.010)) % 2 == 0
+				hp_label.modulate = _team.team_color(tid) if (tid > 0 and flash_on) else Color(1.0, 0.92, 0.30)
+			else:
+				hp_label.text = "[CRITICAL %.1fs]" % rem if not bool(p["has_needle"]) else "[SYRINGE...]"
+				hp_label.modulate = Color(1.0, 0.24, 0.18) if not bool(p["has_needle"]) else Color(1.0, 0.84, 0.28)
 		else:
 			hp_label.visible = true
 			var bars: String = ""
@@ -723,225 +752,29 @@ func _update_player_hud_3d(p: Dictionary) -> void:
 				ap.play(&"mp_mod/idle")
 
 
-func _collect_particles_recursive(node: Node, out: Array[Node], trim_smoke: bool) -> void:
-	if node is GPUParticles3D:
-		var gp: GPUParticles3D = node
-		gp.emitting = false
-		if trim_smoke and (gp.name == "Upsmoke" or gp.name == "CircleSmoke"):
-			gp.amount = maxi(4, int(gp.amount / 2))
-		out.append(gp)
-	elif node is CPUParticles3D:
-		var cp: CPUParticles3D = node
-		cp.emitting = false
-		out.append(cp)
-	for child in node.get_children():
-		_collect_particles_recursive(child, out, trim_smoke)
-
-
-func _build_fx_pool(scene: PackedScene, count: int, trim_smoke: bool) -> Array[Dictionary]:
-	var pool: Array[Dictionary] = []
-	if scene == null or _fx_root == null:
-		return pool
-	for _i in range(count):
-		var inst = scene.instantiate()
-		if inst is Node3D:
-			var n3: Node3D = inst
-			if n3.get_script() != null:
-				n3.set_script(null)
-			var emitters: Array[Node] = []
-			_collect_particles_recursive(n3, emitters, trim_smoke)
-			n3.position = Vector3(0.0, -50.0, 0.0)
-			n3.visible = false
-			_fx_root.add_child(n3)
-			pool.append({"node": n3, "emitters": emitters, "timer": 0.0})
-		elif inst is Node:
-			(inst as Node).queue_free()
-	return pool
-
-
 func _init_fx_pools() -> void:
-	if _fx_root == null or _blast_root == null or M == null or C == null:
-		return
-	for _i in range(POOL_BLAST_CENTER_CELLS):
-		var cn: Node3D = M.build_blast_cell(C.TILE_SIZE, true, false)
-		cn.position = Vector3(0.0, -50.0, 0.0)
-		cn.visible = false
-		_blast_root.add_child(cn)
-		_blast_center_pool.append(cn)
-	for _i in range(POOL_BLAST_ARM_CELLS):
-		var an: Node3D = M.build_blast_cell(C.TILE_SIZE, false, false)
-		an.position = Vector3(0.0, -50.0, 0.0)
-		an.visible = false
-		_blast_root.add_child(an)
-		_blast_arm_pool.append(an)
-
-	if _is_self_test:
-		return
-
-	_explosion_fx_pool = _build_fx_pool(_fx_explosion_scene, POOL_EXPLOSION_FX, true)
-	_hit_blood_fx_pool = _build_fx_pool(_fx_hit_blood_scene, POOL_HIT_BLOOD_FX, false)
-	_bloodmist_fx_pool = _build_fx_pool(_fx_bloodmist_scene, POOL_BLOODMIST_FX, false)
-
-	if _explosion_mark_tex != null:
-		for _i in range(POOL_EXPLOSION_DECALS):
-			var dec := Decal.new()
-			dec.size = Vector3(C.TILE_SIZE * 1.45, 0.35, C.TILE_SIZE * 1.45)
-			dec.texture_albedo = _explosion_mark_tex
-			dec.position = Vector3(0.0, -50.0, 0.0)
-			dec.visible = false
-			_fx_root.add_child(dec)
-			_explosion_decals.append(dec)
-
-	if _blood_tex_01 != null or _blood_tex_02 != null:
-		for i in range(POOL_BLOOD_DECALS):
-			var dec := Decal.new()
-			dec.size = Vector3(1.15, 0.35, 1.15)
-			dec.texture_albedo = _blood_tex_02 if (i % 2 == 1 and _blood_tex_02 != null) else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
-			dec.position = Vector3(0.0, -50.0, 0.0)
-			dec.visible = false
-			_fx_root.add_child(dec)
-			_blood_decals.append(dec)
-
-	for _i in range(POOL_BLAST_LIGHTS):
-		var flash := OmniLight3D.new()
-		flash.light_color = Color(1.0, 0.55, 0.20)
-		flash.light_energy = 0.0
-		flash.omni_range = C.TILE_SIZE * 3.2
-		flash.position = Vector3(0.0, -50.0, 0.0)
-		flash.visible = false
-		_fx_root.add_child(flash)
-		_blast_light_pool.append({"light": flash, "timer": 0.0})
-
-	# Warm up shaders & GPU particle pipelines in camera frustum during intro so first real blast has zero hitch.
-	if _screenshot_path.is_empty():
-		var warm_pos := Vector3(0.0, 0.2, 0.0)
-		for pool in [_explosion_fx_pool, _hit_blood_fx_pool, _bloodmist_fx_pool]:
-			if not pool.is_empty():
-				_trigger_fx_entry(pool[0], warm_pos, 0.01, 0.08)
-		if not _blast_center_pool.is_empty():
-			var wc: Node3D = _blast_center_pool[0]
-			wc.position = warm_pos
-			wc.scale = Vector3(0.01, 0.01, 0.01)
-			wc.visible = true
-		if not _explosion_decals.is_empty():
-			var wd: Decal = _explosion_decals[0]
-			wd.position = warm_pos
-			wd.size = Vector3(0.05, 0.05, 0.05)
-			wd.visible = true
-		if not _blast_light_pool.is_empty():
-			var wl: OmniLight3D = _blast_light_pool[0]["light"]
-			wl.position = warm_pos
-			wl.light_energy = 0.05
-			wl.visible = true
-			_blast_light_pool[0]["timer"] = 0.08
-		get_tree().create_timer(0.08).timeout.connect(func():
-			if not _blast_center_pool.is_empty() and is_instance_valid(_blast_center_pool[0]):
-				_blast_center_pool[0].visible = false
-				_blast_center_pool[0].scale = Vector3.ONE
-				_blast_center_pool[0].position = Vector3(0.0, -50.0, 0.0)
-			if not _explosion_decals.is_empty() and is_instance_valid(_explosion_decals[0]):
-				_explosion_decals[0].visible = false
-				_explosion_decals[0].position = Vector3(0.0, -50.0, 0.0)
-		)
-
-
-func _trigger_fx_entry(entry: Dictionary, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	var n3: Node3D = entry["node"]
-	if not is_instance_valid(n3):
-		return
-	n3.position = world_pos
-	n3.scale = Vector3.ONE * scale_val
-	n3.visible = true
-	entry["timer"] = lifetime
-	for em in entry["emitters"]:
-		if em is GPUParticles3D:
-			var gp: GPUParticles3D = em
-			gp.restart()
-			gp.emitting = true
-		elif em is CPUParticles3D:
-			var cp: CPUParticles3D = em
-			cp.restart()
-			cp.emitting = true
+	if _fx_pool != null:
+		_fx_pool.init_pools(self)
 
 
 func _step_fx_pools(delta: float) -> void:
-	for pool in [_explosion_fx_pool, _hit_blood_fx_pool, _bloodmist_fx_pool]:
-		for entry in pool:
-			var rem: float = float(entry["timer"])
-			if rem > 0.0:
-				rem -= delta
-				entry["timer"] = rem
-				if rem <= 0.0:
-					var n3: Node3D = entry["node"]
-					if is_instance_valid(n3):
-						n3.visible = false
-						n3.position = Vector3(0.0, -50.0, 0.0)
-	for entry in _blast_light_pool:
-		var rem: float = float(entry["timer"])
-		if rem > 0.0:
-			rem -= delta
-			entry["timer"] = rem
-			var fl: OmniLight3D = entry["light"]
-			if is_instance_valid(fl):
-				if rem <= 0.0:
-					fl.light_energy = 0.0
-					fl.visible = false
-				else:
-					fl.light_energy = 4.5 * clampf(rem / maxf(0.05, C.BLAST_DURATION_SEC), 0.0, 1.0)
-
-
-func _trigger_blast_light(world_pos: Vector3) -> void:
-	if _is_self_test or _blast_light_pool.is_empty():
-		return
-	var entry: Dictionary = _blast_light_pool[_blast_light_cursor % _blast_light_pool.size()]
-	_blast_light_cursor += 1
-	var fl: OmniLight3D = entry["light"]
-	if is_instance_valid(fl):
-		fl.position = Vector3(world_pos.x, 0.65, world_pos.z)
-		fl.light_energy = 4.5
-		fl.visible = true
-		entry["timer"] = C.BLAST_DURATION_SEC
+	if _fx_pool != null:
+		_fx_pool.step_fx_pools(self, delta)
 
 
 func _spawn_vanilla_fx(scene: PackedScene, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	if _is_self_test or scene == null:
-		return
-	if scene == _fx_explosion_scene and not _explosion_fx_pool.is_empty():
-		var entry: Dictionary = _explosion_fx_pool[_explosion_fx_cursor % _explosion_fx_pool.size()]
-		_explosion_fx_cursor += 1
-		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
-	elif scene == _fx_hit_blood_scene and not _hit_blood_fx_pool.is_empty():
-		var entry: Dictionary = _hit_blood_fx_pool[_hit_blood_fx_cursor % _hit_blood_fx_pool.size()]
-		_hit_blood_fx_cursor += 1
-		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
-	elif scene == _fx_bloodmist_scene and not _bloodmist_fx_pool.is_empty():
-		var entry: Dictionary = _bloodmist_fx_pool[_bloodmist_fx_cursor % _bloodmist_fx_pool.size()]
-		_bloodmist_fx_cursor += 1
-		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
+	if _fx_pool != null:
+		_fx_pool.spawn_vanilla_fx(self, scene, world_pos, scale_val, lifetime)
 
 
 func _spawn_explosion_mark(world_pos: Vector3, size_val: float) -> void:
-	if _is_self_test or _explosion_decals.is_empty():
-		return
-	var dec: Decal = _explosion_decals[_explosion_decal_cursor % _explosion_decals.size()]
-	_explosion_decal_cursor += 1
-	if is_instance_valid(dec):
-		dec.size = Vector3(size_val, 0.35, size_val)
-		dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
-		dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
-		dec.visible = true
+	if _fx_pool != null:
+		_fx_pool.spawn_explosion_mark(self, world_pos, size_val)
 
 
 func _spawn_blood_decal(world_pos: Vector3) -> void:
-	if _is_self_test or _blood_decals.is_empty():
-		return
-	var dec: Decal = _blood_decals[_blood_decal_cursor % _blood_decals.size()]
-	_blood_decal_cursor += 1
-	if is_instance_valid(dec):
-		dec.size = Vector3(1.15, 0.35, 1.15)
-		dec.position = Vector3(world_pos.x, 0.04, world_pos.z)
-		dec.rotation_degrees.y = _rng.randf_range(0.0, 360.0)
-		dec.visible = true
+	if _fx_pool != null:
+		_fx_pool.spawn_blood_decal(self, world_pos)
 
 
 func _process(delta: float) -> void:
@@ -1546,82 +1379,18 @@ func _rpc_detonate(b_id: int, cells: Array, destroyed_crates: Array) -> void:
 
 
 func _spawn_blast_visual(cells: Array, owner_id: int) -> void:
-	for i in range(cells.size()):
-		var c: Vector2i = cells[i]
-		var wpos: Vector3 = C.grid_to_world(c, _map_width, _map_height)
-		var is_center: bool = (i == 0)
-		if _active_blast_visuals.has(c):
-			var existing: Dictionary = _active_blast_visuals[c]
-			existing["timer"] = maxf(float(existing["timer"]), C.BLAST_DURATION_SEC)
-		else:
-			var pool: Array[Node3D] = _blast_center_pool if is_center else _blast_arm_pool
-			if not pool.is_empty():
-				var n: Node3D = pool.pop_back()
-				if is_instance_valid(n):
-					n.position = wpos
-					n.scale = Vector3.ONE
-					n.visible = true
-					_active_blast_visuals[c] = {
-						"node": n,
-						"is_center": is_center,
-						"timer": C.BLAST_DURATION_SEC,
-					}
-		if is_center:
-			_spawn_vanilla_fx(_fx_explosion_scene, Vector3(wpos.x, 0.25, wpos.z), 0.22, 1.8)
-			_spawn_explosion_mark(wpos, C.TILE_SIZE * 1.45)
-			_trigger_blast_light(wpos)
-	if _sfx_explosion != null and _screenshot_path.is_empty():
-		var now_ms := Time.get_ticks_msec()
-		if now_ms - _last_explosion_sfx_ms >= EXPLOSION_SFX_MIN_INTERVAL_MS:
-			_last_explosion_sfx_ms = now_ms
-			_sfx_explosion.play()
-	_blasts.append({
-		"cells": cells,
-		"owner_id": owner_id,
-		"timer": C.BLAST_DURATION_SEC,
-	})
+	if _fx_pool != null:
+		_fx_pool.spawn_blast_visual(self, cells, owner_id)
 
 
 func _step_blasts(delta: float) -> void:
-	var kept: Array = []
-	for b in _blasts:
-		b["timer"] = float(b["timer"]) - delta
-		var cells: Array = b["cells"]
-		var owner_id: int = int(b["owner_id"])
-
-		if _is_server_sim:
-			for net_id in _players.keys():
-				var p: Dictionary = _players[net_id]
-				if not bool(p["alive"]):
-					continue
-				var p_cell: Vector2i = C.world_to_grid(p["pos"], _map_width, _map_height)
-				if cells.has(p_cell):
-					_hit_player_by_blast(p, owner_id)
-
-		if float(b["timer"]) > 0.0:
-			kept.append(b)
-	_blasts = kept
-
-	var expired_cells: Array[Vector2i] = []
-	for cell_key in _active_blast_visuals.keys():
-		var entry: Dictionary = _active_blast_visuals[cell_key]
-		entry["timer"] = float(entry["timer"]) - delta
-		if float(entry["timer"]) <= 0.0:
-			expired_cells.append(cell_key)
-	for c in expired_cells:
-		var entry: Dictionary = _active_blast_visuals[c]
-		_active_blast_visuals.erase(c)
-		var n: Node3D = entry["node"]
-		if is_instance_valid(n):
-			n.visible = false
-			n.position = Vector3(0.0, -50.0, 0.0)
-			if bool(entry["is_center"]):
-				_blast_center_pool.append(n)
-			else:
-				_blast_arm_pool.append(n)
+	if _fx_pool != null:
+		_fx_pool.step_blasts(self, delta)
 
 
 func _hit_player_by_blast(p: Dictionary, attacker_id: int) -> void:
+	if _team != null and _team.is_active() and attacker_id > 0 and _team.are_teammates(int(p["network_id"]), attacker_id):
+		return
 	if not bool(p["alive"]):
 		return
 	if float(p["invuln_timer"]) > 0.0:
@@ -1661,6 +1430,24 @@ func _hit_player_by_blast(p: Dictionary, attacker_id: int) -> void:
 
 
 func _eliminate_player(p: Dictionary, killer_id: int, reason: String) -> void:
+	if _team != null and _team.is_active() and reason == "BUMP POP" and killer_id > 0 and _team.are_teammates(int(p["network_id"]), killer_id):
+		if not bool(p["alive"]) or not bool(p["trapped"]):
+			return
+		p["trapped"] = false
+		p["trapped_timer"] = 0.0
+		p["hp"] = 1
+		p["invuln_timer"] = C.INVULN_DURATION_SEC
+		if _players.has(killer_id):
+			var rescuer: Dictionary = _players[killer_id]
+			rescuer["mpm_rescues"] = int(rescuer.get("mpm_rescues", 0)) + 1
+			var r_name: String = str(rescuer["nickname"])
+			var v_name: String = str(p["nickname"])
+			var is_zh: bool = _team.is_tw_locale() or _team.is_cn_locale()
+			_show_kill_feed(("%s 救活了 %s!" % [r_name, v_name]) if is_zh else ("%s RESCUED %s!" % [r_name, v_name]))
+		if _sfx_ding != null:
+			_sfx_ding.play()
+		_update_player_hud_3d(p)
+		return
 	if not bool(p["alive"]):
 		return
 	p["alive"] = false
@@ -1748,12 +1535,25 @@ func _show_kill_feed(msg: String) -> void:
 func _check_round_end() -> void:
 	if _round_ended:
 		return
+	var team_mode: bool = _team != null and _team.is_active()
 	var alive_count: int = 0
-	for net_id in _players.keys():
-		if bool(_players[net_id]["alive"]):
-			alive_count += 1
+	var alive_ids: Array = []
+	var alive_teams: Dictionary = {}
+	if team_mode:
+		var counts: Dictionary = _team.count_alive_teams_dict(_players)
+		alive_ids = counts["alive_ids"]
+		alive_teams = counts["alive_teams"]
+		alive_count = alive_ids.size()
+	else:
+		for net_id in _players.keys():
+			if bool(_players[net_id]["alive"]):
+				alive_count += 1
 
-	var should_end: bool = (_time_remaining <= 0.0) or (_players.size() > 1 and alive_count <= 1) or (_players.size() == 1 and alive_count == 0)
+	var should_end: bool = (
+		(_time_remaining <= 0.0)
+		or (_players.size() > 1 and (alive_teams.size() <= 1 if team_mode else alive_count <= 1))
+		or (_players.size() == 1 and alive_count == 0)
+	)
 	if not should_end:
 		return
 
@@ -1770,13 +1570,37 @@ func _check_round_end() -> void:
 			"traps": int(p["traps"]),
 		})
 	var scores: Dictionary = C.compute_rank_scores(entries)
-	_banner_label.text = "ROUND COMPLETE!"
+	var banner_text: String = "ROUND COMPLETE!"
+	if team_mode:
+		scores = _team.sync_scores(scores, alive_ids)
+		_mpm_last_scores = scores
+		_team.notify_round_win(scores, self)
+		_team.mark_scores_applied(self)
+		var win_tid: int = 0
+		if alive_teams.size() == 1:
+			var k: int = int(alive_teams.keys()[0])
+			if k > 0:
+				win_tid = k
+		else:
+			var best_sc: int = -1
+			for nid_v in scores.keys():
+				var tid: int = _team.player_team(int(nid_v))
+				if tid > 0 and int(scores[nid_v]) > best_sc:
+					best_sc = int(scores[nid_v])
+					win_tid = tid
+		if win_tid > 0:
+			banner_text = _team.team_win_banner(win_tid)
+	else:
+		_mpm_last_scores = scores
+	_banner_label.text = banner_text
+	if _is_self_test:
+		return
 	if _standalone_mode:
 		await get_tree().create_timer(1.8).timeout
 		if is_inside_tree():
 			get_tree().quit()
 	else:
-		_rpc_round_banner.rpc("ROUND COMPLETE!")
+		_rpc_round_banner.rpc(banner_text)
 		await get_tree().create_timer(1.4).timeout
 		if is_inside_tree():
 			round_finished.emit(scores)
@@ -1954,122 +1778,14 @@ func player_disconnected(network_id: int) -> void:
 
 
 func _compute_ai_input(p: Dictionary, delta: float) -> Dictionary:
-	var cell: Vector2i = C.world_to_grid(p["pos"], _map_width, _map_height)
-	var danger: Dictionary = {}
-	for b_id in _bubbles.keys():
-		var b: Dictionary = _bubbles[b_id]
-		var orig: Vector2i = b["cell"]
-		danger[orig] = true
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			for step in range(1, int(b["power"]) + 1):
-				var c: Vector2i = orig + d * step
-				if _is_tile_blocked(c):
-					break
-				danger[c] = true
-
-	if danger.has(cell):
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var nc: Vector2i = cell + d
-			if not _is_tile_blocked(nc) and _bubble_at_cell(nc) == -1 and not danger.has(nc):
-				return {"dir": Vector2(float(d.x), float(d.y)), "drop": false}
-
-	# Rush adjacent downed rivals or adjacent pickups if safe.
-	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-		var nc: Vector2i = cell + d
-		if _is_tile_blocked(nc) or _bubble_at_cell(nc) != -1 or danger.has(nc):
-			continue
-		for other_id in _players.keys():
-			if int(other_id) == int(p["network_id"]):
-				continue
-			var op: Dictionary = _players[other_id]
-			if bool(op["alive"]) and bool(op["trapped"]) and C.world_to_grid(op["pos"], _map_width, _map_height) == nc:
-				return {"dir": Vector2(float(d.x), float(d.y)), "drop": false}
-		for item_id in _items.keys():
-			if _items[item_id]["cell"] == nc:
-				return {"dir": Vector2(float(d.x), float(d.y)), "drop": false}
-
-	p["ai_cooldown"] = float(p["ai_cooldown"]) - delta
-	var drop := false
-	if float(p["ai_cooldown"]) <= 0.0:
-		p["ai_cooldown"] = 0.55
-		var open_dirs: Array = []
-		var near_crate := false
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var nc: Vector2i = cell + d
-			if nc.x >= 0 and nc.y >= 0 and nc.x < _map_width and nc.y < _map_height:
-				var t: int = int(_tiles[nc.y][nc.x])
-				if t == C.TILE_CRATE or t == C.TILE_GOLD_CRATE:
-					near_crate = true
-				elif t == C.TILE_EMPTY and _bubble_at_cell(nc) == -1 and not danger.has(nc):
-					open_dirs.append(d)
-		if near_crate and open_dirs.size() >= 1 and int(p["active_bubbles"]) == 0:
-			drop = true
-		if not open_dirs.is_empty():
-			var pick: Vector2i = open_dirs[_rng.randi_range(0, open_dirs.size() - 1)]
-			p["ai_dir"] = Vector2(float(pick.x), float(pick.y))
-		else:
-			p["ai_dir"] = Vector2.ZERO
-
-	return {"dir": p["ai_dir"], "drop": drop}
+	if _ai_ctrl != null:
+		return _ai_ctrl.compute_input(self, p, delta)
+	return {"dir": Vector2.ZERO, "drop": false}
 
 
 func _stage_screenshot_action() -> void:
-	_banner_label.text = ""
-	_time_remaining = 42.0
-	_update_crt_monitor()
-	_kill_feed_label.text = ""
-
-	var cx: int = _map_width / 2
-	var cy: int = _map_height / 2
-	if _players.has(1):
-		_players[1]["pos"] = C.grid_to_world(Vector2i(cx - 2, cy), _map_width, _map_height)
-		_players[1]["facing"] = Vector2(1.0, 0.25)
-		_players[1]["has_needle"] = true
-		_players[1]["node"].position = _players[1]["pos"]
-		_update_player_hud_3d(_players[1])
-	if _players.has(2):
-		_players[2]["pos"] = C.grid_to_world(Vector2i(cx + 2, cy), _map_width, _map_height)
-		_players[2]["hp"] = 0
-		_players[2]["trapped"] = true
-		_players[2]["node"].position = _players[2]["pos"]
-		_update_player_hud_3d(_players[2])
-	if _players.has(3):
-		_players[3]["pos"] = C.grid_to_world(Vector2i(cx, cy - 2), _map_width, _map_height)
-		_players[3]["hp"] = 2
-		_players[3]["node"].position = _players[3]["pos"]
-		_update_player_hud_3d(_players[3])
-	if _players.has(4):
-		_players[4]["pos"] = C.grid_to_world(Vector2i(cx, cy + 2), _map_width, _map_height)
-		_players[4]["hp"] = 1
-		_players[4]["node"].position = _players[4]["pos"]
-		_update_player_hud_3d(_players[4])
-
-	for dy in range(-2, 3):
-		for dx in range(-2, 3):
-			var c := Vector2i(cx + dx, cy + dy)
-			_tiles[c.y][c.x] = C.TILE_EMPTY
-			if _tile_nodes.has(c):
-				_tile_nodes[c].queue_free()
-				_tile_nodes.erase(c)
-
-	var b1: Node3D = M.build_water_bubble(C.TILE_SIZE, _players[1]["color"])
-	b1.position = C.grid_to_world(Vector2i(cx - 1, cy), _map_width, _map_height)
-	_arena_root.add_child(b1)
-
-	var b2: Node3D = M.build_water_bubble(C.TILE_SIZE, _players[3]["color"])
-	b2.position = C.grid_to_world(Vector2i(cx + 1, cy - 2), _map_width, _map_height)
-	_arena_root.add_child(b2)
-
-	_spawn_blast_visual([
-		Vector2i(cx, cy), Vector2i(cx, cy - 1), Vector2i(cx, cy + 1), Vector2i(cx + 1, cy),
-	], 1)
-
-	# Showcase all 5 authentic Machine Party 3D pickups on the arena floor.
-	_spawn_item(Vector2i(cx - 1, cy - 1), C.ITEM_POWER)
-	_spawn_item(Vector2i(cx + 1, cy + 1), C.ITEM_NEEDLE)
-	_spawn_item(Vector2i(cx - 1, cy + 1), C.ITEM_SPEED)
-	_spawn_item(Vector2i(cx + 1, cy - 1), C.ITEM_KICK)
-	_spawn_item(Vector2i(cx - 2, cy + 1), C.ITEM_BUBBLE)
+	if _self_test_runner != null:
+		_self_test_runner.stage_screenshot_action(self)
 
 
 func _save_screenshot_and_quit() -> void:
@@ -2084,177 +1800,5 @@ func _save_screenshot_and_quit() -> void:
 
 
 func _run_self_test() -> void:
-	_load_helpers()
-	_is_server_sim = true
-	_standalone_mode = true
-
-	for count in [2, 4, 8, 16]:
-		for theme in range(C.THEME_COUNT):
-			var md: Dictionary = C.generate_map(count, theme, 1000 + count * 17 + theme)
-			var tiles: Array = md["tiles"]
-			var safe: Dictionary = md["safe"]
-			for sc in safe.keys():
-				var cell: Vector2i = sc
-				if int(tiles[cell.y][cell.x]) != C.TILE_EMPTY:
-					push_error("SELF_TEST_FAIL: spawn safe cell blocked for count=%d theme=%d" % [count, theme])
-					get_tree().quit(1)
-					return
-			if theme == C.THEME_CONVEYOR and (md["conveyors"] as Dictionary).is_empty():
-				push_error("SELF_TEST_FAIL: conveyor theme has no conveyor tiles")
-				get_tree().quit(1)
-				return
-
-	var roster: Array = [
-		{"id": 0, "network_id": 1, "nickname": "P1", "is_ai": false},
-		{"id": 1, "network_id": 2, "nickname": "P2", "is_ai": false},
-		{"id": 2, "network_id": 3, "nickname": "P3", "is_ai": false},
-	]
-	_setup_match_local(C.THEME_CLASSIC, 4242, roster, true)
-	_intro_timer = 0.0
-	_round_active = true
-
-	var p1: Dictionary = _players[1]
-	var p2: Dictionary = _players[2]
-
-	_hit_player_by_blast(p2, 1)
-	if int(p2["hp"]) != 2 or bool(p2["trapped"]):
-		push_error("SELF_TEST_FAIL: expected 2 HP after first hit")
-		get_tree().quit(1)
-		return
-	_hit_player_by_blast(p2, 1)
-	if int(p2["hp"]) != 2:
-		push_error("SELF_TEST_FAIL: invulnerability failed to block repeat hit")
-		get_tree().quit(1)
-		return
-	p2["invuln_timer"] = 0.0
-	_hit_player_by_blast(p2, 1)
-	if int(p2["hp"]) != 1 or bool(p2["trapped"]):
-		push_error("SELF_TEST_FAIL: expected 1 HP after second hit")
-		get_tree().quit(1)
-		return
-	p2["has_needle"] = true
-	p2["invuln_timer"] = 0.0
-	_hit_player_by_blast(p2, 1)
-	if not bool(p2["trapped"]) or not bool(p2["alive"]):
-		push_error("SELF_TEST_FAIL: expected trapped state on 3rd hit")
-		get_tree().quit(1)
-		return
-	_step_players(C.NEEDLE_AUTO_SAVE_DELAY_SEC + 0.1)
-	if bool(p2["trapped"]) or int(p2["hp"]) != 1 or bool(p2["has_needle"]):
-		push_error("SELF_TEST_FAIL: needle auto-rescue failed")
-		get_tree().quit(1)
-		return
-	p2["invuln_timer"] = 0.0
-	_hit_player_by_blast(p2, 1)
-	p1["pos"] = p2["pos"] + Vector3(0.2, 0.0, 0.0)
-	_step_players(0.05)
-	if bool(p2["alive"]) or int(p1["pops"]) != 1:
-		push_error("SELF_TEST_FAIL: bump-pop elimination failed")
-		get_tree().quit(1)
-		return
-
-	p1["max_bubbles"] = 3
-	p1["power"] = 3
-	p1["pos"] = C.grid_to_world(Vector2i(1, 1), _map_width, _map_height)
-	var ok1: bool = _try_place_bubble(p1)
-	p1["pos"] = C.grid_to_world(Vector2i(2, 1), _map_width, _map_height)
-	var ok2: bool = _try_place_bubble(p1)
-	if not ok1 or not ok2 or _bubbles.size() != 2:
-		push_error("SELF_TEST_FAIL: bubble placement failed")
-		get_tree().quit(1)
-		return
-	var first_id: int = int(_bubbles.keys()[0])
-	_detonate_bubble(first_id)
-	if _bubbles.size() != 1:
-		push_error("SELF_TEST_FAIL: staggered chain detonation should queue second bubble instead of same-frame recursion")
-		get_tree().quit(1)
-		return
-	var second_id: int = int(_bubbles.keys()[0])
-	if float(_bubbles[second_id]["fuse"]) > CHAIN_DETONATE_DELAY_SEC + 0.001:
-		push_error("SELF_TEST_FAIL: chained bubble fuse not shortened")
-		get_tree().quit(1)
-		return
-	_step_bubbles(CHAIN_DETONATE_DELAY_SEC + 0.02)
-	if not _bubbles.is_empty():
-		push_error("SELF_TEST_FAIL: chain detonation left residual bubbles")
-		get_tree().quit(1)
-		return
-	# Verify blast cell visuals are pooled and returned cleanly after blast duration.
-	var pooled_total_before: int = _blast_center_pool.size() + _blast_arm_pool.size() + _active_blast_visuals.size()
-	_step_blasts(C.BLAST_DURATION_SEC + 0.05)
-	if not _active_blast_visuals.is_empty() or (_blast_center_pool.size() + _blast_arm_pool.size()) != pooled_total_before:
-		push_error("SELF_TEST_FAIL: blast cell pool leak detected")
-		get_tree().quit(1)
-		return
-
-	var scores: Dictionary = C.compute_rank_scores([
-		{"network_id": 1, "alive": true, "elim_time": 75.0, "pops": 2, "traps": 2},
-		{"network_id": 2, "alive": false, "elim_time": 40.0, "pops": 1, "traps": 1},
-		{"network_id": 3, "alive": false, "elim_time": 25.0, "pops": 0, "traps": 0},
-	])
-	if int(scores[1]) != 3 or int(scores[2]) != 2 or int(scores[3]) != 1:
-		push_error("SELF_TEST_FAIL: unexpected rank scores " + str(scores))
-		get_tree().quit(1)
-		return
-
-	# Verify diagonal wall-sliding keeps full speed without sticky slowdown.
-	var wall_start: Vector3 = C.grid_to_world(Vector2i(1, 1), _map_width, _map_height)
-	wall_start.x -= C.TILE_SIZE * 0.19 # Flush against left border wall at x=0
-	p1["pos"] = wall_start
-	var diag_dir := Vector2(-1.0, 1.0).normalized()
-	var after_slide: Vector3 = _move_player_with_collision(p1, wall_start, Vector3(diag_dir.x, 0.0, diag_dir.y) * C.BASE_MOVE_SPEED, C.BASE_MOVE_SPEED, 0.1)
-	if (after_slide.z - wall_start.z) < C.BASE_MOVE_SPEED * 0.1 * 0.95:
-		push_error("SELF_TEST_FAIL: wall-slide speed drop detected: dz=" + str(after_slide.z - wall_start.z))
-		get_tree().quit(1)
-		return
-
-	# Verify placing a bomb right in another player's face on open ground does not trap them.
-	p1["active_bubbles"] = 0
-	p1["max_bubbles"] = 2
-	p2["alive"] = true
-	p2["trapped"] = false
-	p2["pass_bubble_ids"] = {}
-	var open_cell := Vector2i(1, 1)
-	var open_pos: Vector3 = C.grid_to_world(open_cell, _map_width, _map_height)
-	p1["pos"] = open_pos
-	p2["pos"] = open_pos + Vector3(C.TILE_SIZE * 0.45, 0.0, 0.0)
-	if not _try_place_bubble(p1):
-		push_error("SELF_TEST_FAIL: face-drop test failed to place bubble")
-		get_tree().quit(1)
-		return
-	var p2_before: Vector3 = p2["pos"]
-	var p2_after: Vector3 = _move_player_with_collision(p2, p2_before, Vector3(C.BASE_MOVE_SPEED, 0.0, 0.0), C.BASE_MOVE_SPEED, 0.1)
-	if (p2_after.x - p2_before.x) < C.BASE_MOVE_SPEED * 0.1 * 0.9:
-		push_error("SELF_TEST_FAIL: player trapped by face-dropped bubble: dx=" + str(p2_after.x - p2_before.x))
-		get_tree().quit(1)
-		return
-	# Also verify defensive escape when already inside collision radius without pass-through.
-	p2["pass_bubble_ids"] = {}
-	p2["pos"] = p2_before
-	var p2_escape: Vector3 = _move_player_with_collision(p2, p2_before, Vector3(C.BASE_MOVE_SPEED, 0.0, 0.0), C.BASE_MOVE_SPEED, 0.1)
-	if (p2_escape.x - p2_before.x) < C.BASE_MOVE_SPEED * 0.1 * 0.9:
-		push_error("SELF_TEST_FAIL: player could not escape bubble overlap: dx=" + str(p2_escape.x - p2_before.x))
-		get_tree().quit(1)
-		return
-
-	# Verify single drop press while crossing tile boundary places only 1 bomb (never double-drops).
-	for b_id in _bubbles.keys():
-		if _bubble_nodes.has(b_id) and is_instance_valid(_bubble_nodes[b_id]):
-			_bubble_nodes[b_id].queue_free()
-	_bubbles.clear()
-	_bubble_nodes.clear()
-	p1["active_bubbles"] = 0
-	p1["max_bubbles"] = 3
-	p1["pos"] = C.grid_to_world(Vector2i(1, 1), _map_width, _map_height) + Vector3(C.TILE_SIZE * 0.45, 0.0, 0.0)
-	_client_inputs[1] = {"dir": Vector2(1.0, 0.0), "drop": true}
-	for _f in range(6):
-		_step_players(1.0 / 60.0)
-	if _bubbles.size() != 1:
-		push_error("SELF_TEST_FAIL: single drop press spawned %d bubbles instead of 1" % _bubbles.size())
-		get_tree().quit(1)
-		return
-	_client_inputs.clear()
-
-	print("BUBBLE_BLITZ_THEMES_VERIFIED=4, HYBRID_3HP_NEEDLE_POP_OK, CHAIN_DETONATION_OK, WALL_SLIDE_FULL_SPEED_OK, FACE_BOMB_NO_TRAP_OK, SINGLE_DROP_OK")
-	print("SELF_TEST_PASSED")
-	get_tree().quit(0)
+	if _self_test_runner != null:
+		_self_test_runner.run_self_test(self)

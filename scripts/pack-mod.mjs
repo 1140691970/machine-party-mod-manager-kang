@@ -24,6 +24,53 @@ export const EXCLUDED_PATTERNS = [
   "*.md"
 ];
 
+export const SHARED_MOD_SYNC_SPEC = [
+  {
+    source: "mods/_shared/minigame-hub/override_game.gd",
+    targets: [
+      "mods/bubble-blitz/override_game.gd",
+      "mods/mpm-core/override_game.gd",
+      "mods/roller-carnival/override_game.gd",
+      "mods/spike-ring/override_game.gd"
+    ]
+  },
+  {
+    source: "mods/_shared/minigame-hub/override_local_game.gd",
+    targets: [
+      "mods/bubble-blitz/override_local_game.gd",
+      "mods/mpm-core/override_local_game.gd",
+      "mods/roller-carnival/override_local_game.gd",
+      "mods/spike-ring/override_local_game.gd"
+    ]
+  },
+  {
+    source: "mods/_shared/minigame-hub/override_picker.gd",
+    targets: [
+      "mods/bubble-blitz/override_picker.gd",
+      "mods/mpm-core/override_picker.gd",
+      "mods/roller-carnival/override_picker.gd",
+      "mods/spike-ring/override_picker.gd"
+    ]
+  },
+  {
+    source: "mods/_shared/minigame-hub/override_playlist.gd",
+    targets: [
+      "mods/bubble-blitz/override_playlist.gd",
+      "mods/mpm-core/override_playlist.gd",
+      "mods/roller-carnival/override_playlist.gd",
+      "mods/spike-ring/override_playlist.gd"
+    ]
+  },
+  {
+    source: "mods/_shared/team-support/team_support.gd",
+    targets: [
+      "mods/bubble-blitz/team_support.gd",
+      "mods/roller-carnival/team_support.gd",
+      "mods/spike-ring/team_support.gd"
+    ]
+  }
+];
+
 export function isSkippedEntry(name) {
   return (
     name.startsWith(".") ||
@@ -186,6 +233,27 @@ export async function packMod(modId, rootDir = DEFAULT_ROOT) {
   };
 }
 
+export async function syncSharedModFiles(rootDir = DEFAULT_ROOT) {
+  const updated = [];
+  for (const { source, targets } of SHARED_MOD_SYNC_SPEC) {
+    const srcBytes = toLf(await readFile(path.join(rootDir, source)));
+    for (const relTarget of targets) {
+      const targetPath = path.join(rootDir, relTarget);
+      let curBytes = null;
+      try {
+        curBytes = toLf(await readFile(targetPath));
+      } catch {
+        curBytes = null;
+      }
+      if (!curBytes || !srcBytes.equals(curBytes)) {
+        await writeFile(targetPath, srcBytes);
+        updated.push(relTarget);
+      }
+    }
+  }
+  return updated;
+}
+
 async function verifyCatalogParity(packed, rootDir) {
   const catalog = JSON.parse(await readFile(path.join(rootDir, "catalog/mods.json"), "utf8"));
   for (const item of packed) {
@@ -208,6 +276,7 @@ async function main() {
   const args = process.argv.slice(2);
   let all = false;
   let verifyCatalog = false;
+  let syncShared = false;
   let outDir = "";
   const modIds = [];
 
@@ -215,6 +284,7 @@ async function main() {
     const arg = args[i];
     if (arg === "--all") all = true;
     else if (arg === "--verify-catalog") verifyCatalog = true;
+    else if (arg === "--sync-shared") syncShared = true;
     else if (arg === "--out") {
       outDir = args[++i] || "";
       assert.ok(outDir, "--out requires a directory path");
@@ -222,6 +292,14 @@ async function main() {
       modIds.push(arg);
     } else {
       throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  if (syncShared) {
+    const updated = await syncSharedModFiles(DEFAULT_ROOT);
+    if (!all && modIds.length === 0) {
+      process.stdout.write(JSON.stringify({ synced: updated }, null, 2) + "\n");
+      return;
     }
   }
 

@@ -12,12 +12,14 @@ This directory holds GDScript mods authored in `machine-party-mod-manager`. Ever
 
 | ID | Name | Version | Package ZIP | Game Compatibility | Windows Verification | Documentation |
 | --- | --- | --- | --- | --- | --- | --- |
-| `roller-carnival` | Roller Carnival (滾筒嘉年華) | `0.1.8` | `roller-carnival-0.1.8.zip` | Steam `v2.1.2` | Pending physical Windows test | [mods/roller-carnival/README.md](roller-carnival/README.md) |
+| `roller-carnival` | Roller Carnival (滾筒嘉年華) | `0.1.11` | `roller-carnival-0.1.11.zip` | Steam `v2.1.2` | Pending physical Windows test | [mods/roller-carnival/README.md](roller-carnival/README.md) |
 | `lobby-bots` | Lobby Bots (房間機器人) | `0.2.2` | `lobby-bots-0.2.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Lobby Bots](lobby-bots/README.md) |
 | `standalone-hd` | Standalone HD (獨立高清) | `0.1.2` | `standalone-hd-0.1.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Standalone HD](standalone-hd/README.md) |
 | `player-spotlight` | Player Spotlight (玩家聚光燈) | `0.1.1` | `player-spotlight-0.1.1.zip` | Steam `v2.1.2` | Pending physical Windows test | [Player Spotlight](player-spotlight/README.md) |
-| `bubble-blitz` | Bubble Blitz (泡泡爆破) | `0.1.2` | `bubble-blitz-0.1.2.zip` | Steam `v2.1.2` | Pending physical Windows test | [Bubble Blitz](bubble-blitz/README.md) |
-| `spike-ring` | Spike Ring (尖刺圆环) | `0.1.0` | `spike-ring-0.1.0.zip` | Steam `v2.1.2` | Pending physical Windows test | [Spike Ring](spike-ring/README.md) |
+| `bubble-blitz` | Bubble Blitz (泡泡爆破) | `0.1.5` | `bubble-blitz-0.1.5.zip` | Steam `v2.1.2` | Pending physical Windows test | [Bubble Blitz](bubble-blitz/README.md) |
+| `spike-ring` | Spike Ring (尖刺圆环) | `0.1.3` | `spike-ring-0.1.3.zip` | Steam `v2.1.2` | Pending physical Windows test | [Spike Ring](spike-ring/README.md) |
+| `team-party` | Team Party (組隊派對) | `0.1.0` | `team-party-0.1.0.zip` | Steam `v2.1.2` | Pending physical Windows test | [Team Party](team-party/README.md) |
+| `mpm-core` | MPM Core (MPM 核心運行庫) | `0.1.0` | `mpm-core-0.1.0.zip` | Steam `v2.1.2` | Pending physical Windows test | [MPM Core](mpm-core/README.md) |
 
 ## Deterministic ZIP packaging rules
 

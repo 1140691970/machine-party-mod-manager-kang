@@ -2,13 +2,15 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { SHARED_MOD_SYNC_SPEC } from "./pack-mod.mjs";
+import { formatModLintIssues, lintAllMods } from "./mod-lint.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const excluded = new Set(["node_modules", "target", "gen", "dist", "icons", "images"]);
 const roots = ["apps", "services", "scripts", "tests"];
 const ui = "apps/desktop/ui/";
 const rustSrc = "apps/desktop/src-tauri/src/";
-const tauriFree = ["catalog.rs", "game.rs", "installer.rs", "inventory.rs", "pck_loader.rs", "preferences.rs"].map(name => rustSrc + name);
+const tauriAllowed = new Set(["main.rs", "commands.rs", "app_updates.rs"].map(name => rustSrc + name));
 
 export function checkSource(file, source) {
   const errors = [];
@@ -24,7 +26,8 @@ export function checkSource(file, source) {
     if (file.startsWith("services/") && target.startsWith("apps/")) report(`service imports app code ${specifier}`);
   }
   if (file.startsWith(ui) && !file.endsWith("/bridge.js") && /__TAURI__/.test(source)) report("Tauri access must go through bridge.js");
-  if (tauriFree.includes(file) && /\btauri(?:_plugin_\w+)?::|crate::commands\b/.test(source)) report("domain module depends on Tauri");
+  if (file.startsWith(rustSrc) && file.endsWith(".rs") && !tauriAllowed.has(file)
+      && /\btauri(?:_plugin_\w+)?::|crate::commands\b/.test(source)) report("domain module depends on Tauri");
   if (file === rustSrc + "main.rs" && /#\[tauri::command\]/.test(source)) report("commands belong in commands.rs or their owning adapter");
   if (file.startsWith("tests/") && /readFile/.test(source) && /\.(?:replace|replaceAll)\s*\(/.test(source)
       && /writeFile|new Function|\beval\(|import\(\s*["'`]data:/.test(source)) report("tests must not rewrite production source");
@@ -42,11 +45,42 @@ async function walk(directory) {
   return found;
 }
 
+function normalizeLf(text) {
+  return text.replace(/\r\n/g, "\n");
+}
+
+export async function checkSharedModParity(rootDir = root) {
+  const errors = [];
+  for (const { source, targets } of SHARED_MOD_SYNC_SPEC) {
+    let expected = null;
+    try {
+      expected = normalizeLf(await fs.readFile(path.join(rootDir, source), "utf8"));
+    } catch {
+      errors.push(`${source}: missing shared canonical file`);
+      continue;
+    }
+    for (const target of targets) {
+      try {
+        const actual = normalizeLf(await fs.readFile(path.join(rootDir, target), "utf8"));
+        if (actual !== expected) {
+          errors.push(`${target}: out of sync with ${source} (run \`node scripts/pack-mod.mjs --sync-shared\`)`);
+        }
+      } catch {
+        errors.push(`${target}: missing shared copy synced from ${source}`);
+      }
+    }
+  }
+  return errors;
+}
+
 export async function checkArchitecture() {
   const files = (await Promise.all(roots.map(walk))).flat()
     .filter(file => file !== "scripts/check_architecture.mjs" && !file.startsWith("tests/architecture/"));
   const errors = [];
   for (const file of files) errors.push(...checkSource(file, await fs.readFile(path.join(root, file), "utf8")));
+  errors.push(...await checkSharedModParity(root));
+  const modLint = await lintAllMods(root);
+  errors.push(...formatModLintIssues(modLint.issues));
   return {files: files.length, errors};
 }
 

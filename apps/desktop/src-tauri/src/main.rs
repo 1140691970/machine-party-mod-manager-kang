@@ -29,6 +29,7 @@ fn main() {
             commands::installed_versions,
             commands::validate_game_mods,
             commands::reload_loader,
+            commands::set_mods_enabled,
             commands::game_copies,
             commands::download_mod,
             commands::cancel_download,

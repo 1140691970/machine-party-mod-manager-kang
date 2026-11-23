@@ -5,7 +5,7 @@
 ![泡泡爆破小游戏图示](../../catalog/covers/bubble-blitz.png)
 
 - **模组 ID**：`bubble-blitz`
-- **版本**：`0.1.2`（目录清单对应 `v0.1.2`）
+- **版本**：`0.1.5`（目录清单对应 `v0.1.5`）
 - **授权**：`GPL-3.0-only`
 - **目标游戏版本**：Steam Windows `v2.1.2`
 - **开发与打包规范**：[自研模组开发、测试、接入与打包规范](../../docs/zh-CN/development/mod-development.md) · [ADR-009](../../docs/zh-CN/architecture/ADR-009-bundled-first-party-mods.md) · [ADR-015](../../docs/zh-CN/architecture/ADR-015-multi-minigame-hub.md)
@@ -31,6 +31,7 @@
   - 炸弹临近引爆前通过脉动加速、充气膨胀、高频抖动与警示灯急闪直观预警；引爆时释放原版地雷爆炸粒子、烟尘与地面焦痕。
   - 底部提供仅自己可见的自适应居中 CRT 属性栏；单局 75 秒，最后 25 秒外圈螺旋落下重型工业压板缩圈（压板无视血量秒杀）。
 - **综合计分**：按存活时间与主动击倒/处决对手次数综合排序，提交官方排名积分。
+- **原生组队模式（配合 `team-party`）**：通过共享辅助模块 `team_support.gd` 读取房间组队注册表（未安装或未开启 `team-party` 时无痕降级为个人混战）。支持同队对角分组出生、友军炸弹火焰免疫、濒死倒地触发救援提示并由存活队友碰触救回 1 HP + 1.5 秒无敌、救援倾向 AI 行为、仅剩一队存活提前胜出以及 Fall Guys Squads 式小队同步计分。
 
 ## 操作按键
 
@@ -47,7 +48,11 @@
 | `main.gd` | 是 | MPML API v2 入口：注册至多小游戏共存中心（槽位 `ScavangerChairs = 8`） |
 | `config.gd` | 是 | 预置参数、4 套随机对称地图生成、动态尺寸与综合计分 |
 | `arena_meshes.gd` | 是 | 程序化 3D 工业舞台、水泡、水柱、传送带、道具、压板与 CRT 图标 |
-| `bubble_blitz_game.gd` | 是 | 主游戏模拟、房主权威联机同步、AI 预览、`--self-test` 与封面截图 |
+| `fx_pool.gd` | 是 | 爆炸火焰、粒子、贴花与灯光常驻对象池与错帧清理 |
+| `ai_controller.gd` | 是 | 机器人避弹、寻路、放弹及组队救援 AI 决策 |
+| `team_support.gd` | 是 | 共享可选组队辅助模块（读取 `team-party` 注册表并降级支持 FFA） |
+| `bubble_blitz_game.gd` | 是 | 主游戏模拟与房主权威联机同步（含原生小队规则与封面截图） |
+| `self_test.gd` | 是 | Godot headless `--self-test` 确定性验证与封面截图套件 |
 | `official_minigame.gd` | 是 | 官方 `Minigame` 信号、参赛名单与结算入口 |
 | `override_game.gd` | 是 | 多小游戏共存中心驱动：联机默认/自定义/街机轮换与场景加载 |
 | `override_local_game.gd` | 是 | 多小游戏共存中心驱动：本地同屏轮换与场景加载 |

@@ -17,6 +17,17 @@ struct Catalog {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct ModRequirement {
+    pub id: String,
+    #[serde(
+        default,
+        rename = "minVersion",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub min_version: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ModEntry {
     pub id: String,
     pub order: u32,
@@ -33,6 +44,10 @@ pub struct ModEntry {
     pub verified: bool,
     pub package: Option<PackageSpec>,
     pub adapter: Option<AdapterProfile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<ModRequirement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -121,6 +136,47 @@ impl ModEntry {
             &self.repo
         }
     }
+
+    #[allow(dead_code)]
+    pub fn is_library(&self) -> bool {
+        self.role.as_deref() == Some("library")
+    }
+}
+
+/// Compares two numeric dot-separated versions (with optional `v` prefix) matching `versions.js`.
+pub fn compare_numeric_versions(a: &str, b: &str) -> Option<std::cmp::Ordering> {
+    let parse = |raw: &str| -> Option<Vec<u64>> {
+        let trimmed = raw
+            .trim()
+            .strip_prefix('v')
+            .or_else(|| raw.trim().strip_prefix('V'))
+            .unwrap_or(raw.trim());
+        if trimmed.is_empty() {
+            return None;
+        }
+        trimmed
+            .split('.')
+            .map(|part| {
+                if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+                    None
+                } else {
+                    part.parse::<u64>().ok()
+                }
+            })
+            .collect()
+    };
+    let left = parse(a)?;
+    let right = parse(b)?;
+    let len = left.len().max(right.len());
+    for i in 0..len {
+        let lv = left.get(i).copied().unwrap_or(0);
+        let rv = right.get(i).copied().unwrap_or(0);
+        match lv.cmp(&rv) {
+            std::cmp::Ordering::Equal => continue,
+            ord => return Some(ord),
+        }
+    }
+    Some(std::cmp::Ordering::Equal)
 }
 
 /// The catalog shipped with this build, passed to the UI unchanged.
@@ -472,13 +528,13 @@ mod tests {
     fn preview_requires_matching_build_and_pinned_package() {
         let entries = all_entries();
         assert!(!entries.is_empty());
-        assert_eq!(preview_entries("0.1.2-13").len(), entries.len());
+        assert_eq!(preview_entries("0.2.6-1").len(), entries.len());
         for mut item in entries {
             let id = item.id.clone();
-            assert!(matches_preview(&item, "0.1.2-13"), "{id}");
-            assert!(!matches_preview(&item, "0.1.2"), "{id}");
+            assert!(matches_preview(&item, "0.2.6-1"), "{id}");
+            assert!(!matches_preview(&item, "0.2.6"), "{id}");
             item.package.as_mut().unwrap().sha256.clear();
-            assert!(!matches_preview(&item, "0.1.2-13"), "{id}");
+            assert!(!matches_preview(&item, "0.2.6-1"), "{id}");
         }
     }
 

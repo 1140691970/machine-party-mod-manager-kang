@@ -73,3 +73,109 @@ test("auto-upgrades outdated loader on scan, defers cleanly when game is running
   assert.equal(state.loaderNote?.key, "loaderReloadDone");
   assert.match(formatLoaderNote(state.loaderNote), /v5/);
 });
+
+test("prompts once to close the game when auto-upgrade hits gameRunning, then completes reload on confirmation", async () => {
+  const calls = [];
+  let running = true;
+  const path = "D:/Game2";
+  const dir = path + "/Machine Party_Windows";
+  const makeScan = (installedVersion, needsUpgrade) => ({
+    installed: {},
+    modStates: {},
+    pckDir: dir,
+    loader: {
+      kind: "managed",
+      installedVersion,
+      targetVersion: "6",
+      needsUpgrade,
+      canReload: true
+    }
+  });
+
+  function makeNode(tag) {
+    return {
+      tag,
+      className: "",
+      textContent: "",
+      children: [],
+      open: false,
+      get childElementCount() { return this.children.length; },
+      matches: sel => (sel === ".btn" && tag === "button") || (sel === ".btn-link" && false),
+      append(...items) { this.children.push(...items); },
+      replaceChildren(...items) { this.children = items; },
+      querySelector() { return {focus() {}}; },
+      setAttribute() {},
+      addEventListener() {},
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      remove() {}
+    };
+  }
+
+  const mainDialog = makeNode("dialog");
+  const titleEl = makeNode("h2");
+  const bodyEl = makeNode("div");
+  const body = makeNode("body");
+  globalThis.document = {
+    body,
+    createElement: makeNode,
+    querySelector: sel => {
+      if (sel === "#dialogTitle") return titleEl;
+      if (sel === "#dialogBody") return bodyEl;
+      if (sel === "dialog[open]") return mainDialog.open ? mainDialog : null;
+      if (sel === "dialog") return mainDialog;
+      return null;
+    }
+  };
+
+  window.__TAURI__.core.invoke = async (command, args) => {
+    calls.push({command, args});
+    if (command === "reload_loader") {
+      if (running) throw "gameRunning";
+      return makeScan("6", false);
+    }
+    if (command === "game_process") {
+      if (args.action === "close") running = false;
+      return running;
+    }
+    throw new Error("unexpected command: " + command);
+  };
+
+  const {state} = await import("../../apps/desktop/ui/state.js");
+  const {applyValidation} = await import("../../apps/desktop/ui/game-folder.js");
+  state.game = path;
+  state.pckDir = dir;
+  state.busyMod = "";
+  state.installing = false;
+
+  // 1. Auto-upgrade sees gameRunning -> opens guidance dialog once.
+  applyValidation(makeScan("5", true), path);
+  await flush();
+  await flush();
+  assert.equal(mainDialog.open, true);
+  assert.match(titleEl.textContent, /升级|升級|update/i);
+  const actionsRow = bodyEl.children.at(-1);
+  assert.equal(actionsRow.children.length, 2);
+
+  // 2. Clicking "Close game and upgrade" opens confirmGameExit; confirming closes game and upgrades to v6.
+  const confirmPromise = actionsRow.children[1].onclick();
+  await flush();
+  assert.equal(mainDialog.open, false);
+  const exitModal = body.children.at(-1);
+  assert.ok(exitModal?.open);
+  const exitButtons = exitModal.children[1].children[1].children;
+  await exitButtons[1].onclick();
+  await confirmPromise;
+
+  assert.equal(state.lastScan.loader.installedVersion, "6");
+  assert.equal(state.lastScan.loader.needsUpgrade, false);
+  assert.equal(state.loaderNote?.key, "loaderReloadDone");
+  assert.ok(calls.some(c => c.command === "game_process" && c.args.action === "close"));
+
+  // 3. Re-scanning the same version pair while game is running won't re-open the prompt.
+  running = true;
+  applyValidation(makeScan("5", true), path);
+  await flush();
+  await flush();
+  assert.equal(mainDialog.open, false);
+});

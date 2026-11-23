@@ -12,8 +12,15 @@ extends Node3D
 ##   their dodge counts for end-of-round ranking & configurable bonus points.
 ## - Round lasts default 50s; surviving to 0s wins, or ends early if all players are eliminated.
 
+const REG_RES_DIR := "res://mods_roller_carnival/"
+
 var config = null
 var _meshes = null
+var _team = null
+var _fx_pool = null
+var _hud_ui = null
+var _self_test_runner = null
+var _mpm_last_scores: Dictionary = {}
 
 signal round_finished(scores: Dictionary)
 var _hosted_in_official_game := false
@@ -32,8 +39,6 @@ var _rng := RandomNumberGenerator.new()
 var _scene_props: Dictionary = {}
 var _players: Array[Dictionary] = []
 var _rollers: Array[Dictionary] = []
-var _decals: Array[Node3D] = []
-var _particles: Array[Dictionary] = []
 
 var _players_layer: Node3D
 var _rollers_layer: Node3D
@@ -64,7 +69,7 @@ var _go_label: Label
 var _round_banner: Control
 var _round_title_label: Label
 var _round_tagline_label: Label
-var _you_marker: YouMarkerOverlay
+var _you_marker: Control
 var _results_panel: PanelContainer
 var _results_title: Label
 var _results_subtitle: Label
@@ -83,63 +88,27 @@ var _fx_hit_blood_scene: PackedScene = null
 var _fx_bloodmist_scene: PackedScene = null
 var _blood_tex_01: Texture2D = null
 var _blood_tex_02: Texture2D = null
-const POOL_HIT_BLOOD_FX := 6
-const POOL_BLOODMIST_FX := 4
-const POOL_IMPACT_DECALS := 24
-var _hit_blood_pool: Array[Dictionary] = []
-var _bloodmist_pool: Array[Dictionary] = []
-var _hit_blood_cursor: int = 0
-var _bloodmist_cursor: int = 0
-var _decal_cursor: int = 0
 
 
-class YouMarkerOverlay extends Control:
-	var top_left: Vector2 = Vector2.ZERO
-	var bound_size: Vector2 = Vector2.ZERO
-	var marker_font: Font = null
-	var marker_text: String = "YOU"
-	var shake_offset: Vector2 = Vector2.ZERO
-	var active: bool = false
+func _load_sibling_script(filename: String):
+	var reg_res: String = REG_RES_DIR + filename
+	if ResourceLoader.exists(reg_res):
+		return ResourceLoader.load(reg_res)
+	var self_script: Script = get_script() as Script
+	if self_script != null and not self_script.resource_path.is_empty():
+		var abs_path: String = self_script.resource_path.get_base_dir().path_join(filename)
+		if ResourceLoader.exists(abs_path):
+			return ResourceLoader.load(abs_path)
+	return load("res://" + filename)
 
-	func _draw() -> void:
-		if not active or bound_size.x <= 1.0 or bound_size.y <= 1.0:
-			return
-		var font_to_use: Font = marker_font if marker_font != null else ThemeDB.fallback_font
-		var viewport_rect := get_viewport_rect()
-		var bounds_center := top_left + bound_size * 0.5
-		var viewport_center := viewport_rect.size * 0.5
-		var dir := Vector2(1.0 if bounds_center.x < viewport_center.x else -1.0, 1.0 if bounds_center.y < viewport_center.y else -1.0)
-		var start_point := Vector2(
-			top_left.x + maxf(bound_size.x * dir.x, 0.0),
-			top_left.y + maxf(bound_size.y * dir.y, 0.0)
-		) - dir
-		var text_size := font_to_use.get_string_size(marker_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
-		var text_point := start_point + dir * 32.0 + Vector2(minf(dir.x, 0.0) * text_size.x, 0.0)
-		var line_pts := PackedVector2Array([
-			start_point,
-			start_point + dir * 32.0,
-			start_point + dir * 32.0 + Vector2(dir.x * text_size.x, 0.0),
-		])
-		var corner := 16.0
-		var shadow := Vector2(2.0, 2.0)
-		for pass_idx in range(2):
-			var off := (shadow if pass_idx == 0 else Vector2.ZERO) + shake_offset
-			var col := Color.BLACK if pass_idx == 0 else Color.WHITE
-			var p0 := top_left + off
-			var p1 := top_left + Vector2(bound_size.x, 0.0) + off
-			var p2 := top_left + bound_size + off
-			var p3 := top_left + Vector2(0.0, bound_size.y) + off
-			draw_line(p0, p0 + Vector2.RIGHT * corner, col, 2.0)
-			draw_line(p0, p0 + Vector2.DOWN * corner, col, 2.0)
-			draw_line(p1, p1 + Vector2.LEFT * corner, col, 2.0)
-			draw_line(p1, p1 + Vector2.DOWN * corner, col, 2.0)
-			draw_line(p2, p2 + Vector2.UP * corner, col, 2.0)
-			draw_line(p2, p2 + Vector2.LEFT * corner, col, 2.0)
-			draw_line(p3, p3 + Vector2.UP * corner, col, 2.0)
-			draw_line(p3, p3 + Vector2.RIGHT * corner, col, 2.0)
-			var s_pts := PackedVector2Array([line_pts[0] + off, line_pts[1] + off, line_pts[2] + off])
-			draw_polyline(s_pts, col, 2.0, false)
-			draw_string(font_to_use, text_point + Vector2(0.0, -4.0) + off, marker_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 24, col)
+
+func _exit_tree() -> void:
+	if _fx_pool != null:
+		_fx_pool.clear()
+	_team = null
+	_fx_pool = null
+	_hud_ui = null
+	_self_test_runner = null
 
 
 func _ready() -> void:
@@ -236,11 +205,28 @@ func player_disconnected(_network_id: int) -> void:
 
 
 func _load_dependencies() -> void:
-	var base_dir: String = (get_script() as Script).resource_path.get_base_dir()
-	var cfg_script = load(base_dir.path_join("config.gd"))
-	config = cfg_script.new()
-	_meshes = load(base_dir.path_join("carnival_meshes.gd"))
+	if config == null:
+		var cfg_script = _load_sibling_script("config.gd")
+		config = cfg_script.new()
+	if _meshes == null:
+		_meshes = _load_sibling_script("carnival_meshes.gd")
 	_meshes.ensure_game_pck_mounted()
+	if _team == null:
+		var ts = _load_sibling_script("team_support.gd")
+		if ts != null:
+			_team = ts.new()
+	if _fx_pool == null:
+		var fp = _load_sibling_script("fx_pool.gd")
+		if fp != null:
+			_fx_pool = fp.new()
+	if _hud_ui == null:
+		var hu = _load_sibling_script("hud_ui.gd")
+		if hu != null:
+			_hud_ui = hu.new()
+	if _self_test_runner == null:
+		var st = _load_sibling_script("self_test.gd")
+		if st != null:
+			_self_test_runner = st.new()
 
 
 func _build_post_fx_and_audio() -> void:
@@ -381,13 +367,9 @@ func _start_new_round() -> void:
 
 	_players.clear()
 	_rollers.clear()
-	_decals.clear()
-	_particles.clear()
-	_hit_blood_pool.clear()
-	_bloodmist_pool.clear()
-	_hit_blood_cursor = 0
-	_bloodmist_cursor = 0
-	_decal_cursor = 0
+	if _fx_pool != null:
+		_fx_pool.clear()
+	_mpm_last_scores.clear()
 
 	_elapsed = 0.0
 	_time_left = config.round_duration
@@ -423,7 +405,7 @@ func _start_new_round() -> void:
 
 func _resolve_roster_entries() -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	if _hosted_in_official_game:
+	if _hosted_in_official_game or not _roster.is_empty():
 		entries.assign(_roster)
 	else:
 		var count: int = clampi(config.max_players, 1, 16)
@@ -438,14 +420,17 @@ func _resolve_roster_entries() -> Array[Dictionary]:
 
 func _spawn_players() -> void:
 	var roster: Array[Dictionary] = _resolve_roster_entries()
-	var count: int = roster.size()
+	if _team != null:
+		_team.begin_match(self, roster)
+	var synced_roster: Array = _team.annotate_roster(roster) if (_team != null and _team.is_active()) else roster
+	var count: int = synced_roster.size()
 	# Option A: All 1-16 players stand shoulder-to-shoulder on the exact same starting line (player_spawn_x)
 	var z_span: float = 7.5 if count > 8 else 6.3
 	var char_scale: float = 0.76 if count > 12 else (0.86 if count > 8 else 1.0)
 	var spawn_x: float = config.player_spawn_x
 	var local_nid := multiplayer.get_unique_id() if _hosted_in_official_game else 1
 	for i in range(count):
-		var entry: Dictionary = roster[i]
+		var entry: Dictionary = synced_roster[i]
 		var frac: float = 0.5 if count == 1 else float(i) / float(count - 1)
 		var spawn_z: float = lerpf(-z_span * 0.5, z_span * 0.5, frac)
 		var nickname: String = str(entry["nickname"])
@@ -462,6 +447,7 @@ func _spawn_players() -> void:
 		_players.append({
 			"id": i,
 			"network_id": nid,
+			"team_id": 0,
 			"is_local": is_local,
 			"nickname": nickname,
 			"color": _meshes.PLAYER_COLORS[i % _meshes.PLAYER_COLORS.size()],
@@ -493,6 +479,19 @@ func _spawn_players() -> void:
 			"ai_mistake_rate": 0.14 + float(i % 4) * 0.05,
 			"ai_decided_roller_id": -1,
 		})
+
+	if _team != null and _team.is_active() and not _players.is_empty():
+		_team.group_lane_spawns(_players)
+		for p in _players:
+			var nid: int = int(p["network_id"])
+			var tid: int = _team.player_team(nid)
+			p["team_id"] = tid
+			if tid > 0:
+				var pnode: Node3D = p.get("node", null) as Node3D
+				if pnode != null:
+					_team.attach_foot_ring(pnode, tid, 0.36, 0.45)
+				var lbl := p.get("label", null) as Label3D
+				p["nickname"] = _team.apply_nameplate(lbl, str(p["nickname"]), tid, 11)
 
 
 func _process(delta: float) -> void:
@@ -543,43 +542,8 @@ func _process(delta: float) -> void:
 
 
 func _step_countdown_overlay() -> void:
-	if _round_banner != null and _round_banner.visible:
-		if _countdown > 2.4:
-			_round_banner.modulate.a = 1.0
-			_round_tagline_label.visible_ratio = clampf((COUNTDOWN_SECONDS - _countdown) / 0.50, 0.0, 1.0)
-		elif _countdown > 1.9:
-			_round_tagline_label.visible_ratio = 1.0
-			_round_banner.modulate.a = clampf((_countdown - 1.9) / 0.50, 0.0, 1.0)
-		else:
-			_round_banner.visible = false
-
-	if _countdown <= 2.3 and not _you_marker_shown:
-		_you_marker_shown = true
-		_you_marker_timer = 3.15
-		if _sfx_ding != null and _screenshot_path.is_empty():
-			_sfx_ding.play()
-
-	if _countdown > 0.0:
-		var cur_ceil := ceili(_countdown)
-		_countdown_label.text = str(cur_ceil)
-		_countdown_label.visible = true
-		_countdown_label.modulate.a = 0.0 if _countdown > 2.0 else 1.0
-		if cur_ceil != _last_countdown_ceil and cur_ceil > 0:
-			_last_countdown_ceil = cur_ceil
-			if cur_ceil <= 2 and _sfx_countdown != null and _screenshot_path.is_empty():
-				_sfx_countdown.pitch_scale = 0.6
-				_sfx_countdown.play()
-	else:
-		_countdown_label.visible = false
-		if _go_label != null:
-			_go_label.text = _loc_or("LOC_IM_GO", "GO!")
-			_go_label.modulate = Color(1.0, 1.0, 1.0, 1.0)
-			_go_label.position.y = 28.0
-			_go_label.show()
-			_go_timer = 0.55
-		if _sfx_countdown != null and _screenshot_path.is_empty():
-			_sfx_countdown.pitch_scale = 0.8
-			_sfx_countdown.play()
+	if _hud_ui != null:
+		_hud_ui.step_countdown_overlay(self)
 
 
 func _find_local_player() -> Dictionary:
@@ -591,48 +555,8 @@ func _find_local_player() -> Dictionary:
 
 
 func _update_you_marker(delta: float) -> void:
-	if _you_marker == null:
-		return
-	if _you_marker_timer <= 0.0:
-		if _you_marker.active:
-			_you_marker.active = false
-			_you_marker.visible = false
-		return
-	_you_marker_timer = maxf(0.0, _you_marker_timer - delta)
-	var lp := _find_local_player()
-	var cam := get_node_or_null("StageCamera") as Camera3D
-	if lp.is_empty() or not bool(lp.get("alive", false)) or cam == null or _match_ended or _countdown > 2.3:
-		_you_marker.active = false
-		_you_marker.visible = false
-		return
-	var px := float(lp["x"])
-	var py := float(lp["y"]) + (lp["visual"] as Node3D).position.y
-	var pz := float(lp["z"])
-	var h := 0.85 if bool(lp["crouching"]) else 1.55
-	var center := Vector3(px, py + h * 0.5, pz)
-	var half := Vector3(0.40, h * 0.52, 0.40)
-	var min_pt := Vector2(INF, INF)
-	var max_pt := Vector2(-INF, -INF)
-	for sx in [-1.0, 1.0]:
-		for sy in [-1.0, 1.0]:
-			for sz in [-1.0, 1.0]:
-				var wp := center + Vector3(sx * half.x, sy * half.y, sz * half.z)
-				if cam.is_position_behind(wp):
-					_you_marker.visible = false
-					return
-				var sp := cam.unproject_position(wp)
-				min_pt.x = minf(min_pt.x, sp.x)
-				min_pt.y = minf(min_pt.y, sp.y)
-				max_pt.x = maxf(max_pt.x, sp.x)
-				max_pt.y = maxf(max_pt.y, sp.y)
-	_you_marker.top_left = min_pt
-	_you_marker.bound_size = max_pt - min_pt
-	var jitter_step := int(floor(_cam_sway_time * 15.0)) % 4
-	var jitters := [Vector2(0.5, 0.5), Vector2(-0.5, -0.5), Vector2(-0.5, 0.5), Vector2(0.5, -0.5)]
-	_you_marker.shake_offset = jitters[jitter_step]
-	_you_marker.active = true
-	_you_marker.visible = true
-	_you_marker.queue_redraw()
+	if _hud_ui != null:
+		_hud_ui.update_you_marker(self, delta)
 
 
 func _update_camera(delta: float) -> void:
@@ -1196,186 +1120,63 @@ func _eliminate_player(p: Dictionary) -> void:
 
 
 func _warmup_fx_pipelines() -> void:
-	# Handled by _init_fx_pools() inside _start_new_round() with in-frustum warmup.
 	pass
 
 
-func _build_fx_pool(packed: PackedScene, count: int) -> Array[Dictionary]:
-	var pool: Array[Dictionary] = []
-	if packed == null or _fx_layer == null:
-		return pool
-	for _i in range(count):
-		var inst = packed.instantiate()
-		if inst is Node3D:
-			var n3 := inst as Node3D
-			n3.set_script(null)
-			var emitters: Array[GPUParticles3D] = []
-			for child in n3.get_children():
-				if child is GPUParticles3D:
-					var gp := child as GPUParticles3D
-					gp.one_shot = true
-					gp.emitting = false
-					emitters.append(gp)
-			n3.position = Vector3(0.0, -50.0, 0.0)
-			n3.visible = false
-			_fx_layer.add_child(n3)
-			pool.append({"node": n3, "emitters": emitters, "timer": 0.0})
-		elif inst is Node:
-			(inst as Node).queue_free()
-	return pool
-
-
 func _init_fx_pools() -> void:
-	if _is_self_test or _fx_layer == null:
-		return
-	_hit_blood_pool = _build_fx_pool(_fx_hit_blood_scene, POOL_HIT_BLOOD_FX)
-	_bloodmist_pool = _build_fx_pool(_fx_bloodmist_scene, POOL_BLOODMIST_FX)
-	if _blood_tex_01 != null or _blood_tex_02 != null:
-		for i in range(POOL_IMPACT_DECALS):
-			var dec := Decal.new()
-			dec.size = Vector3(1.4, 0.42, 1.4)
-			dec.texture_albedo = _blood_tex_02 if (i % 3 != 0 and _blood_tex_02 != null) else (_blood_tex_01 if _blood_tex_01 != null else _blood_tex_02)
-			dec.modulate = Color(0.3809, 0.0189, 0.0, 1.0)
-			dec.upper_fade = 0.3
-			dec.lower_fade = 0.3
-			dec.position = Vector3(0.0, -50.0, 0.0)
-			dec.visible = false
-			_fx_layer.add_child(dec)
-			_decals.append(dec)
-	if _screenshot_path.is_empty():
-		var warm_pos := Vector3(config.player_spawn_x, 0.35, 0.0)
-		for pool in [_hit_blood_pool, _bloodmist_pool]:
-			if not pool.is_empty():
-				_trigger_fx_entry(pool[0], warm_pos, 0.01, 0.08)
-		if not _decals.is_empty() and _decals[0] is Decal:
-			var wd := _decals[0] as Decal
-			wd.position = warm_pos
-			wd.size = Vector3(0.05, 0.05, 0.05)
-			wd.visible = true
-			get_tree().create_timer(0.08).timeout.connect(func():
-				if not _decals.is_empty() and _decals[0] is Decal and is_instance_valid(_decals[0]):
-					var d0 := _decals[0] as Decal
-					if d0.size.x <= 0.1:
-						d0.visible = false
-						d0.position = Vector3(0.0, -50.0, 0.0)
-			)
-
-
-func _trigger_fx_entry(entry: Dictionary, origin: Vector3, eff_scale: float, lifetime: float) -> void:
-	var n3: Node3D = entry["node"]
-	if not is_instance_valid(n3):
-		return
-	n3.position = origin
-	n3.scale = Vector3.ONE * eff_scale
-	n3.visible = true
-	entry["timer"] = lifetime
-	for gp in entry["emitters"]:
-		if is_instance_valid(gp):
-			gp.restart()
-			gp.emitting = true
+	if _fx_pool != null:
+		_fx_pool.init_pools(self)
 
 
 func _step_fx_pools(delta: float) -> void:
-	for pool in [_hit_blood_pool, _bloodmist_pool]:
-		for entry in pool:
-			var rem: float = float(entry["timer"])
-			if rem > 0.0:
-				rem -= delta
-				entry["timer"] = rem
-				if rem <= 0.0:
-					var n3: Node3D = entry["node"]
-					if is_instance_valid(n3):
-						n3.visible = false
-						n3.position = Vector3(0.0, -50.0, 0.0)
+	if _fx_pool != null:
+		_fx_pool.step_fx_pools(delta)
 
 
 func _spawn_vanilla_effect(scene_path: String, origin: Vector3, eff_scale: float, lifetime: float) -> bool:
-	if _is_self_test:
-		return true
-	if scene_path.ends_with("hit_blood.tscn") and not _hit_blood_pool.is_empty():
-		var entry: Dictionary = _hit_blood_pool[_hit_blood_cursor % _hit_blood_pool.size()]
-		_hit_blood_cursor += 1
-		_trigger_fx_entry(entry, origin, eff_scale, lifetime)
-		return true
-	if scene_path.ends_with("bloodmist_01.tscn") and not _bloodmist_pool.is_empty():
-		var entry: Dictionary = _bloodmist_pool[_bloodmist_cursor % _bloodmist_pool.size()]
-		_bloodmist_cursor += 1
-		_trigger_fx_entry(entry, origin, eff_scale, lifetime)
-		return true
+	if _fx_pool != null:
+		return _fx_pool.spawn_vanilla_effect(self, scene_path, origin, eff_scale, lifetime)
 	return false
 
 
 func _spawn_impact_decal(pos: Vector3, scale_mul: float = 1.0) -> void:
-	if _is_self_test:
-		return
-	if not _decals.is_empty() and _decals[0] is Decal:
-		var dec := _decals[_decal_cursor % _decals.size()] as Decal
-		_decal_cursor += 1
-		if is_instance_valid(dec):
-			var sz := _rng.randf_range(1.25, 1.75) * scale_mul
-			dec.size = Vector3(sz, 0.42, sz)
-			dec.position = Vector3(pos.x, 0.04, pos.z)
-			dec.rotation.y = _rng.randf_range(0.0, TAU)
-			dec.visible = true
-		return
-	else:
-		var mark := MeshInstance3D.new()
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.34 * scale_mul
-		cm.bottom_radius = 0.36 * scale_mul
-		cm.height = 0.015
-		mark.mesh = cm
-		mark.material_override = _meshes.make_toon_mat(Color(0.38, 0.02, 0.01, 0.80), 0.9, 0.0)
-		mark.material_override.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mark.position = pos
-		_fx_layer.add_child(mark)
-		_decals.append(mark)
-
-
-var _burst_box_mesh: BoxMesh = null
+	if _fx_pool != null:
+		_fx_pool.spawn_impact_decal(self, pos, scale_mul)
 
 
 func _spawn_burst(origin: Vector3, color: Color, count: int) -> void:
-	if _burst_box_mesh == null:
-		_burst_box_mesh = BoxMesh.new()
-		_burst_box_mesh.size = Vector3(0.14, 0.14, 0.14)
-	var mat = _meshes.make_toon_mat(color, 0.3, 0.0, color, 1.8)
-	for _i in range(count):
-		var part := MeshInstance3D.new()
-		part.mesh = _burst_box_mesh
-		part.material_override = mat
-		part.position = origin
-		_fx_layer.add_child(part)
-		var vel := Vector3(_rng.randf_range(-2.8, 1.8), _rng.randf_range(2.2, 5.2), _rng.randf_range(-2.2, 2.2))
-		_particles.append({"node": part, "vel": vel, "life": 0.55})
+	if _fx_pool != null:
+		_fx_pool.spawn_burst(self, origin, color, count)
 
 
 func _update_particles(delta: float) -> void:
-	for i in range(_particles.size() - 1, -1, -1):
-		var pt: Dictionary = _particles[i]
-		pt["life"] = float(pt["life"]) - delta
-		if float(pt["life"]) <= 0.0:
-			(pt["node"] as Node3D).queue_free()
-			_particles.remove_at(i)
-		else:
-			var vel: Vector3 = pt["vel"]
-			vel.y -= 11.5 * delta
-			pt["vel"] = vel
-			var node: Node3D = pt["node"]
-			node.position += vel * delta
-			node.scale = Vector3.ONE * clampf(float(pt["life"]) * 1.8, 0.1, 1.0)
+	if _fx_pool != null:
+		_fx_pool.update_particles(delta)
 
 
 func _check_round_end() -> void:
-	var alive_count: int = 0
-	for p in _players:
-		if p["alive"]:
-			alive_count += 1
+	var team_mode: bool = _team != null and _team.is_active()
+	if not team_mode:
+		var alive_count: int = 0
+		for p in _players:
+			if p["alive"]:
+				alive_count += 1
+		if alive_count == 0:
+			_finish_round("全員落入粉碎熔爐淘汰（提前結束）")
+		elif _time_left <= 0.0:
+			_finish_round("倒計時結束！%d 名存活玩家獲勝" % alive_count)
+		return
 
-	if alive_count == 0:
+	var counts: Dictionary = _team.count_alive_teams_array(_players)
+	var alive_count_t: int = int(counts["alive_count"])
+	var alive_teams: Dictionary = counts["alive_teams"]
+	if alive_count_t == 0:
 		_finish_round("全員落入粉碎熔爐淘汰（提前結束）")
+	elif alive_teams.size() <= 1 and _players.size() > 1:
+		var win_tid: int = int(alive_teams.keys()[0]) if alive_teams.size() == 1 else 0
+		_finish_round(_team.team_win_banner(win_tid) if win_tid > 0 else "對局提前結束")
 	elif _time_left <= 0.0:
-		_finish_round("倒計時結束！%d 名存活玩家獲勝" % alive_count)
+		_finish_round("倒計時結束！%d 名存活玩家獲勝" % alive_count_t)
 
 
 func _compute_rankings() -> Array[Dictionary]:
@@ -1434,6 +1235,17 @@ func _finish_round(reason: String) -> void:
 		var bonus: int = int(r["bonus"])
 		finalized_scores[nid] = bonus
 
+	if _team != null and _team.is_active():
+		var alive_ids: Array = []
+		for p in _players:
+			if bool(p["alive"]):
+				alive_ids.append(int(p["network_id"]))
+		finalized_scores = _team.sync_scores(finalized_scores, alive_ids)
+		_team.notify_round_win(finalized_scores, self)
+		if _hosted_in_official_game:
+			_team.mark_scores_applied(self)
+
+	_mpm_last_scores = finalized_scores
 	if _hosted_in_official_game and not _is_self_test:
 		show_round_result.rpc(rankings, reason)
 	else:
@@ -1451,440 +1263,15 @@ func show_round_result(rankings: Array, reason: String) -> void:
 
 
 func _build_ui() -> void:
-	_ui_layer = CanvasLayer.new()
-	_ui_layer.name = "GameHUD"
-	_ui_layer.layer = 2
-	add_child(_ui_layer)
-
-	var term_font: Font = _meshes.load_terminal_font()
-	var hud_theme := Theme.new()
-	if term_font != null:
-		hud_theme.default_font = term_font
-	var root_ctrl := Control.new()
-	root_ctrl.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root_ctrl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root_ctrl.theme = hud_theme
-	_ui_layer.add_child(root_ctrl)
-
-	_you_marker = YouMarkerOverlay.new()
-	_you_marker.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_you_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_you_marker.marker_font = term_font
-	_you_marker.marker_text = _loc_or("LOC_CONTROL_YOU", "YOU")
-	_you_marker.visible = false
-	root_ctrl.add_child(_you_marker)
-
-	_countdown_label = Label.new()
-	_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_countdown_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_countdown_label.add_theme_font_size_override("font_size", 68)
-	_countdown_label.add_theme_color_override("font_color", Color.WHITE)
-	_countdown_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_countdown_label.add_theme_constant_override("outline_size", 8)
-	root_ctrl.add_child(_countdown_label)
-	_countdown_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_countdown_label.hide()
-
-	_go_label = Label.new()
-	_go_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_go_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_go_label.add_theme_font_size_override("font_size", 68)
-	_go_label.add_theme_color_override("font_color", Color.WHITE)
-	_go_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	_go_label.add_theme_constant_override("outline_size", 8)
-	root_ctrl.add_child(_go_label)
-	_go_label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_go_label.hide()
-
-	_round_banner = Control.new()
-	_round_banner.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_round_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_round_banner.visible = false
-	root_ctrl.add_child(_round_banner)
-
-	var banner_bg := ColorRect.new()
-	banner_bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	banner_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	banner_bg.color = Color(0.0, 0.0, 0.0, 1.0)
-	_round_banner.add_child(banner_bg)
-
-	var grunge_tex = _meshes.load_optional("res://minigames/intermission_new/textures/intermission grunge overlay4.png")
-	if grunge_tex is Texture2D:
-		var grunge := TextureRect.new()
-		grunge.set_anchors_preset(Control.PRESET_FULL_RECT)
-		grunge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		grunge.texture = grunge_tex
-		grunge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		grunge.stretch_mode = TextureRect.STRETCH_SCALE
-		var g_mat := CanvasItemMaterial.new()
-		g_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_SUB
-		grunge.material = g_mat
-		grunge.modulate = Color(1.0, 1.0, 1.0, 0.25)
-		_round_banner.add_child(grunge)
-
-	var banner_vbox := VBoxContainer.new()
-	banner_vbox.set_anchors_preset(Control.PRESET_FULL_RECT)
-	banner_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	banner_vbox.add_theme_constant_override("separation", 18)
-	banner_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_round_banner.add_child(banner_vbox)
-
-	_round_title_label = Label.new()
-	_round_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_round_title_label.add_theme_font_size_override("font_size", 60)
-	_round_title_label.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
-	banner_vbox.add_child(_round_title_label)
-
-	_round_tagline_label = Label.new()
-	_round_tagline_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_round_tagline_label.add_theme_font_size_override("font_size", 24)
-	_round_tagline_label.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
-	_round_tagline_label.visible_characters_behavior = TextServer.VC_CHARS_AFTER_SHAPING
-	banner_vbox.add_child(_round_tagline_label)
-
-	if _hosted_in_official_game:
-		return
-
-	# --- End-of-Round Settlement Overlay (CRT Terminal) ---
-	_results_panel = _make_panel_box(Color(0.03, 0.04, 0.03, 0.96))
-	_results_panel.anchor_left = 0.5
-	_results_panel.anchor_right = 0.5
-	_results_panel.anchor_top = 0.5
-	_results_panel.anchor_bottom = 0.5
-	_results_panel.offset_left = -340.0
-	_results_panel.offset_right = 340.0
-	_results_panel.offset_top = -255.0
-	_results_panel.offset_bottom = 250.0
-	_results_panel.visible = false
-	root_ctrl.add_child(_results_panel)
-
-	var r_vbox := VBoxContainer.new()
-	r_vbox.add_theme_constant_override("separation", 10)
-	_results_panel.add_child(r_vbox)
-
-	_results_title = Label.new()
-	_results_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_results_title.text = "ROUND SUMMARY"
-	_results_title.add_theme_font_size_override("font_size", 28)
-	_results_title.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
-	r_vbox.add_child(_results_title)
-
-	_results_subtitle = Label.new()
-	_results_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_results_subtitle.add_theme_font_size_override("font_size", 16)
-	_results_subtitle.add_theme_color_override("font_color", Color(0.76, 0.86, 0.74))
-	r_vbox.add_child(_results_subtitle)
-
-	var r_scroll := ScrollContainer.new()
-	r_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	r_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	r_vbox.add_child(r_scroll)
-
-	_results_rows = VBoxContainer.new()
-	_results_rows.add_theme_constant_override("separation", 6)
-	_results_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	r_scroll.add_child(_results_rows)
-
-
-
-func _make_panel_box(bg: Color) -> PanelContainer:
-	var panel := PanelContainer.new()
-	var st := StyleBoxFlat.new()
-	st.bg_color = bg
-	st.content_margin_left = 18
-	st.content_margin_right = 18
-	st.content_margin_top = 14
-	st.content_margin_bottom = 14
-	st.corner_radius_top_left = 0
-	st.corner_radius_top_right = 0
-	st.corner_radius_bottom_left = 0
-	st.corner_radius_bottom_right = 0
-	st.border_color = Color(0.53, 0.83, 0.50, 0.85)
-	st.set_border_width_all(2)
-	panel.add_theme_stylebox_override("panel", st)
-	return panel
+	if _hud_ui != null:
+		_hud_ui.build_ui(self)
 
 
 func _populate_results_ui(rankings: Array, reason: String) -> void:
-	for child in _results_rows.get_children():
-		child.queue_free()
-
-	_results_title.text = "ROUND SUMMARY // 本局排名"
-	_results_subtitle.text = reason
-	for r in rankings:
-		var is_alive := bool(r["alive"])
-		var row := HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-
-		var rk := Label.new()
-		rk.custom_minimum_size.x = 46
-		rk.text = "#%d" % int(r["rank"])
-		rk.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
-		rk.add_theme_font_size_override("font_size", 17)
-		row.add_child(rk)
-
-		var nm := Label.new()
-		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		nm.text = str(r["nickname"]) + ("  [存活]" if is_alive else "  [淘汰]")
-		nm.add_theme_color_override("font_color", Color(0.92, 0.96, 0.90) if is_alive else Color(0.66, 0.44, 0.44))
-		nm.add_theme_font_size_override("font_size", 17)
-		row.add_child(nm)
-
-		var dg := Label.new()
-		dg.custom_minimum_size.x = 110
-		dg.text = "躲避 %d 次" % int(r["dodges"])
-		dg.add_theme_color_override("font_color", Color(0.84, 0.90, 0.82))
-		dg.add_theme_font_size_override("font_size", 17)
-		row.add_child(dg)
-
-		var bn := Label.new()
-		bn.custom_minimum_size.x = 155
-		bn.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		bn.text = "原始分 +%d" % int(r["bonus"])
-		bn.add_theme_color_override("font_color", Color(0.53, 0.83, 0.50))
-		bn.add_theme_font_size_override("font_size", 17)
-		row.add_child(bn)
-
-		_results_rows.add_child(row)
-
-	_results_panel.visible = true
-
-
-var _tests_failed: bool = false
-
-
-func _assert_true(cond: bool, msg: String) -> bool:
-	if not cond:
-		_tests_failed = true
-		push_error("SELF_TEST_FAILED: " + msg)
-		get_tree().quit(1)
-		return false
-	return true
-
-
-func _test_wave_pacing() -> bool:
-	_start_new_round()
-	_players.clear() # Follow an unobstructed lane for a full round.
-	_rng.seed = 451
-	const STEP := 1.0 / 60.0
-	var early_double_frames := 0
-	var late_double_frames := 0
-	var late_triple_frames := 0
-	var previous_arrival := -10.0
-	var minimum_gap := INF
-	var camera := get_viewport().get_camera_3d()
-	for frame in range(3000):
-		_elapsed = (frame + 1) * STEP
-		_step_spawner(STEP)
-		_step_rollers(STEP)
-		var visible_rollers := 0
-		var approaching := 0
-		for roller in _rollers:
-			if camera.is_position_in_frustum(Vector3(roller.x, 1, 0)):
-				visible_rollers += 1
-				if roller.x >= config.player_spawn_x:
-					approaching += 1
-			if roller.x < config.player_spawn_x and not roller.has("arrival_measured"):
-				minimum_gap = minf(minimum_gap, _elapsed - previous_arrival)
-				previous_arrival = _elapsed
-				roller.arrival_measured = true
-		if _elapsed <= 10 and approaching >= 2:
-			early_double_frames += 1
-		if _elapsed > 40 and visible_rollers >= 2:
-			late_double_frames += 1
-			if visible_rollers >= 3:
-				late_triple_frames += 1
-	for x in [config.stage_left_lava_x, config.player_spawn_x]:
-		for z in [-3.75, 3.75]:
-			if not _assert_true(camera.is_position_in_frustum(Vector3(x, 1.32, z)), "Players must stay visible up to the lava edge"):
-				return false
-	print("WAVE_PACING early double frames=%d/600, late doubles=%d/600, late triples=%d/600, min arrival gap=%.3f" % [early_double_frames, late_double_frames, late_triple_frames, minimum_gap])
-	return _assert_true(early_double_frames == 0 and late_double_frames > 300 and late_triple_frames >= 15 and minimum_gap >= config.safe_interval_floor(), "Late waves must be readable and allow consecutive jumps")
+	if _hud_ui != null:
+		_hud_ui.populate_results_ui(self, rankings, reason)
 
 
 func _run_self_tests() -> void:
-	_tests_failed = false
-	# 0. Test Option A: all 8 players spawn aligned on the exact same starting line (player_spawn_x)
-	config.max_players = 8
-	_start_new_round()
-	if not _assert_true(_players.size() == 8, "Must spawn 8 players when max_players=8"):
-		return
-	for i in range(_players.size()):
-		if not _assert_true(is_equal_approx(float(_players[i]["x"]), config.player_spawn_x), "All players must spawn on exact same starting line X"):
-			return
-		if i > 0 and not _assert_true(float(_players[i]["z"]) > float(_players[i - 1]["z"]), "Players must be strictly separated along Z lanes"):
-			return
-
-	config.player_spawn_x = 2.6
-	_start_new_round()
-	for p in _players:
-		if not _assert_true(is_equal_approx(float(p["x"]), 2.6), "Configured player_spawn_x must move all player spawns"):
-			return
-	var sl_node := _scene_props.get("starting_line", null) as Node3D
-	if not _assert_true(sl_node != null and is_equal_approx(sl_node.position.x, 2.6), "Stage StartingLine mesh must sync with configured player_spawn_x"):
-		return
-
-	# Check large preview rosters.
-	config.max_players = 16
-	_start_new_round()
-	if not _assert_true(_players.size() == 16, "Must spawn 16 players when max_players=16"):
-		return
-	for p16 in _players:
-		if not _assert_true(is_equal_approx(float(p16["x"]), config.player_spawn_x), "All 16 players must spawn on exact same starting line X"):
-			return
-	config.max_players = 8
-	config.player_spawn_x = 1.6
-
-	# 1. Test Gold High Roller: standing player hit (knockback, +0) vs crouching player dodges (+1)
-	config.max_players = 2
-	_start_new_round()
-	var p_stand: Dictionary = _players[0]
-	var p_crouch: Dictionary = _players[1]
-	p_stand["x"] = 0.0
-	p_crouch["x"] = 0.0
-	p_stand["crouching"] = false
-	p_crouch["crouching"] = true
-
-	var gold_r := _spawn_roller("gold", 0.1)
-	_evaluate_roller_interactions(gold_r)
-	if not _assert_true(is_equal_approx(float(p_stand["x"]), -config.knockback_distance), "Standing player must be knocked back by Gold roller"):
-		return
-	if not _assert_true(is_equal_approx(float(p_crouch["x"]), 0.0), "Crouching player must avoid Gold roller"):
-		return
-
-	gold_r["x"] = -2.8
-	_evaluate_roller_interactions(gold_r)
-	if not _assert_true(int(p_stand["dodges"]) == 0, "Hit player must not gain dodge count"):
-		return
-	if not _assert_true(int(p_crouch["dodges"]) == 1, "Crouching player must gain +1 dodge after Gold roller passes"):
-		return
-
-	# 2. Test Silver Low Roller: crouching player hit (knockback, +0) vs jumping player dodges (+1)
-	p_stand["x"] = 0.0
-	p_stand["knockback_cooldown"] = 0.0
-	p_stand["crouching"] = true
-	p_crouch["x"] = 0.0
-	p_crouch["crouching"] = false
-	p_crouch["jumping"] = true
-	p_crouch["y"] = 1.2
-
-	var silver_r := _spawn_roller("silver", 0.1)
-	_evaluate_roller_interactions(silver_r)
-	if not _assert_true(is_equal_approx(float(p_stand["x"]), -config.knockback_distance), "Crouching player must be knocked back by Silver roller"):
-		return
-	if not _assert_true(is_equal_approx(float(p_crouch["x"]), 0.0), "Jumping player must avoid Silver roller"):
-		return
-
-	silver_r["x"] = -2.8
-	_evaluate_roller_interactions(silver_r)
-	if not _assert_true(int(p_stand["dodges"]) == 0, "Hit player must not gain dodge count for Silver roller"):
-		return
-	if not _assert_true(int(p_crouch["dodges"]) == 2, "Jumping player must gain +1 dodge after Silver roller passes"):
-		return
-
-	# 3. Test cumulative knockback -> lava elimination -> early match termination
-	p_stand["x"] = config.stage_left_lava_x + 0.5
-	p_stand["knockback_cooldown"] = 0.0
-	p_stand["crouching"] = false
-	var push_r := _spawn_roller("gold", float(p_stand["x"]) + 0.1)
-	_evaluate_roller_interactions(push_r)
-	if not _assert_true(not bool(p_stand["alive"]), "Player pushed past stage_left_lava_x must be eliminated"):
-		return
-
-	_eliminate_player(p_crouch)
-	if not _assert_true(not _results_panel.visible and not _countdown_label.visible, "Play must leave the stage unobstructed"):
-		return
-
-	_check_round_end()
-	if not _assert_true(_match_ended, "Match must end immediately when all players are eliminated"):
-		return
-
-	# 4. Raw points are based on the actual roster and shared rank.
-	var ranks := _compute_rankings()
-	if not _assert_true(ranks.size() == 2, "Rankings must include both players"):
-		return
-	if not _assert_true(int(ranks[0]["id"]) == 1 and int(ranks[0]["bonus"]) == 2, "First of two earns 2 raw points"):
-		return
-	if not _assert_true(int(ranks[1]["id"]) == 0 and int(ranks[1]["bonus"]) == 1, "Second of two earns 1 raw point"):
-		return
-	_players[0].dodges = _players[1].dodges
-	var tied := _compute_rankings()
-	if not _assert_true(tied[0].bonus == 2 and tied[1].bonus == 2, "Tied players share raw points"):
-		return
-
-	if not _test_wave_pacing():
-		return
-
-	_hosted_in_official_game = true
-	var intro_camera := Camera3D.new()
-	add_child(intro_camera)
-	intro_camera.make_current()
-	start_round([{"id":0, "network_id":1, "nickname":"Host"}, {"id":1, "network_id":42, "nickname":"Guest"}])
-	if not _assert_true(get_viewport().get_camera_3d() == $StageCamera, "Countdown must take the camera back from the intro"):
-		return
-	intro_camera.queue_free()
-	for player in _players:
-		if not _assert_true(player.visual.position.y > 0 and player.node.position.y == 0, "Entrance raises each visual above its seat"):
-			return
-	_countdown -= ENTRANCE_SECONDS
-	_update_entrance()
-	for player in _players:
-		if not _assert_true(is_zero_approx(player.visual.position.y), "All players land before GO"):
-			return
-	var tap := InputEventKey.new()
-	tap.keycode = KEY_S
-	tap.pressed = true
-	_input(tap)
-	_countdown = 0
-	_input(tap)
-	if not _assert_true(not _players[0].crouching, "Holding through countdown must not trigger"):
-		return
-	tap.pressed = false
-	_input(tap)
-	tap.pressed = true
-	_input(tap)
-	if not _assert_true(_players[0].crouching, "Press starts crouching immediately"):
-		return
-	var down := InputEventKey.new()
-	down.keycode = KEY_DOWN
-	down.pressed = true
-	_input(down)
-	tap.pressed = false
-	_input(tap)
-	if not _assert_true(_players[0].crouching, "Second held crouch key keeps player crouched"):
-		return
-	down.pressed = false
-	_input(down)
-	if not _assert_true(not _players[0].crouching, "Final key release ends crouch immediately"):
-		return
-	_tick_crouch(_players[0], config.crouch_recovery)
-	tap.pressed = true
-	_input(tap)
-	if not _assert_true(_players[0].crouching, "New press works after short recovery"):
-		return
-	_tick_crouch(_players[0], config.crouch_duration + config.crouch_recovery)
-	tap.pressed = true
-	tap.echo = true
-	_input(tap)
-	if not _assert_true(not _players[0].crouching, "Keyboard repeat must not retrigger"):
-		return
-	_apply_input(42, 1)
-	if not _assert_true(_players[1].crouching and not _players[0].crouching, "Only sender crouches"):
-		return
-	_tick_crouch(_players[1], config.crouch_duration - 0.01)
-	if not _assert_true(_players[1].crouching, "Crouch lasts configured duration"):
-		return
-	_tick_crouch(_players[1], 0.02)
-	if not _assert_true(not _players[1].crouching, "Held crouch expires"):
-		return
-	var captured := {}
-	round_finished.connect(func(scores: Dictionary): captured.merge(scores))
-	_players[0].dodges = 7
-	_players[1].dodges = 3
-	_finish_round("test")
-	if not _assert_true(captured == {1:2, 42:1}, "Scores keyed by real peers"):
-		return
-
-	if not _tests_failed:
-		print("SELF_TEST_PASSED")
-		get_tree().quit(0)
+	if _self_test_runner != null:
+		_self_test_runner.run_self_tests(self)

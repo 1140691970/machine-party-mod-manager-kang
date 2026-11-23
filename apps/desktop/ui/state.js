@@ -13,6 +13,7 @@ export const state = {
   pckDir: "",
   inventory: {},
   modStates: {},
+  disabledMods: [],
   scan: "checking",
   packages: {},
   pinned: [],

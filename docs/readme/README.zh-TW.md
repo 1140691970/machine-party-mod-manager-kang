@@ -80,12 +80,13 @@ Steam 目錄自動偵測 · 離線快取與還原 · 简体中文 / 繁體中文
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | 最多 8 人線上或本機同玩 | 作者 CLI 資源清單 → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | 公開房間、語音與文字聊天 | 原生 MPML |
-| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.10` | 機械狂歡躲避小遊戲 | 原生 MPML |
+| [滾筒嘉年華](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.11` | 機械狂歡躲避小遊戲 | 原生 MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | 房主可加入或移除預設就緒的測試機器人。 | 原生 MPML |
 | [獨立高清](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.2` | 提高 3D 渲染清晰度，保留視窗模式與 HUD 配置 | 原生 MPML |
 | [玩家聚光燈](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.1` | 在所有 3D 小遊戲中只為自己點亮頭頂工業聚光燈 | 原生 MPML |
-| [泡泡爆破](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.4` | 3 滴血結合版泡泡堂小遊戲，4 套隨機地圖與傳送帶互坑 | 原生 MPML |
-| [尖刺圓環](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.2` | 60 秒重工業環形生存賽：牆壁缺口雷射、電鋸、伸縮地刺、縮圈尖刺環與空投道具互推 | 原生 MPML |
+| [泡泡爆破](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.5` | 3 滴血結合版泡泡堂小遊戲，4 套隨機地圖與傳送帶互坑 | 原生 MPML |
+| [尖刺圓環](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.3` | 60 秒重工業環形生存賽：牆壁缺口雷射、電鋸、伸縮地刺、縮圈尖刺環與空投道具互推 | 原生 MPML |
+| [組隊派對](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/team-party) | `v0.1.0` | 房間 2–4 隊手動／洗牌／拖曳分隊、原版小遊戲掛接與全模組共享團隊註冊表 | 原生 MPML |
 
 驗收清單、上游授權邊界與互斥群組規則詳見[候選模組與收錄規範](../zh-TW/catalog/mods.md)。
 

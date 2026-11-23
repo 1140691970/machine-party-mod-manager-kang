@@ -17,6 +17,11 @@ signal round_finished(scores: Dictionary)
 
 const CONFIG_RES := "res://mods_spike_ring/config.gd"
 const MESHES_RES := "res://mods_spike_ring/arena_meshes.gd"
+const TEAM_RES := "res://mods_spike_ring/team_support.gd"
+const HAZARDS_RES := "res://mods_spike_ring/hazard_director.gd"
+const FX_POOL_RES := "res://mods_spike_ring/fx_pool.gd"
+const AI_RES := "res://mods_spike_ring/ai_controller.gd"
+const SELF_TEST_RES := "res://mods_spike_ring/self_test.gd"
 
 # ---------------------------------------------------------------- 阶段
 const PH_PREP := 0
@@ -25,6 +30,13 @@ const PH_ENDED := 2
 
 var C = null
 var M = null
+var _team = null
+var _hazard_director = null
+var _fx_pool = null
+var _ai_ctrl = null
+var _self_test_runner = null
+var _early_win_tid: int = 0
+var _mpm_last_official: Dictionary = {}
 
 var _standalone_mode: bool = false
 var _is_server_sim: bool = true
@@ -88,14 +100,6 @@ var _ambience: AudioStreamPlayer = null
 var _fx_hit_scene: PackedScene = null
 var _fx_dust_scene: PackedScene = null
 
-const POOL_HIT_FX := 6
-const POOL_DUST_FX := 4
-const MAX_ACTIVE_SAW_LIGHTS := 2
-
-var _hit_fx_pool: Array[Dictionary] = []
-var _dust_fx_pool: Array[Dictionary] = []
-var _hit_fx_cursor: int = 0
-var _dust_fx_cursor: int = 0
 var _active_saw_lights: int = 0
 var _is_self_test: bool = false
 var _cam_base_pos: Vector3 = Vector3(0.0, 14.0, 8.8)
@@ -116,8 +120,6 @@ var _slap_prev_ready: bool = true
 var _slap_pop_timer: float = 0.0
 var _airdrops: Array = []
 var _airdrop_next_idx: int = 0
-var _popups: Array = []
-var _shockwaves: Array = []
 
 var _screenshot_path: String = ""
 var _screenshot_frames: int = 0
@@ -127,19 +129,44 @@ var _screenshot_frames: int = 0
 # 1. 生命周期与场景搭建
 # ============================================================================
 
+func _load_sibling_script(reg_res: String, filename: String):
+	if ResourceLoader.exists(reg_res):
+		return ResourceLoader.load(reg_res)
+	var self_script: Script = get_script() as Script
+	if self_script != null and not self_script.resource_path.is_empty():
+		var abs_path: String = self_script.resource_path.get_base_dir().path_join(filename)
+		if ResourceLoader.exists(abs_path):
+			return ResourceLoader.load(abs_path)
+	return load("res://" + filename)
+
+
 func _load_helpers() -> void:
 	if C == null:
-		if ResourceLoader.exists(CONFIG_RES):
-			C = ResourceLoader.load(CONFIG_RES)
-		else:
-			C = load("res://config.gd")
+		C = _load_sibling_script(CONFIG_RES, "config.gd")
 	if M == null:
-		if ResourceLoader.exists(MESHES_RES):
-			M = ResourceLoader.load(MESHES_RES)
-		else:
-			M = load("res://arena_meshes.gd")
+		M = _load_sibling_script(MESHES_RES, "arena_meshes.gd")
 	if M != null:
 		M.ensure_game_pck_mounted()
+	if _team == null:
+		var ts = _load_sibling_script(TEAM_RES, "team_support.gd")
+		if ts != null:
+			_team = ts.new()
+	if _hazard_director == null:
+		var hd = _load_sibling_script(HAZARDS_RES, "hazard_director.gd")
+		if hd != null:
+			_hazard_director = hd.new()
+	if _fx_pool == null:
+		var fp = _load_sibling_script(FX_POOL_RES, "fx_pool.gd")
+		if fp != null:
+			_fx_pool = fp.new()
+	if _ai_ctrl == null:
+		var ai = _load_sibling_script(AI_RES, "ai_controller.gd")
+		if ai != null:
+			_ai_ctrl = ai.new()
+	if _self_test_runner == null:
+		var st = _load_sibling_script(SELF_TEST_RES, "self_test.gd")
+		if st != null:
+			_self_test_runner = st.new()
 
 
 func _ready() -> void:
@@ -174,8 +201,15 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _fx_pool != null:
+		_fx_pool.clear()
 	if M != null and M.has_method("clear_caches"):
 		M.clear_caches()
+	_team = null
+	_hazard_director = null
+	_fx_pool = null
+	_ai_ctrl = null
+	_self_test_runner = null
 
 
 func _setup_environment() -> void:
@@ -509,12 +543,8 @@ func _clear_arena() -> void:
 	_hazards.clear()
 	_airdrops.clear()
 	_airdrop_next_idx = 0
-	_popups.clear()
-	_shockwaves.clear()
-	_hit_fx_pool.clear()
-	_dust_fx_pool.clear()
-	_hit_fx_cursor = 0
-	_dust_fx_cursor = 0
+	if _fx_pool != null:
+		_fx_pool.clear()
 	_active_saw_lights = 0
 	_players.clear()
 	_client_inputs.clear()
@@ -524,6 +554,11 @@ func _clear_arena() -> void:
 
 func _setup_match_local(round_index: int, seed_val: int, roster: Array, is_preview: bool) -> void:
 	_clear_arena()
+	if _team != null:
+		_team.begin_match(self, roster)
+	var synced_roster: Array = _team.annotate_roster(roster) if (_team != null and _team.is_active()) else roster
+	_early_win_tid = 0
+	_mpm_last_official.clear()
 	_round_index = round_index
 	_round_cfg = C.ROUND_CONFIGS[round_index % maxi(1, C.ROUND_CONFIGS.size())]
 	_map_seed = seed_val
@@ -546,7 +581,7 @@ func _setup_match_local(round_index: int, seed_val: int, roster: Array, is_previ
 	if _prep_remaining <= 0.0:
 		_phase = PH_LIVE
 
-	_arena_radius = C.arena_radius_for_players(roster.size())
+	_arena_radius = C.arena_radius_for_players(synced_roster.size())
 	_frame_arena()
 
 	var accent_rgb: Array = _round_cfg.get("accent", [0.96, 0.68, 0.22])
@@ -562,9 +597,9 @@ func _setup_match_local(round_index: int, seed_val: int, roster: Array, is_previ
 	_shrink_warn = stage.get("shrink_warn", null) as Node3D
 	_nozzles = stage["nozzles"]
 
-	var spawns: Array = C.compute_spawns(roster.size(), seed_val, _arena_radius)
-	for i in range(roster.size()):
-		var entry: Dictionary = roster[i]
+	var spawns: Array = C.compute_spawns(synced_roster.size(), seed_val, _arena_radius)
+	for i in range(synced_roster.size()):
+		var entry: Dictionary = synced_roster[i]
 		var net_id: int = int(entry.get("network_id", i + 1))
 		var spawn: Vector2 = spawns[i % spawns.size()]
 		var cust_raw = entry.get("customization", [])
@@ -624,6 +659,19 @@ func _setup_match_local(round_index: int, seed_val: int, roster: Array, is_previ
 			"ai_timer": 0.0,
 		}
 		_pos_history[net_id] = [[0.0, Vector3(spawn.x, 0.0, spawn.y)]]
+
+	if _team != null and _team.is_active() and not _players.is_empty():
+		_team.group_radial_spawns(_players, synced_roster, _pos_history)
+		for raw_nid in _players.keys():
+			var nid: int = int(raw_nid)
+			var tid: int = _team.player_team(nid)
+			var p: Dictionary = _players[raw_nid] as Dictionary
+			if tid > 0:
+				var pnode: Node3D = p.get("node", null) as Node3D
+				if pnode != null:
+					_team.attach_foot_ring(pnode, tid)
+					var np := pnode.get_node_or_null("Nameplate") as Label3D
+					p["nickname"] = _team.apply_nameplate(np, str(p.get("nickname", "")), tid)
 
 	_init_fx_pools()
 	_banner_label.text = str(int(ceil(_prep_remaining))) if _prep_remaining > 0.0 else ""
@@ -990,12 +1038,15 @@ func _try_push(attacker: Dictionary) -> void:
 	attacker["shove_anim_timer"] = 0.26
 	attacker["push_cooldown"] = C.PUSH_COOLDOWN_SEC
 
+	var attacker_id: int = int(attacker["network_id"])
 	var victims: Array = []
 	if is_shockwave:
 		attacker["power_item"] = C.ITEM_NONE
 		_spawn_shockwave(Vector3(origin.x, 0.35, origin.y))
 		for net_id in _players.keys():
-			if net_id == int(attacker["network_id"]):
+			if int(net_id) == attacker_id:
+				continue
+			if _team != null and _team.are_teammates(attacker_id, int(net_id)):
 				continue
 			var target: Dictionary = _players[net_id]
 			if not bool(target["alive"]) or int(target["state"]) == C.ST_FALLEN or float(target["invuln_timer"]) > 0.0:
@@ -1007,7 +1058,9 @@ func _try_push(attacker: Dictionary) -> void:
 		var best_id: int = -1
 		var best_dist: float = C.PUSH_RANGE
 		for net_id in _players.keys():
-			if net_id == int(attacker["network_id"]):
+			if int(net_id) == attacker_id:
+				continue
+			if _team != null and _team.are_teammates(attacker_id, int(net_id)):
 				continue
 			var target: Dictionary = _players[net_id]
 			if not bool(target["alive"]) or int(target["state"]) == C.ST_FALLEN:
@@ -1063,63 +1116,18 @@ func _try_push(attacker: Dictionary) -> void:
 
 
 func _spawn_score_popup(world_pos: Vector3, text: String, color: Color) -> void:
-	if _is_self_test or _fx_root == null:
-		return
-	var lbl := Label3D.new()
-	lbl.text = text
-	lbl.font_size = 46
-	lbl.outline_size = 10
-	lbl.pixel_size = 0.011
-	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	lbl.no_depth_test = true
-	lbl.modulate = color
-	if _term_font != null:
-		lbl.font = _term_font
-	lbl.position = world_pos
-	_fx_root.add_child(lbl)
-	_popups.append({"node": lbl, "age": 0.0, "max_age": 0.85, "base_col": color})
+	if _fx_pool != null:
+		_fx_pool.spawn_score_popup(self, world_pos, text, color)
 
 
 func _spawn_shockwave(world_pos: Vector3) -> void:
-	if _is_self_test or _fx_root == null or M == null:
-		return
-	var ring: MeshInstance3D = M.build_shockwave_ring()
-	ring.position = world_pos
-	ring.scale = Vector3(0.35, 1.0, 0.35)
-	_fx_root.add_child(ring)
-	_shockwaves.append({"node": ring, "age": 0.0, "max_age": 0.34, "max_r": C.SHOCKWAVE_RANGE})
+	if _fx_pool != null:
+		_fx_pool.spawn_shockwave(self, world_pos)
 
 
 func _step_popups_and_shockwaves(delta: float) -> void:
-	for i in range(_popups.size() - 1, -1, -1):
-		var pop: Dictionary = _popups[i]
-		var lbl: Label3D = pop["node"]
-		pop["age"] = float(pop["age"]) + delta
-		var t: float = float(pop["age"]) / float(pop["max_age"])
-		if not is_instance_valid(lbl) or t >= 1.0:
-			if is_instance_valid(lbl):
-				lbl.queue_free()
-			_popups.remove_at(i)
-		else:
-			lbl.position.y += delta * 1.45
-			var col: Color = pop["base_col"]
-			col.a = clampf(1.0 - t * t, 0.0, 1.0)
-			lbl.modulate = col
-			_popups[i] = pop
-
-	for i in range(_shockwaves.size() - 1, -1, -1):
-		var sw: Dictionary = _shockwaves[i]
-		var ring: MeshInstance3D = sw["node"]
-		sw["age"] = float(sw["age"]) + delta
-		var t: float = float(sw["age"]) / float(sw["max_age"])
-		if not is_instance_valid(ring) or t >= 1.0:
-			if is_instance_valid(ring):
-				ring.queue_free()
-			_shockwaves.remove_at(i)
-		else:
-			var r: float = lerpf(0.35, float(sw["max_r"]), 1.0 - pow(1.0 - t, 2.0))
-			ring.scale = Vector3(r, maxf(0.15, 1.0 - t * 0.7), r)
-			_shockwaves[i] = sw
+	if _fx_pool != null:
+		_fx_pool.step_popups_and_shockwaves(delta)
 
 
 func _step_airdrops(delta: float) -> void:
@@ -1199,6 +1207,20 @@ func _step_airdrops(delta: float) -> void:
 				if itype == C.ITEM_SHIELD:
 					p["shield"] = true
 					_spawn_score_popup(Vector3(pflat.x, 2.5, pflat.y), "護盾!", Color(0.36, 0.92, 1.0))
+					if _team != null and _team.is_active():
+						var link_txt: String = "護盾共振!" if _team.is_tw_locale() else ("护盾共振!" if _team.is_cn_locale() else "SHIELD LINK!")
+						var picker_id: int = int(net_id)
+						for ally_id in _players.keys():
+							var aid: int = int(ally_id)
+							if aid == picker_id or not _team.are_teammates(picker_id, aid):
+								continue
+							var ally: Dictionary = _players[ally_id]
+							if not bool(ally["alive"]) or bool(ally.get("shield", false)):
+								continue
+							var aflat := Vector2(ally["pos"].x, ally["pos"].z)
+							if aflat.distance_to(pflat) <= 3.5:
+								ally["shield"] = true
+								_spawn_score_popup(Vector3(aflat.x, 2.5, aflat.y), link_txt, Color(0.36, 0.92, 1.0))
 				elif itype == C.ITEM_POWER_SHOVE:
 					p["power_item"] = C.ITEM_POWER_SHOVE
 					p["push_cooldown"] = 0.0
@@ -1221,543 +1243,24 @@ func _step_airdrops(delta: float) -> void:
 
 
 func _compute_ai_input(p: Dictionary, delta: float, prep: bool) -> Dictionary:
-	## 战术 AI：识别预警/激活中的激光、电锯与喷火，自动起跳越过激光、横移躲电锯，并在安全时主动推人。
-	p["ai_timer"] = float(p.get("ai_timer", 0.0)) - delta
-	if float(p["ai_timer"]) <= 0.0:
-		p["ai_timer"] = _rng.randf_range(0.35, 0.95)
-		var a: float = _rng.randf() * TAU
-		p["ai_dir"] = Vector2(cos(a), sin(a))
-
-	var pos := Vector2(p["pos"].x, p["pos"].z)
-	var avoid := Vector2.ZERO
-	var want_jump: bool = false
-	var want_push: bool = false
-	var aim_dir: Vector2 = p.get("facing", Vector2(0.0, 1.0))
-
-	# 1. 避开边缘尖刺墙 / 正在收缩的毒圈
-	var live_edge: float = C.current_arena_radius(_elapsed_time, _arena_radius) - C.PLAYER_RADIUS
-	var edge_dist: float = pos.length()
-	if edge_dist > live_edge * 0.65:
-		var pull: float = clampf((edge_dist - live_edge * 0.65) / maxf(0.1, live_edge * 0.35), 0.0, 1.0)
-		avoid += -pos.normalized() * (1.2 + pull * 2.6)
-
-	# 2. 感知场内机关（贴地火带可跳或躲，上身激光与电锯必须横移躲避）
-	if not prep:
-		for raw in _hazards.values():
-			var h: Dictionary = raw
-			var st: int = int(h["state"])
-			if st == C.HAZARD_STATE_DONE:
-				continue
-			var hz_type: int = int(h["type"])
-			var ha: Vector2 = h["a"]
-			var hb: Vector2 = h["b"]
-			if hz_type == C.HZ_SAW:
-				var sp: Vector2 = h["saw_pos"] if st == C.HAZARD_STATE_ACTIVE else ha
-				var to_me: Vector2 = pos - sp
-				var d_saw: float = to_me.length()
-				if d_saw < 2.8:
-					var seg_dir: Vector2 = (hb - ha).normalized()
-					var perp := Vector2(-seg_dir.y, seg_dir.x)
-					if perp.dot(to_me) < 0.0:
-						perp = -perp
-					avoid += (perp * 2.6 + to_me.normalized() * 1.0) * (1.0 - d_saw / 2.8)
-			elif hz_type == C.HZ_LASER:
-				var total_len: float = ha.distance_to(hb)
-				var d_seg: float = C.point_chord_distance(pos, h["n"], float(h["d"]))
-				var half_w: float = float(h["width"]) * 0.5 + C.PLAYER_RADIUS
-				if total_len > 0.2 and d_seg < half_w + 3.2:
-					var seg_dir: Vector2 = (hb - ha) / total_len
-					var gap_t: float = float(h.get("gap_t", 0.5))
-					var gap_w: float = float(h.get("gap_width", C.LASER_GAP_WIDTH))
-					var gap_c: float = clampf(gap_t * total_len, gap_w * 0.65, total_len - gap_w * 0.65)
-					var gap_pt: Vector2 = ha + seg_dir * gap_c
-					var to_gap: Vector2 = gap_pt - pos
-					if to_gap.length() > 0.35:
-						avoid += to_gap.normalized() * (2.6 if st == C.HAZARD_STATE_ACTIVE else 1.7)
-					else:
-						# 已对准缺口，沿缺口穿行
-						var perp := Vector2(-seg_dir.y, seg_dir.x)
-						if perp.dot(pos - gap_pt) < 0.0:
-							perp = -perp
-						avoid += perp * 0.8
-			else:
-				var d_seg: float = C.point_chord_distance(pos, h["n"], float(h["d"]))
-				var half_w: float = float(h["width"]) * 0.5 + C.PLAYER_RADIUS
-				if d_seg < half_w + 1.8:
-					var seg_dir: Vector2 = (hb - ha).normalized()
-					var perp := Vector2(-seg_dir.y, seg_dir.x)
-					if perp.dot(pos - (ha + hb) * 0.5) < 0.0:
-						perp = -perp
-					avoid += perp * (2.8 if st == C.HAZARD_STATE_ACTIVE else 1.8)
-
-	# 2b. 安全时主动争夺已落地的空投道具
-	if not prep and avoid.length() < 1.2 and not _airdrops.is_empty():
-		var best_ad_dist: float = 999.0
-		var best_ad_pos := Vector2.ZERO
-		for raw_ad in _airdrops:
-			var ad: Dictionary = raw_ad
-			if not bool(ad["landed"]):
-				continue
-			var adp: Vector2 = ad["pos"]
-			var d_ad: float = pos.distance_to(adp)
-			if d_ad < best_ad_dist:
-				best_ad_dist = d_ad
-				best_ad_pos = adp
-		if best_ad_dist < 7.5:
-			avoid += (best_ad_pos - pos).normalized() * 1.15
-
-	# 3. 安全时寻找附近对手尝试推人
-	var my_id: int = int(p["network_id"])
-	var closest_rival := Vector2.ZERO
-	var closest_dist: float = 999.0
-	if not prep and avoid.length() < 1.2 and float(p["push_cooldown"]) <= 0.0:
-		for other_id in _players.keys():
-			if other_id == my_id:
-				continue
-			var other: Dictionary = _players[other_id]
-			if not bool(other["alive"]) or int(other["state"]) == C.ST_FALLEN or float(other["invuln_timer"]) > 0.0:
-				continue
-			var op := Vector2(other["pos"].x, other["pos"].z)
-			var d: float = pos.distance_to(op)
-			if d < closest_dist:
-				closest_dist = d
-				closest_rival = op
-		if closest_dist <= C.PUSH_RANGE * 0.92:
-			aim_dir = (closest_rival - pos).normalized()
-			want_push = true
-		elif closest_dist < 4.0:
-			avoid += (closest_rival - pos).normalized() * 0.65
-
-	var dir: Vector2 = (p.get("ai_dir", Vector2.ZERO) * 0.45 + avoid).limit_length(1.0)
-	if not want_push and dir.length_squared() > 0.01:
-		aim_dir = dir.normalized()
-	return {
-		"dir": dir,
-		"aim": aim_dir,
-		"jump": want_jump,
-		"push": want_push,
-	}
+	if _ai_ctrl != null:
+		return _ai_ctrl.compute_input(self, p, delta, prep)
+	return {"dir": Vector2.ZERO, "aim": Vector2(0.0, 1.0), "jump": false, "push": false}
 
 
 # ============================================================================
 # 5. 机关生成 / 安全生成器 / 机关时间线
 # ============================================================================
 
-func _live_hazard_count() -> int:
-	var n: int = 0
-	for raw in _hazards.values():
-		var h: Dictionary = raw
-		if int(h["state"]) != C.HAZARD_STATE_DONE:
-			n += 1
-	return n
-
-
-func _has_live_laser() -> bool:
-	for raw in _hazards.values():
-		var h: Dictionary = raw
-		if int(h["type"]) == C.HZ_LASER and int(h["state"]) != C.HAZARD_STATE_DONE:
-			return true
-	return false
-
-
-func _pick_weighted_type(phase: Dictionary) -> int:
-	if C.HAZARD_LASER_ONLY:
-		return C.HZ_LASER
-	var weights: Dictionary = phase.get("weights", {"flame": 0.3, "saw": 0.35, "laser": 0.35})
-	var allow_laser: bool = not _has_live_laser()
-	var w_flame: float = float(weights.get("flame", 0.3))
-	var w_saw: float = float(weights.get("saw", 0.35))
-	var w_laser: float = float(weights.get("laser", 0.35)) if allow_laser else 0.0
-	var total: float = w_flame + w_saw + w_laser
-	if total <= 0.001:
-		return C.HZ_SAW
-	var r: float = _rng.randf() * total
-	if r < w_flame:
-		return C.HZ_FLAME
-	if r < w_flame + w_saw:
-		return C.HZ_SAW
-	return C.HZ_LASER
-
-
 func _step_spawner(delta: float) -> void:
-	## 按难度阶段权重生成三类机关（贴地火带 / 电锯 / 带安全缺口的上身激光）；
-	## 任何时刻场上最多只允许 1 条激光，彻底杜绝两侧激光夹击无解。
-	var phase: Dictionary = C.difficulty_phase(_elapsed_time, _round_cfg)
-	_spawn_timer -= delta
-	if _spawn_timer > 0.0:
-		return
-	_spawn_timer = float(phase["interval"])
-
-	var budget: int = int(phase["max_concurrent"]) - _live_hazard_count()
-	if budget <= 0:
-		return
-	var want: int = mini(budget, int(phase.get("burst", 1)))
-	var made: int = 0
-	for _b in range(want):
-		var hz_type: int = _pick_weighted_type(phase)
-		if hz_type == C.HZ_LASER and _has_live_laser():
-			hz_type = C.HZ_SAW
-		for _attempt in range(C.SAFETY_RETRY_MAX):
-			var cand: Dictionary = _make_candidate(hz_type, phase, Vector2.ZERO)
-			if cand.is_empty():
-				continue
-			if _safety_check(cand, float(phase["interval"])):
-				_commit_hazard(cand)
-				made += 1
-				break
-	if made == 0:
-		_spawn_timer = maxf(0.4, float(phase["interval"]) * 0.5)
-
-
-func _pick_alternative_type(phase: Dictionary) -> int:
-	if C.HAZARD_LASER_ONLY:
-		return C.HZ_LASER
-	for raw_t in [C.HZ_FLAME, C.HZ_SAW, C.HZ_LASER]:
-		var t: int = raw_t
-		if _srv_time - float(_last_type_spawn.get(t, -999.0)) >= C.HAZARD_TYPE_COOLDOWN_SEC:
-			return t
-	return -1
-
-
-func _make_candidate(hz_type: int, phase: Dictionary, bundle_n: Vector2 = Vector2.ZERO) -> Dictionary:
-	var params: Dictionary = C.hazard_params(hz_type, _rng, float(phase["speed_scale"]))
-	var a := Vector2.ZERO
-	var b := Vector2.ZERO
-	var n := Vector2.ZERO
-	var d: float = 0.0
-	var nozzle: int = -1
-
-	if hz_type == C.HZ_FLAME:
-		# 从圆周喷火口沿弦线喷向另一侧；同一喷口有冷却。
-		for _i in range(6):
-			var pick: int = _rng.randi_range(0, C.NOZZLE_COUNT - 1)
-			if _srv_time - float(_nozzle_cooldown.get(pick, -999.0)) >= C.NOZZLE_COOLDOWN_SEC:
-				nozzle = pick
-				break
-		if nozzle < 0:
-			return {}
-		var na: float = TAU * float(nozzle) / float(C.NOZZLE_COUNT)
-		a = Vector2(cos(na), sin(na)) * _arena_radius
-		var inward: Vector2 = -a.normalized()
-		var jitter: float = _rng.randf_range(-1.0, 1.0)
-		var u: Vector2 = inward.rotated(jitter * 0.9).normalized()
-		b = a + u * (-2.0 * a.dot(u))
-		n = Vector2(-u.y, u.x).normalized()
-		d = a.dot(n)
-	else:
-		if bundle_n != Vector2.ZERO:
-			n = bundle_n.rotated(_rng.randf_range(-0.14, 0.14)).normalized()
-		else:
-			var ang: float = _rng.randf() * TAU
-			n = Vector2(cos(ang), sin(ang))
-		d = _rng.randf_range(-_arena_radius * 0.72, _arena_radius * 0.72)
-		var ends: Array = C.chord_endpoints(n, d, _arena_radius)
-		a = ends[0]
-		b = ends[1]
-
-	var length: float = a.distance_to(b)
-	if length < _arena_radius * 0.5:
-		return {}
-	var active: float = float(params["active"])
-	if hz_type == C.HZ_SAW:
-		active = minf(C.SAW_ACTIVE_MAX, length / maxf(0.1, float(params["speed"])))
-	var sweep_dir: float = (1.0 if d <= 0.0 else -1.0) if hz_type == C.HZ_LASER else 0.0
-	var sweep_speed: float = C.LASER_SWEEP_SPEED * float(phase.get("speed_scale", 1.0)) if hz_type == C.HZ_LASER else 0.0
-	var gap_t: float = _rng.randf_range(0.24, 0.76) if hz_type == C.HZ_LASER else 0.5
-	return {
-		"type": hz_type,
-		"n": n,
-		"d": d,
-		"d_base": d,
-		"sweep_dir": sweep_dir,
-		"sweep_speed": sweep_speed,
-		"gap_t": gap_t,
-		"gap_width": C.LASER_GAP_WIDTH,
-		"a": a,
-		"b": b,
-		"length": length,
-		"width": float(params["width"]),
-		"clear_height": float(params["clear_height"]),
-		"speed": float(params["speed"]),
-		"warn": float(params["warn"]),
-		"active": active,
-		"nozzle": nozzle,
-		"state": C.HAZARD_STATE_WARN,
-		"saw_t": 0.0,
-		"saw_pos": a,
-	}
-
-
-func _mark_chord(grid: Dictionary, n: Vector2, d: float, half_width: float, mark: int) -> void:
-	var dim: int = C.grid_dims()
-	for gx in range(dim):
-		for gy in range(dim):
-			var cell := Vector2i(gx, gy)
-			if not C.grid_in_arena(cell):
-				continue
-			var center: Vector2 = C.grid_center(cell)
-			if C.point_chord_distance(center, n, d) <= half_width:
-				var cur: int = int(grid.get(cell, C.GRID_SAFE))
-				if mark == C.GRID_DANGER or cur != C.GRID_DANGER:
-					grid[cell] = mark
-
-
-func _mark_circle(grid: Dictionary, center: Vector2, radius: float, mark: int) -> void:
-	var dim: int = C.grid_dims()
-	var min_c: Vector2i = C.grid_index(center - Vector2(radius, radius))
-	var max_c: Vector2i = C.grid_index(center + Vector2(radius, radius))
-	for gx in range(maxi(0, min_c.x), mini(dim, max_c.x + 2)):
-		for gy in range(maxi(0, min_c.y), mini(dim, max_c.y + 2)):
-			var cell := Vector2i(gx, gy)
-			if not C.grid_in_arena(cell):
-				continue
-			if C.grid_center(cell).distance_to(center) <= radius:
-				var cur: int = int(grid.get(cell, C.GRID_SAFE))
-				if mark == C.GRID_DANGER or cur != C.GRID_DANGER:
-					grid[cell] = mark
-
-
-func _build_danger_grid(extra: Array, horizon: float) -> Dictionary:
-	## 网格化 + 未来 2 秒危险区模拟：合并所有已存机关与候选机关的扫掠区域。
-	var grid: Dictionary = {}
-	var now: float = _srv_time
-	var steps: int = 6
-	for raw in extra:
-		var h: Dictionary = raw
-		var t0: float = maxf(now, float(h["active_start"]))
-		var t1: float = minf(now + horizon, float(h["end_time"]))
-		if t1 <= t0:
-			continue
-		var hz_type: int = int(h["type"])
-		var hard: bool = (hz_type == C.HZ_SAW)
-		var mark: int = C.GRID_DANGER if hard else C.GRID_JUMPABLE
-		if hz_type == C.HZ_SAW:
-			for s in range(steps + 1):
-				var t: float = lerpf(t0, t1, float(s) / float(steps))
-				var prog: float = clampf(
-					(t - float(h["active_start"])) * float(h["speed"]) / maxf(0.001, float(h["length"])),
-					0.0, 1.0
-				)
-				var center: Vector2 = (h["a"] as Vector2).lerp(h["b"] as Vector2, prog)
-				_mark_circle(grid, center, float(h["width"]) * 0.5 + C.PLAYER_RADIUS, mark)
-		else:
-			_mark_chord(grid, h["n"], float(h["d"]), float(h["width"]) * 0.5 + C.PLAYER_RADIUS, mark)
-	return grid
-
-
-func _min_distance_to_hazard(p: Vector2, h: Dictionary) -> float:
-	## 玩家到该机关在未来有效期内的最小距离（禁止在 1.5m 内立即生成）。
-	if int(h["type"]) == C.HZ_SAW:
-		var best: float = 1e9
-		for s in range(9):
-			var q: Vector2 = (h["a"] as Vector2).lerp(h["b"] as Vector2, float(s) / 8.0)
-			best = minf(best, p.distance_to(q))
-		return best - float(h["width"]) * 0.5
-	return C.point_chord_distance(p, h["n"], float(h["d"])) - float(h["width"]) * 0.5
-
-
-func _bfs_reachable(grid: Dictionary, start: Vector2i, max_steps: int) -> Array:
-	## BFS：从玩家当前格出发，预警时间内可达的非硬危险格集合。
-	var out: Array = []
-	var visited: Dictionary = {}
-	var queue: Array = [[start, 0]]
-	visited[start] = true
-	var head: int = 0
-	while head < queue.size():
-		var item: Array = queue[head]
-		head += 1
-		var cell: Vector2i = item[0]
-		var depth: int = int(item[1])
-		out.append(cell)
-		if depth >= max_steps:
-			continue
-		for raw_off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1),
-					Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]:
-			var off: Vector2i = raw_off
-			var nxt: Vector2i = cell + off
-			if visited.has(nxt) or not C.grid_in_arena(nxt):
-				continue
-			if int(grid.get(nxt, C.GRID_SAFE)) == C.GRID_DANGER:
-				continue
-			visited[nxt] = true
-			queue.append([nxt, depth + 1])
-	return out
-
-
-func _has_safe_corridor(grid: Dictionary, cell: Vector2i) -> bool:
-	## 存在宽度 >= 1.2m 的逃生通道：以 2x2 全安全块近似（GRID_CELL=0.6）。
-	for ox in range(C.SAFE_CORRIDOR_MIN_CELLS):
-		for oy in range(C.SAFE_CORRIDOR_MIN_CELLS):
-			var ok: bool = true
-			for dx in range(C.SAFE_CORRIDOR_MIN_CELLS):
-				for dy in range(C.SAFE_CORRIDOR_MIN_CELLS):
-					var c: Vector2i = Vector2i(cell.x - ox + dx, cell.y - oy + dy)
-					if not C.grid_in_arena(c) or int(grid.get(c, C.GRID_SAFE)) != C.GRID_SAFE:
-						ok = false
-			if ok:
-				return true
-	return false
-
-
-func _safety_region_connected(grid: Dictionary) -> bool:
-	## 禁止十字封锁：可跳跃格视为可穿越，硬危险格（电锯）视为阻断；
-	## 所有可站立格必须属于同一个连通区域，否则取消本次生成。
-	var dim: int = C.grid_dims()
-	var passable: Dictionary = {}
-	var first: Vector2i = Vector2i(-1, -1)
-	for gx in range(dim):
-		for gy in range(dim):
-			var cell := Vector2i(gx, gy)
-			if not C.grid_in_arena(cell):
-				continue
-			if int(grid.get(cell, C.GRID_SAFE)) == C.GRID_DANGER:
-				continue
-			passable[cell] = true
-			if first.x < 0:
-				first = cell
-	if first.x < 0:
-		return false
-	var seen: Dictionary = {}
-	var queue: Array = [first]
-	seen[first] = true
-	var head: int = 0
-	while head < queue.size():
-		var cell: Vector2i = queue[head]
-		head += 1
-		for raw_off in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var off: Vector2i = raw_off
-			var nxt: Vector2i = cell + off
-			if seen.has(nxt) or not passable.has(nxt):
-				continue
-			seen[nxt] = true
-			queue.append(nxt)
-	return seen.size() >= passable.size()
-
-
-func _safety_check(cand: Dictionary, _interval: float) -> bool:
-	## 机关安全生成器：网格化 + 危险区模拟 + 每玩家 BFS 可达性 + 连通性 + 重试前的硬约束。
-	var alive_players: Array = []
-	for net_id in _players.keys():
-		var p: Dictionary = _players[net_id]
-		if bool(p["alive"]):
-			alive_players.append(p)
-	if alive_players.is_empty():
-		return false
-
-	# 1) 禁止在玩家 1.5 米范围内立即生成致命机关。
-	for raw in alive_players:
-		var p: Dictionary = raw
-		var flat := Vector2(p["pos"].x, p["pos"].z)
-		if _min_distance_to_hazard(flat, cand) < C.HAZARD_MIN_PLAYER_DISTANCE:
-			return false
-
-	# 2) 补齐时间线字段用于危险区模拟。
-	var probe: Dictionary = cand.duplicate(true)
-	probe["active_start"] = _srv_time + float(cand["warn"])
-	probe["end_time"] = _srv_time + float(cand["warn"]) + float(cand["active"])
-	var existing: Array = []
-	for raw in _hazards.values():
-		var h: Dictionary = raw
-		if int(h["state"]) != C.HAZARD_STATE_DONE:
-			existing.append(h)
-	existing.append(probe)
-	var grid: Dictionary = _build_danger_grid(existing, C.SAFETY_HORIZON_SEC)
-
-	# 3) 每个存活玩家：预警时间内至少能到达一个可站立安全格，且存在 >=1.2m 逃生通道。
-	var reach: int = int(floor(float(cand["warn"]) * C.PLAYER_MOVE_SPEED / C.GRID_CELL))
-	for raw in alive_players:
-		var p: Dictionary = raw
-		var flat := Vector2(p["pos"].x, p["pos"].z)
-		var cells: Array = _bfs_reachable(grid, C.grid_index(flat), maxi(2, reach))
-		var found: bool = false
-		for raw_cell in cells:
-			var cell: Vector2i = raw_cell
-			if int(grid.get(cell, C.GRID_SAFE)) != C.GRID_SAFE:
-				continue
-			if _has_safe_corridor(grid, cell):
-				found = true
-				break
-		if not found:
-			return false
-
-	# 4) 安全区连通性：不能形成十字封锁或无路可走组合。
-	if not _safety_region_connected(grid):
-		return false
-	return true
-
-
-func _commit_hazard(cand: Dictionary) -> void:
-	var h: Dictionary = cand.duplicate(true)
-	h["id"] = _next_hazard_id
-	_next_hazard_id += 1
-	h["warn_start"] = _srv_time
-	h["active_start"] = _srv_time + float(cand["warn"])
-	h["end_time"] = h["active_start"] + float(cand["active"])
-	h["state"] = C.HAZARD_STATE_WARN
-	_hazards[int(h["id"])] = h
-	_last_type_spawn[int(h["type"])] = _srv_time
-	if int(h["type"]) == C.HZ_FLAME and int(h["nozzle"]) >= 0:
-		_nozzle_cooldown[int(h["nozzle"])] = _srv_time
-	_create_hazard_visual(h)
-	if _sfx_warn != null:
-		_sfx_warn.play()
-	if not _standalone_mode and multiplayer.is_server():
-		_rpc_hazard_spawn.rpc(h)
+	if _hazard_director != null:
+		_hazard_director.step_spawner(self, delta)
 
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_hazard_spawn(h: Dictionary) -> void:
-	## 可靠下发完整机关时间线；客户端只按 srv_time 播放，绝不自行随机或判定。
-	if _hazards.has(int(h["id"])):
-		return
-	_hazards[int(h["id"])] = h
-	_create_hazard_visual(h)
-	if _sfx_warn != null:
-		_sfx_warn.play()
-
-
-func _create_hazard_visual(h: Dictionary) -> void:
-	var pack := Node3D.new()
-	pack.name = "Hazard_%d" % int(h["id"])
-	_hazard_root.add_child(pack)
-	var hz_type: int = int(h["type"])
-	if hz_type == C.HZ_LASER:
-		var rig: Node3D = M.build_laser_rig(
-			h["a"], h["b"], float(h["width"]),
-			float(h.get("gap_t", 0.5)), float(h.get("gap_width", C.LASER_GAP_WIDTH))
-		)
-		pack.add_child(rig)
-		_hazard_nodes[int(h["id"])] = {
-			"warn": null,
-			"active": rig,
-			"saw": null,
-			"root": pack,
-			"has_light": false,
-			"is_laser_rig": true,
-		}
-		return
-
-	var warn_node: Node3D = M.build_hazard_warning(hz_type, h["a"], h["b"], float(h["width"]))
-	pack.add_child(warn_node)
-	var active_node: Node3D = M.build_hazard_active(hz_type, h["a"], h["b"], float(h["width"]))
-	pack.add_child(active_node)
-	var saw_node: Node3D = null
-	var has_light: bool = false
-	if hz_type == C.HZ_SAW:
-		has_light = _active_saw_lights < MAX_ACTIVE_SAW_LIGHTS
-		if has_light:
-			_active_saw_lights += 1
-		saw_node = M.build_saw_body(C.SAW_RADIUS, has_light)
-		pack.add_child(saw_node)
-	active_node.visible = false
-	_hazard_nodes[int(h["id"])] = {
-		"warn": warn_node,
-		"active": active_node,
-		"saw": saw_node,
-		"root": pack,
-		"has_light": has_light,
-		"is_laser_rig": false,
-	}
+	if _hazard_director != null:
+		_hazard_director.apply_remote_spawn(self, h)
 
 
 func _render_time() -> float:
@@ -1765,57 +1268,13 @@ func _render_time() -> float:
 
 
 func _update_hazard_states(t: float) -> void:
-	for hid in _hazards.keys():
-		var h: Dictionary = _hazards[hid]
-		var state: int = C.HAZARD_STATE_WARN
-		if t >= float(h["end_time"]):
-			state = C.HAZARD_STATE_DONE
-		elif t >= float(h["active_start"]):
-			state = C.HAZARD_STATE_ACTIVE
-		h["state"] = state
-		if int(h["type"]) == C.HZ_SAW:
-			var prog: float = 0.0
-			if state == C.HAZARD_STATE_ACTIVE:
-				prog = clampf(
-					(t - float(h["active_start"])) * float(h["speed"]) / maxf(0.001, float(h["length"])),
-					0.0, 1.0
-				)
-			h["saw_t"] = prog
-			h["saw_pos"] = (h["a"] as Vector2).lerp(h["b"] as Vector2, prog)
-		elif int(h["type"]) == C.HZ_LASER and state == C.HAZARD_STATE_ACTIVE:
-			var s_speed: float = float(h.get("sweep_speed", 0.0))
-			if s_speed > 0.01:
-				var dt_act: float = maxf(0.0, t - float(h["active_start"]))
-				var d_now: float = clampf(
-					float(h.get("d_base", h["d"])) + float(h.get("sweep_dir", 1.0)) * s_speed * dt_act,
-					-_arena_radius + 0.4,
-					_arena_radius - 0.4
-				)
-				var ends: Array = C.chord_endpoints(h["n"], d_now, _arena_radius)
-				h["d"] = d_now
-				h["a"] = ends[0]
-				h["b"] = ends[1]
-		_hazards[hid] = h
+	if _hazard_director != null:
+		_hazard_director.update_hazard_states(self, t)
 
 
 func _step_hazards(delta: float) -> void:
-	_update_hazard_states(_srv_time)
-	# 清理已结束机关节点与状态，防止长对局残留节点和占满动态光源上限
-	if _hazards.size() > 16:
-		var done_ids: Array = []
-		for hid in _hazards.keys():
-			if int(_hazards[hid]["state"]) == C.HAZARD_STATE_DONE:
-				done_ids.append(hid)
-		for hid in done_ids:
-			_hazards.erase(hid)
-			if _hazard_nodes.has(hid):
-				var pack: Dictionary = _hazard_nodes[hid]
-				if bool(pack.get("has_light", false)):
-					_active_saw_lights = maxi(0, _active_saw_lights - 1)
-				var rnode = pack.get("root", null)
-				if is_instance_valid(rnode):
-					(rnode as Node3D).queue_free()
-				_hazard_nodes.erase(hid)
+	if _hazard_director != null:
+		_hazard_director.step_hazards(self, delta)
 
 
 # ============================================================================
@@ -1934,33 +1393,53 @@ func _accrue_scores(delta: float) -> void:
 
 
 func _check_round_end() -> void:
-	## 硬约束：只有「所有玩家都已出局」或「60 秒倒计时结束」才结算。
 	if _phase != PH_LIVE:
 		return
-	var alive_count: int = 0
-	for net_id in _players.keys():
-		if bool(_players[net_id]["alive"]):
-			alive_count += 1
-	var all_out: bool = (alive_count == 0 and _players.size() > 0)
-	var time_up: bool = (_time_remaining <= 0.0)
-	if not all_out and not time_up:
+	var team_mode: bool = _team != null and _team.is_active()
+	if not team_mode:
+		var alive_count: int = 0
+		for net_id in _players.keys():
+			if bool(_players[net_id]["alive"]):
+				alive_count += 1
+		var all_out: bool = (alive_count == 0 and _players.size() > 0)
+		var time_up: bool = (_time_remaining <= 0.0)
+		if not all_out and not time_up:
+			return
+		_finish_round(time_up)
 		return
-	_finish_round(time_up)
+
+	var counts: Dictionary = _team.count_alive_teams_dict(_players)
+	var alive_ids: Array = counts["alive_ids"]
+	var alive_teams: Dictionary = counts["alive_teams"]
+	var all_out_t: bool = (alive_ids.is_empty() and _players.size() > 0)
+	var team_decided: bool = (alive_teams.size() <= 1 and _players.size() > 1)
+	var time_up_t: bool = (_time_remaining <= 0.0)
+	if not all_out_t and not team_decided and not time_up_t:
+		return
+	_early_win_tid = 0
+	if team_decided and alive_teams.size() == 1:
+		var only_key: int = int(alive_teams.keys()[0])
+		if only_key > 0:
+			_early_win_tid = only_key
+	_finish_round(time_up_t or _early_win_tid > 0)
 
 
 func _finish_round(time_up: bool) -> void:
 	_phase = PH_ENDED
-	# 60 秒结束时仍存活的玩家额外 +10 分。
 	if time_up:
 		for net_id in _players.keys():
 			var p: Dictionary = _players[net_id]
 			if bool(p["alive"]):
 				p["score"] = int(p["score"]) + C.SCORE_SURVIVAL_BONUS
 				_spawn_score_popup(Vector3(p["pos"].x, 2.6, p["pos"].z), "+10 存活!", Color(1.0, 0.86, 0.28))
+	var team_mode: bool = _team != null and _team.is_active()
+	var alive_ids: Array = []
 	var entries: Array = []
 	for net_id in _players.keys():
 		var p: Dictionary = _players[net_id]
-		entries.append({
+		if bool(p["alive"]):
+			alive_ids.append(int(net_id))
+		var row: Dictionary = {
 			"network_id": int(p["network_id"]),
 			"nickname": str(p["nickname"]),
 			"score": int(p["score"]),
@@ -1969,11 +1448,26 @@ func _finish_round(time_up: bool) -> void:
 			"hits_taken": int(p["hits_taken"]),
 			"out_reason": str(p["out_reason"]),
 			"alive": bool(p["alive"]),
-		})
+		}
+		if team_mode:
+			row["team_id"] = _team.player_team(int(p["network_id"]))
+		entries.append(row)
 	var ranked: Array = C.rank_entries(entries)
 	var official: Dictionary = C.official_scores(ranked)
+	var banner_text: String = "ROUND COMPLETE"
+	if team_mode:
+		official = _team.sync_scores(official, alive_ids)
+		_team.notify_round_win(official, self)
+		if not _standalone_mode:
+			_team.mark_scores_applied(self)
+		var winner_tid: int = _early_win_tid
+		if winner_tid <= 0 and ranked.size() > 0:
+			winner_tid = int(ranked[0].get("team_id", 0))
+		if winner_tid > 0:
+			banner_text = _team.team_win_banner(winner_tid)
+	_mpm_last_official = official
 	_result_rows = ranked
-	_banner_label.text = "ROUND COMPLETE"
+	_banner_label.text = banner_text
 	if not _standalone_mode and multiplayer.is_server():
 		_rpc_round_result.rpc(ranked)
 	if _standalone_mode:
@@ -2103,114 +1597,23 @@ func player_disconnected(network_id: int) -> void:
 # 8. 表现层：视觉、HUD、特效
 # ============================================================================
 
-func _activate_particles_recursive(node: Node) -> void:
-	if node is GPUParticles3D:
-		var gp: GPUParticles3D = node
-		gp.restart()
-		gp.emitting = true
-	elif node is CPUParticles3D:
-		var cp: CPUParticles3D = node
-		cp.restart()
-		cp.emitting = true
-	for child in node.get_children():
-		_activate_particles_recursive(child)
-
-
-func _collect_particles_recursive(node: Node, out: Array[Node]) -> void:
-	if node is GPUParticles3D:
-		var gp: GPUParticles3D = node
-		gp.emitting = false
-		out.append(gp)
-	elif node is CPUParticles3D:
-		var cp: CPUParticles3D = node
-		cp.emitting = false
-		out.append(cp)
-	for child in node.get_children():
-		_collect_particles_recursive(child, out)
-
-
-func _build_fx_pool(scene: PackedScene, count: int) -> Array[Dictionary]:
-	var pool: Array[Dictionary] = []
-	if scene == null or _fx_root == null:
-		return pool
-	for _i in range(count):
-		var inst: Node = scene.instantiate()
-		if inst is Node3D:
-			var n3: Node3D = inst as Node3D
-			if n3.get_script() != null:
-				n3.set_script(null)
-			var emitters: Array[Node] = []
-			_collect_particles_recursive(n3, emitters)
-			n3.position = Vector3(0.0, -50.0, 0.0)
-			n3.visible = false
-			_fx_root.add_child(n3)
-			pool.append({"node": n3, "emitters": emitters, "timer": 0.0})
-		elif inst != null:
-			inst.queue_free()
-	return pool
-
-
 func _warmup_fx_pipelines() -> void:
-	# Handled by _init_fx_pools() inside _setup_match_local() with in-frustum warmup.
 	pass
 
 
 func _init_fx_pools() -> void:
-	if _is_self_test or _fx_root == null:
-		return
-	_hit_fx_pool = _build_fx_pool(_fx_hit_scene, POOL_HIT_FX)
-	_dust_fx_pool = _build_fx_pool(_fx_dust_scene, POOL_DUST_FX)
-	if _screenshot_path.is_empty():
-		var warm_pos := Vector3(0.0, 0.3, 0.0)
-		for pool in [_hit_fx_pool, _dust_fx_pool]:
-			if not pool.is_empty():
-				_trigger_fx_entry(pool[0], warm_pos, 0.01, 0.08)
-
-
-func _trigger_fx_entry(entry: Dictionary, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	var n3: Node3D = entry["node"]
-	if not is_instance_valid(n3):
-		return
-	n3.position = world_pos
-	n3.scale = Vector3.ONE * scale_val
-	n3.visible = true
-	entry["timer"] = lifetime
-	for em in entry["emitters"]:
-		if em is GPUParticles3D:
-			var gp: GPUParticles3D = em
-			gp.restart()
-			gp.emitting = true
-		elif em is CPUParticles3D:
-			var cp: CPUParticles3D = em
-			cp.restart()
-			cp.emitting = true
+	if _fx_pool != null:
+		_fx_pool.init_pools(self)
 
 
 func _step_fx_pools(delta: float) -> void:
-	for pool in [_hit_fx_pool, _dust_fx_pool]:
-		for entry in pool:
-			var rem: float = float(entry["timer"])
-			if rem > 0.0:
-				rem -= delta
-				entry["timer"] = rem
-				if rem <= 0.0:
-					var n3: Node3D = entry["node"]
-					if is_instance_valid(n3):
-						n3.visible = false
-						n3.position = Vector3(0.0, -50.0, 0.0)
+	if _fx_pool != null:
+		_fx_pool.step_fx_pools(delta)
 
 
 func _spawn_fx(scene: PackedScene, world_pos: Vector3, scale_val: float, lifetime: float) -> void:
-	if _is_self_test or scene == null:
-		return
-	if scene == _fx_hit_scene and not _hit_fx_pool.is_empty():
-		var entry: Dictionary = _hit_fx_pool[_hit_fx_cursor % _hit_fx_pool.size()]
-		_hit_fx_cursor += 1
-		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
-	elif scene == _fx_dust_scene and not _dust_fx_pool.is_empty():
-		var entry: Dictionary = _dust_fx_pool[_dust_fx_cursor % _dust_fx_pool.size()]
-		_dust_fx_cursor += 1
-		_trigger_fx_entry(entry, world_pos, scale_val, lifetime)
+	if _fx_pool != null:
+		_fx_pool.spawn_fx(self, scene, world_pos, scale_val, lifetime)
 
 
 func _animate_visuals(delta: float) -> void:
@@ -2464,66 +1867,8 @@ func _update_hud() -> void:
 
 
 func _stage_screenshot_action() -> void:
-	_phase = PH_LIVE
-	_prep_remaining = 0.0
-	_elapsed_time = 41.0
-	_time_remaining = 19.0
-	var demo_pos: Array = [
-		Vector3(-1.6, 0.0, 0.2),
-		Vector3(-4.6, 0.0, -2.8),
-		Vector3(1.4, 0.0, -4.4),
-		Vector3(-4.8, 0.0, 3.0),
-		Vector3(1.1, 0.0, 4.2),
-		Vector3(5.6, 0.0, -1.8),
-	]
-	var idx := 0
-	for net_id in _players.keys():
-		var p: Dictionary = _players[net_id]
-		p["state"] = C.ST_NORMAL
-		p["score"] = 41 + (int(net_id) % 3) * 2
-		p["alive_sec"] = 41.0
-		p["pos"] = demo_pos[idx % demo_pos.size()]
-		p["render_pos"] = p["pos"]
-		if int(net_id) == 1:
-			p["push_cooldown"] = 0.65
-			p["shield"] = true
-		elif int(net_id) == 3:
-			p["power_item"] = C.ITEM_POWER_SHOVE
-		_players[net_id] = p
-		idx += 1
-	var demo_hazards: Array = [
-		{
-			"id": 901, "type": C.HZ_LASER,
-			"a": Vector2(-8.2, -1.2), "b": Vector2(8.2, 1.4),
-			"gap_t": 0.42, "gap_width": C.LASER_GAP_WIDTH,
-			"width": C.LASER_WIDTH, "length": 16.6, "speed": 0.0,
-			"warn_start": 0.0, "active_start": 0.0, "end_time": 99.0,
-			"state": C.HAZARD_STATE_ACTIVE, "saw_t": 0.0, "saw_pos": Vector2.ZERO, "nozzle": -1,
-		},
-		{
-			"id": 902, "type": C.HZ_SAW,
-			"a": Vector2(-7.6, 4.2), "b": Vector2(7.6, -3.4),
-			"width": C.SAW_RADIUS * 2.0, "length": 17.0, "speed": C.SAW_SPEED,
-			"warn_start": 0.0, "active_start": 0.0, "end_time": 99.0,
-			"state": C.HAZARD_STATE_ACTIVE, "saw_t": 0.30, "saw_pos": Vector2(-3.0, 2.0), "nozzle": -1,
-		},
-		{
-			"id": 903, "type": C.HZ_FLAME,
-			"a": Vector2(3.6, -7.8), "b": Vector2(4.4, 7.2),
-			"width": C.FLAME_WIDTH, "length": 15.0, "speed": 0.0,
-			"warn_start": 0.0, "active_start": 0.0, "end_time": 99.0,
-			"state": C.HAZARD_STATE_ACTIVE, "saw_t": 0.0, "saw_pos": Vector2.ZERO, "nozzle": 2,
-		},
-	]
-	for h in demo_hazards:
-		_hazards[int(h["id"])] = h
-		_create_hazard_visual(h)
-	# 展示空投可见道具与 3D 飘字加分
-	var demo_drop: Node3D = M.build_airdrop_item(C.ITEM_POWER_SHOVE)
-	demo_drop.position = Vector3(1.8, 0.0, -1.6)
-	_fx_root.add_child(demo_drop)
-	_spawn_score_popup(Vector3(-1.8, 3.35, 0.2), "+2", Color(0.58, 1.0, 0.62))
-	_update_hud()
+	if _self_test_runner != null:
+		_self_test_runner.stage_screenshot_action(self)
 
 
 func _save_screenshot_and_quit() -> void:
@@ -2538,248 +1883,10 @@ func _save_screenshot_and_quit() -> void:
 # ============================================================================
 
 func _run_smoke_test() -> void:
-	## 连续模拟 20 秒真实回合：验证机关确实生成、视觉节点可创建、整轮不崩。
-	_load_helpers()
-	_is_server_sim = true
-	_standalone_mode = true
-	var roster: Array = []
-	for i in range(8):
-		roster.append({
-			"id": i, "network_id": i + 1, "nickname": "P%d" % (i + 1),
-			"customization": [], "is_ai": true,
-		})
-	_setup_match_local(0, 20261121, roster, true)
-	var dt: float = 1.0 / 60.0
-	var max_hazards: int = 0
-	var max_live: int = 0
-	var max_live_lasers: int = 0
-	for _frame in range(1500):
-		_srv_time += dt
-		if _phase == PH_PREP:
-			_step_prep(dt)
-		elif _phase == PH_LIVE:
-			_step_simulation(dt)
-		else:
-			break
-		max_hazards = maxi(max_hazards, _hazards.size())
-		max_live = maxi(max_live, _live_hazard_count())
-		var live_lasers: int = 0
-		for raw_h in _hazards.values():
-			var h: Dictionary = raw_h
-			if int(h["type"]) == C.HZ_LASER and int(h["state"]) != C.HAZARD_STATE_DONE:
-				live_lasers += 1
-		max_live_lasers = maxi(max_live_lasers, live_lasers)
-		_animate_visuals(dt)
-		_update_hud()
-	if max_hazards <= 0:
-		_fail("smoke: no hazard ever spawned")
-		return
-	if max_live_lasers > 1:
-		_fail("smoke: concurrent lasers exceeded 1 (%d)" % max_live_lasers)
-		return
-	if _airdrop_next_idx <= 0:
-		_fail("smoke: expected at least one airdrop to spawn")
-		return
-	print("SPIKE_RING_SMOKE_OK hazards=%d max_live=%d max_live_lasers=%d airdrops=%d phase=%d players=%d srv_time=%.1f" % [
-		max_hazards, max_live, max_live_lasers, _airdrop_next_idx, _phase, _players.size(), _srv_time
-	])
-	print("SMOKE_TEST_PASSED")
-	get_tree().quit(0)
+	if _self_test_runner != null:
+		_self_test_runner.run_smoke_test(self)
 
 
 func _run_self_test() -> void:
-	_load_helpers()
-	_is_server_sim = true
-	_standalone_mode = true
-
-	# --- 出生：2/4/8/16 人均无重叠且在有效区内 ---
-	for count in [2, 4, 8, 16]:
-		var spawns: Array = C.compute_spawns(count, 9000 + count)
-		if spawns.size() != count:
-			_fail("spawn count mismatch for %d" % count)
-			return
-		for i in range(count):
-			var pi: Vector2 = spawns[i]
-			if pi.length() > C.EDGE_LIMIT_RADIUS:
-				_fail("spawn outside arena for %d" % count)
-				return
-			for j in range(i + 1, count):
-				var pj: Vector2 = spawns[j]
-				if pi.distance_to(pj) < C.SPAWN_MIN_SEPARATION - 0.001:
-					_fail("spawn overlap for %d" % count)
-					return
-
-	var roster: Array = []
-	for i in range(4):
-		roster.append({"id": i, "network_id": i + 1, "nickname": "P%d" % (i + 1), "customization": [], "is_ai": i != 0})
-	_setup_match_local(0, 4242, roster, true)
-
-	# --- 准备期：推人禁用、不生成机关、不出局 ---
-	if _phase != PH_PREP:
-		_fail("expected PREP phase")
-		return
-	var p1: Dictionary = _players[1]
-	p1["facing"] = Vector2(1.0, 0.0)
-	p1["input"] = {"dir": Vector2.ZERO, "aim": Vector2(1.0, 0.0), "jump": false, "push": true}
-	_client_inputs[1] = p1["input"]
-	var p2_before: int = int(_players[2]["hits_taken"])
-	_step_prep(0.05)
-	if int(_players[2]["hits_taken"]) != p2_before:
-		_fail("push must be disabled during prep")
-		return
-	if not _hazards.is_empty():
-		_fail("no hazard may spawn during prep")
-		return
-	# 准备期把玩家推到边缘也不会出局
-	_players[1]["pos"] = Vector3(C.ARENA_RADIUS * 2.0, 0.0, 0.0)
-	_step_prep(C.PREP_DURATION_SEC)
-	if not bool(_players[1]["alive"]):
-		_fail("no elimination during prep")
-		return
-	if _phase != PH_LIVE:
-		_fail("prep must transition to LIVE after 3s")
-		return
-
-	# --- 持续按住推人：动作前摇后摇决定冷却、推到人才加分、加分无内置冷却 ---
-	_client_inputs.clear()
-	var a: Dictionary = _players[1]
-	var v: Dictionary = _players[2]
-	var v_was_ai: bool = bool(v["is_ai"])
-	v["is_ai"] = false
-	a["pos"] = Vector3(0.0, 0.0, 0.0)
-	v["pos"] = Vector3(5.0, 0.0, 0.0)
-	a["facing"] = Vector2(1.0, 0.0)
-	a["state"] = C.ST_NORMAL
-	a["push_cooldown"] = 0.0
-	v["state"] = C.ST_NORMAL
-	v["invuln_timer"] = 0.0
-	# 空推不加分
-	_try_push(a)
-	if int(a["pushes"]) != 0 or int(a["score"]) != 0:
-		_fail("push whiff must not award score")
-		return
-	# 命中加分并进入动作冷却
-	v["pos"] = Vector3(1.0, 0.0, 0.0)
-	a["push_cooldown"] = 0.0
-	_try_push(a)
-	if int(v["state"]) != C.ST_FALLEN or int(a["pushes"]) != 1 or int(a["score"]) != C.PUSH_SCORE:
-		_fail("push hit / +2 score failed")
-		return
-	if float(a["push_cooldown"]) < C.PUSH_COOLDOWN_SEC - 0.001:
-		_fail("push cooldown not applied")
-		return
-	v["knock_dir"] = Vector2.ZERO
-	v["knock_vel"] = Vector2.ZERO
-	_step_player_motions(C.FALL_DURATION_SEC - 0.01, false)
-	if int(v["state"]) != C.ST_FALLEN:
-		_fail("fall must last exactly 0.30s")
-		return
-	# 按住推人键在动作冷却结束后自动继续推，一路顶人并再次加分
-	_client_inputs[1] = {"dir": Vector2.ZERO, "aim": Vector2(1.0, 0.0), "jump": false, "push": true}
-	_step_player_motions(0.02, false)
-	if int(v["state"]) != C.ST_NORMAL:
-		_fail("victim should recover to normal after 0.30s fall")
-		return
-	_step_player_motions(C.PUSH_COOLDOWN_SEC - C.FALL_DURATION_SEC + 0.01, false)
-	if int(v["hits_taken"]) != 2 or int(a["pushes"]) != 2 or int(a["score"]) != C.PUSH_SCORE * 2:
-		_fail("hold-to-push continuous shove failed")
-		return
-	_client_inputs.clear()
-	v["is_ai"] = v_was_ai
-
-	# --- 计分：每秒 +1 / 存活奖励 +10 / 出局停止 ---
-	for net_id in _players.keys():
-		var pp: Dictionary = _players[net_id]
-		pp["alive"] = true
-		pp["score"] = 0
-		pp["alive_sec"] = 0.0
-		pp["last_scored_sec"] = 0
-		_players[net_id] = pp
-	_elapsed_time = 10.0
-	_accrue_scores(1.0)
-	if int(_players[3]["score"]) != 1:
-		_fail("survival score per second failed")
-		return
-	_eliminate_player(_players[3], "TEST", 0)
-	var frozen: int = int(_players[3]["score"])
-	_accrue_scores(5.0)
-	if int(_players[3]["score"]) != frozen:
-		_fail("score must freeze after elimination")
-		return
-
-	# --- 结算条件：部分出局不结算；全出局或 60s 才结算 ---
-	_phase = PH_LIVE
-	_time_remaining = 30.0
-	_check_round_end()
-	if _phase != PH_LIVE:
-		_fail("round must NOT end while players remain")
-		return
-	for net_id in _players.keys():
-		_players[net_id]["alive"] = false
-	_check_round_end()
-	if _phase != PH_ENDED:
-		_fail("round must end when all players are out")
-		return
-
-	# --- 排名 tie-break：总分 -> 存活 -> 推倒 -> 受击 ---
-	var ranked: Array = C.rank_entries([
-		{"network_id": 1, "score": 10, "alive_sec": 9.0, "pushes": 1, "hits_taken": 2, "out_reason": ""},
-		{"network_id": 2, "score": 10, "alive_sec": 9.0, "pushes": 1, "hits_taken": 0, "out_reason": ""},
-		{"network_id": 3, "score": 11, "alive_sec": 1.0, "pushes": 0, "hits_taken": 9, "out_reason": ""},
-	])
-	if int(ranked[0]["network_id"]) != 3 or int(ranked[1]["network_id"]) != 2:
-		_fail("rank tie-break failed")
-		return
-	if int(C.official_scores(ranked)[3]) != 3:
-		_fail("official score conversion failed")
-		return
-
-	# --- 机关安全生成器：并发上限 + 拒绝无解组合 + 接受合法组合 ---
-	_setup_match_local(0, 777, roster, true)
-	_prep_remaining = 0.0
-	_phase = PH_LIVE
-	_srv_time = 5.0
-	_elapsed_time = 5.0
-	var phase: Dictionary = C.difficulty_phase(_elapsed_time, _round_cfg)
-	var legal_ok: bool = false
-	for i in range(40):
-		var cand: Dictionary = _make_candidate(C.HZ_LASER, phase)
-		if not cand.is_empty() and _safety_check(cand, float(phase["interval"])):
-			legal_ok = true
-			break
-	if not legal_ok:
-		_fail("safety generator rejected every legal candidate")
-		return
-	# 构造一条正好压在所有玩家脚下的硬危险带，必须被拒绝
-	var blocked: Dictionary = _make_candidate(C.HZ_SAW, phase)
-	if not blocked.is_empty():
-		var px: Vector2 = Vector2(_players[1]["pos"].x, _players[1]["pos"].z)
-		blocked["n"] = Vector2(1.0, 0.0)
-		blocked["d"] = px.x
-		blocked["a"] = Vector2(px.x, -C.ARENA_RADIUS)
-		blocked["b"] = Vector2(px.x, C.ARENA_RADIUS)
-		if _safety_check(blocked, float(phase["interval"])):
-			_fail("safety generator accepted a hazard on top of a player")
-			return
-
-	# --- 难度三段与关卡数据驱动 ---
-	if str(C.difficulty_phase(1.0, _round_cfg)["name"]) != "WARMUP":
-		_fail("difficulty phase WARMUP missing")
-		return
-	if str(C.difficulty_phase(20.0, _round_cfg)["name"]) != "MIXED":
-		_fail("difficulty phase MIXED missing")
-		return
-	if str(C.difficulty_phase(50.0, _round_cfg)["name"]) != "FRENZY":
-		_fail("difficulty phase FRENZY missing")
-		return
-
-	print("SPIKE_RING_SPAWNS_2_4_8_16_OK, PREP_3S_NO_ELIM_OK, FALL_0.30S_IMMUNITY_0.20S_OK")
-	print("HOLD_PUSH_CONTINUOUS_OK, SCORE_PER_SEC_AND_SURVIVAL_BONUS_OK, RANK_TIEBREAK_OK")
-	print("SAFETY_GRID_BFS_CORRIDOR_CONNECTIVITY_OK, ROUND_END_GATE_OK, DIFFICULTY_PHASES_OK")
-	print("SELF_TEST_PASSED")
-	get_tree().quit(0)
-
-
-func _fail(msg: String) -> void:
-	push_error("SPIKE_RING_SELF_TEST_FAIL: " + msg)
-	get_tree().quit(1)
+	if _self_test_runner != null:
+		_self_test_runner.run_self_test(self)

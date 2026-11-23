@@ -1,6 +1,6 @@
 {
   "name": "machine-party-mod-manager",
-  "version": "0.2.5",
+  "version": "0.2.6-1",
   "private": true,
   "description": "Free community mod manager for Machine Party: browse verified mods, install and restore them from one desktop app",
   "type": "module",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "node --test \"tests/**/*.test.mjs\"",
+    "mod": "node scripts/mod-cli.mjs",
     "check:architecture": "node scripts/check_architecture.mjs",
     "dev": "cargo run --manifest-path apps/desktop/src-tauri/Cargo.toml",
     "test:rust": "cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml",

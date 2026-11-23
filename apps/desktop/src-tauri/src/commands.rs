@@ -268,6 +268,39 @@ fn package_entry(
     Ok(item)
 }
 
+fn collect_missing_dep_zips(
+    config_dir: &Path,
+    game_root: &Path,
+    target_id: &str,
+    list: &[catalog::ModEntry],
+) -> Result<std::collections::BTreeMap<String, PathBuf>, String> {
+    let order = installer::deps::resolve_install_order(target_id, list)?;
+    let mut zip_paths = std::collections::BTreeMap::new();
+    for dep in order.iter().take(order.len().saturating_sub(1)) {
+        let needs_zip = match installer::get_transaction(config_dir, game_root, &dep.id)? {
+            Some(tx) if tx.status == installer::TransactionStatus::Committed => {
+                let req_min = order
+                    .iter()
+                    .flat_map(|item| item.requires.iter())
+                    .find(|r| r.id == dep.id)
+                    .and_then(|r| r.min_version.as_deref());
+                req_min.is_some_and(|min_v| {
+                    !matches!(
+                        catalog::compare_numeric_versions(&tx.version, min_v),
+                        Some(std::cmp::Ordering::Greater | std::cmp::Ordering::Equal)
+                    )
+                })
+            }
+            _ => true,
+        };
+        if needs_zip {
+            let dep_zip = packages::verified(config_dir, dep)?;
+            zip_paths.insert(dep.id.clone(), dep_zip);
+        }
+    }
+    Ok(zip_paths)
+}
+
 #[tauri::command]
 pub async fn update_mod(
     app: AppHandle,
@@ -297,7 +330,23 @@ pub async fn update_mod(
         installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
         let _pkg = lock_file(&dir, &format!("package-{}", item.id))?;
         let zip = packages::verified(&dir, &item)?;
-        installer::update::apply(
+        let newly_auto_installed = if !item.requires.is_empty() {
+            let dep_zips = collect_missing_dep_zips(&dir, &path, &item.id, &list)?;
+            let (installed, _) = installer::deps::ensure_dependencies_installed(
+                &dir,
+                &path,
+                &item,
+                &dep_zips,
+                &dir.join("staging"),
+                &list,
+                &installer::SystemRunner,
+                &installer::SystemGameLockCheck,
+            )?;
+            installed
+        } else {
+            Vec::new()
+        };
+        if let Err(err) = installer::update::apply(
             &dir,
             &path,
             &expected_dir,
@@ -306,7 +355,18 @@ pub async fn update_mod(
             &from,
             &list,
             &installer::SystemGameLockCheck,
-        )?;
+        ) {
+            if !newly_auto_installed.is_empty() {
+                installer::deps::rollback_dependencies(
+                    &dir,
+                    &path,
+                    &newly_auto_installed,
+                    &installer::SystemRunner,
+                    &installer::SystemGameLockCheck,
+                );
+            }
+            return Err(err);
+        }
         installer::scan_copy(&dir, &path, &list, true)
             .map_err(|reason| format!("modUpdatedRescan: {reason}"))
     })
@@ -460,6 +520,33 @@ pub async fn reload_loader(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+pub async fn set_mods_enabled(
+    app: AppHandle,
+    path: PathBuf,
+    ids: Vec<String>,
+    enabled: bool,
+    expected_dir: PathBuf,
+) -> Result<installer::CopyValidation, String> {
+    let dir = config_dir(&app)?;
+    let list = active_entries(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, "inventory")?;
+        installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
+        if game::resolve_pck_dir(&path).as_ref() != Some(&expected_dir) {
+            return Err("statusUnavailable".into());
+        }
+        installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
+        if !enabled {
+            installer::deps::check_disable_allowed(&dir, &path, &ids, &list)?;
+        }
+        installer::set_mods_enabled(&path, &ids, enabled, &installer::SystemGameLockCheck)?;
+        installer::scan_copy(&dir, &path, &list, true)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn authorized_mod(item: &catalog::ModEntry) -> bool {
     if cfg!(windows) && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some() {
         return catalog::matches_preview(item, env!("CARGO_PKG_VERSION"));
@@ -557,6 +644,11 @@ pub async fn install_mod(
                 &installer::SystemRunner,
             )?;
         } else if matches!(state, Some("modConflict" | "legacyInstalled")) {
+            let dep_zips = if !mod_entry.requires.is_empty() {
+                Some(collect_missing_dep_zips(&dir, &path, &id, &list)?)
+            } else {
+                None
+            };
             installer::switch_from_zip(
                 &removals,
                 &dir,
@@ -564,6 +656,31 @@ pub async fn install_mod(
                 &zip_path,
                 &staging_dir,
                 &mod_entry,
+                &list,
+                &installer::SystemRunner,
+                &installer::SystemGameLockCheck,
+            )?;
+            if let Some(zips) = dep_zips {
+                installer::deps::ensure_dependencies_installed(
+                    &dir,
+                    &path,
+                    &mod_entry,
+                    &zips,
+                    &dir.join("staging"),
+                    &list,
+                    &installer::SystemRunner,
+                    &installer::SystemGameLockCheck,
+                )?;
+            }
+        } else if !mod_entry.requires.is_empty() && state == Some("vanilla") {
+            let mut zip_paths = collect_missing_dep_zips(&dir, &path, &id, &list)?;
+            zip_paths.insert(mod_entry.id.clone(), zip_path);
+            installer::deps::install_with_dependencies(
+                &dir,
+                &path,
+                &mod_entry,
+                &zip_paths,
+                &dir.join("staging"),
                 &list,
                 &installer::SystemRunner,
                 &installer::SystemGameLockCheck,
@@ -631,10 +748,11 @@ pub async fn uninstall_mod(
         {
             return Err("installPending".into());
         }
-        installer::uninstall_mod(
+        installer::deps::uninstall_with_auto_cleanup(
             &dir,
             &path,
             &mod_entry,
+            &list,
             &installer::SystemRunner,
             &installer::SystemGameLockCheck,
         )?;

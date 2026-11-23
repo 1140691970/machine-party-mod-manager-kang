@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/development/mod-development.md) · [繁體中文](../../zh-TW/development/mod-development.md)
 
-This specification governs **first-party mods** authored in this repository under [`mods/`](../../../mods/README.md). Third-party community mods follow the upstream Release approval process described in [Candidate mods and inclusion rules](../catalog/mods.md). Both share the same Cloudflare R2 + catalog Worker delivery pipeline ([Catalog delivery](../catalog/delivery.md), [ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)).
+This specification governs **first-party mods** authored in this repository under [`mods/`](../../../mods/README.md). For runtime contracts and planned SDK tooling, see [Mod SDK Reference](mod-sdk.md) and [ADR-018](../architecture/ADR-018-mod-development-sdk.md). Third-party community mods follow the upstream Release approval process described in [Candidate mods and inclusion rules](../catalog/mods.md). Both share the same Cloudflare R2 + catalog Worker delivery pipeline ([Catalog delivery](../catalog/delivery.md), [ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)).
 
 ## 1. Scope and design principles
 
@@ -45,7 +45,7 @@ Every first-party mod lives in `mods/<id>/`, where `<id>` matches `^[a-z0-9-]+$`
 
 ## 3. Built-in loader API and game-integration rules
 
-The built-in bootstrap (`LOADER_VERSION = "5"`, `API_VERSION = 2`) mounts as `autoload/ModLoader` (`*res://modloader/bootstrap.gd`) before game scripts execute. External `MachinePartyModLoader.exe` shares the same API v2 surface.
+The built-in bootstrap (`LOADER_VERSION = "6"`, `API_VERSION = 2`) mounts as `autoload/ModLoader` (`*res://modloader/bootstrap.gd`) before game scripts execute. External `MachinePartyModLoader.exe` shares the same API v2 surface. Disabled mods recorded by the desktop manager in `mods/.mpm-state.json` are skipped during startup discovery without modifying `mod.json`.
 
 ### Lifecycle
 
@@ -70,15 +70,17 @@ Check capability defensively with `loader.has_api("<name>")` or `loader.has_meth
 
 ### Runtime performance budgets and rules
 
-Every first-party mod must avoid frame-time spikes, progressive late-round lag, and frame-pacing judder:
+Every first-party mod must avoid frame-time spikes, progressive late-round lag, and frame-pacing judder (mirroring the official game's `EffectManager` and `DecalManager` pooling architecture):
 
 | Area | Hard budget / rule | Rationale |
 | --- | --- | --- |
 | **SceneTree & reflection** | **0** `get_property_list()` calls in `_process`, `_physics_process`, `node_added`, or timers; **0** periodic full-tree walks during active gameplay | `get_property_list()` allocates dozens of Dictionaries per call. Use O(1) `prop in obj`, cache property names once on attach, fast-skip `node.get_script() == null` in `node_added`, and prefer signals (`visibility_changed`, groups) over polling. |
-| **Shader / FX warmup** | Deferred `_warmup_fx_pipelines()` on scene entry (~0.25s hidden below stage, skipped in `--self-test`) | Pre-compiles `GPUParticles3D`, `Decal`, additive transparent materials, and dynamic lights so the first explosion or hit never freezes the render thread. |
+| **Persistent FX, decal, light & blast pools** | **0** runtime `PackedScene.instantiate()`, `Decal.new()`, `OmniLight3D.new()`, `SceneTreeTimer` allocations, or `queue_free()` for repeated gameplay FX, decals, flash lights, or grid blast visuals | Pre-allocate fixed pools on match setup (`_init_fx_pools()`), detach `managed_effect.gd`, cache `GPUParticles3D`/`CPUParticles3D` emitter arrays once, and recycle via round-robin `position` + `visible` + `restart()`. Tick pool lifetimes in `_process`/`_animate_visuals` to hide expired nodes instead of creating timers or freeing nodes. |
+| **In-frustum shader / FX warmup** | Warm up 1 real pooled instance per FX/decal/light/blast type **inside the camera frustum** at tiny scale (`0.01`, `~0.08s` during the intro countdown; skipped in `--self-test` and screenshot mode) | Placing warmup nodes off-screen or below the stage (`y < 0`, `scale = 0.001`) lets frustum culling skip shader/particle pipeline compilation. Warmup callbacks must reference pools via `self` rather than capturing freed node references across round restarts. |
 | **Mesh & material reuse** | **0** new `StandardMaterial3D` or `Mesh` allocations per repeated spawn (bombs, blasts, rollers, debris) | Cache shared `Mesh` and `StandardMaterial3D` instances once per key to prevent GC spikes and preserve GPU batching. |
-| **FX & audio concurrency caps** | Scorch/impact `Decal` **≤ 28**; blood `Decal` **≤ 16** (FIFO ring buffer); active `GPUParticles3D` scenes **≤ 6** (center-only for multi-tile blasts); transient flash `OmniLight3D` **≤ 2**; chain SFX debounce **≥ 45 ms** | Prevents unbounded late-round decal overdraw, chain-detonation particle storms, light-cluster thrashing, and same-frame audio restarts. |
+| **Overdraw, concurrency caps & chain staggering** | Pooled `GPUParticles3D` **≤ 4–6** per type (do not stack duplicate smoke scenes like `dustplume` on top of `mine_explosion`; trim oversized smoke emitter `amount` if needed); **1** center scorch `Decal` per explosion (pool **≤ 16–24**); pooled `OmniLight3D` **≤ 2**; deduplicate overlapping grid blast visuals on the same cell; stagger chain detonations by **`~0.05 s`** instead of same-frame recursion; chain SFX debounce **≥ 45 ms** | Prevents transparent fill-rate collapse, Forward+ light/decal cluster thrashing, and single-frame CPU/GPU/RPC spikes during multi-bomb chains or 8-player simultaneous hits. |
 | **Display & frame pacing** | Keep `VSYNC_ENABLED` by default; default 3D scale cap **≤ 1.5×** and clamped to actual window height (opt-in flags for `2.0×`, `1440p`, or `VSYNC_DISABLED`) | Avoids software-capped 60 FPS micro-stutter and unnecessary 4× GPU pixel fillrate on smaller windows or mid-range GPUs. |
+| **Stress verification** | Before releasing gameplay FX changes, run a local 60 FPS headless stress check with real `Machine Party.pck` assets (e.g. 8-bomb chain detonation, 8-player simultaneous hit, or 8-player continuous shove) | Verifies **0** runtime FX/decal/light/blast node growth, complete pool return after expiry, zero Godot lambda/freed-object errors, and worst-case frame simulation time well below `16.6 ms`. |
 
 ## 4. Testing and verification tiers
 

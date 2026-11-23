@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "revision": "2026-11-22.2-mpml1",
+  "revision": "2026-11-23.3-mpml1",
   "repo": "JamesGZM/machine-party-mod-manager",
   "mods": [
     {
@@ -29,8 +29,10 @@
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
-      "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-13",
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -59,7 +61,11 @@
         "sourceRule": "overtime-manifest-v1"
       },
       "verified": true,
-      "name": {"zh-CN": "Overtime", "zh-TW": "Overtime", "en": "Overtime"},
+      "name": {
+        "zh-CN": "Overtime",
+        "zh-TW": "Overtime",
+        "en": "Overtime"
+      },
       "summary": {
         "zh-CN": "最多 8 人在线或本地同玩。",
         "zh-TW": "最多 8 人線上或本機同玩。",
@@ -70,7 +76,14 @@
         "zh-TW": "管理器會將作者原包轉成載入器模組。每份遊戲副本可選用 Overtime、八人導播或 Binary1936 八人模組其中一種。",
         "en": "The manager prepares the author package for the built-in loader. Choose one of Overtime, Broadcast 8P or Binary1936 8P per game copy."
       },
-      "aliases": ["加班", "八人", "八人联机", "八人聯機", "8p", "本機"]
+      "aliases": [
+        "加班",
+        "八人",
+        "八人联机",
+        "八人聯機",
+        "8p",
+        "本機"
+      ]
     },
     {
       "id": "machineparty-plus",
@@ -98,13 +111,19 @@
         "noticeFile": "LICENSE",
         "mirrorApproved": true
       },
-      "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-13",
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
-        "platforms": ["windows"],
+        "platforms": [
+          "windows"
+        ],
         "target": "pckDir",
-        "touches": ["mods"],
+        "touches": [
+          "mods"
+        ],
         "exclusive": "loader",
         "autoLoader": true,
         "baseline": {
@@ -112,11 +131,18 @@
           "size": 634798100,
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
-        "requiredFiles": ["mod.json", "main.gd"],
+        "requiredFiles": [
+          "mod.json",
+          "main.gd"
+        ],
         "upstreamUninstall": false
       },
       "verified": true,
-      "name": {"zh-CN": "MachineParty+", "zh-TW": "MachineParty+", "en": "MachineParty+"},
+      "name": {
+        "zh-CN": "MachineParty+",
+        "zh-TW": "MachineParty+",
+        "en": "MachineParty+"
+      },
       "summary": {
         "zh-CN": "公开房间、语音与文字聊天。",
         "zh-TW": "公開房間、語音與文字聊天。",
@@ -127,41 +153,59 @@
         "zh-TW": "透過載入器執行（管理器會自動設定內建載入器），可與 Overtime、滾筒嘉年華等載入器模組共存；語音聊天需要雙方安裝模組。",
         "en": "Runs through the mod loader (configured automatically by the manager) and coexists with loader mods such as Overtime and Roller Carnival. Both players need the mod for voice chat."
       },
-      "aliases": ["plus", "mpml"]
+      "aliases": [
+        "plus",
+        "mpml"
+      ]
     },
     {
       "id": "roller-carnival",
       "category": "game",
       "order": 5,
+      "requires": [
+        {
+          "id": "mpm-core",
+          "minVersion": "v0.1.0"
+        }
+      ],
       "repo": "JamesGZM/machine-party-mod-manager",
-      "legacyInventoryRepos": ["JamesGZM/machine-party-mod-manager", "JamesGZM/roller-carnival"],
+      "legacyInventoryRepos": [
+        "JamesGZM/machine-party-mod-manager",
+        "JamesGZM/roller-carnival"
+      ],
       "cover": {
         "filename": "roller-carnival.png",
         "contentType": "image/png",
         "size": 387168,
         "sha256": "e1c83c2e7f39555a36c2490593e47ca00bc964c3570b7e4b9188c0915d45c49a"
       },
-      "version": "v0.1.10",
+      "version": "v0.1.11",
       "releaseNotes": {
-        "version": "v0.1.10",
-        "zh-CN": "撞击血花、淘汰血雾与血迹贴花改为常驻对象池复用，并改为相机视锥内预热，消除多人同帧挨撞时的掉帧。",
-        "zh-TW": "撞擊血花、淘汰血霧與血跡貼花改為常駐物件池複用，並改為相機視錐內預熱，消除多人同幀挨撞時的掉幀。",
-        "en": "Pools hit/elimination GPU particle effects and blood decals with in-frustum warmup to eliminate hitches when multiple players are hit simultaneously."
+        "version": "v0.1.11",
+        "zh-CN": "内建组队派对（team-party）原生小队模式（按队伍分道排列、队色底座与名牌、未团灭前继续比拼、小队同步计分），并将特效池、HUD 与自测从主脚本拆分。",
+        "zh-TW": "內建組隊派對（team-party）原生小隊模式（依隊伍分道排列、隊色底座與名牌、未團滅前繼續比拼、小隊同步計分），並將特效池、HUD 與自測自腳本主體拆分。",
+        "en": "Adds native Team Party squad support (team-grouped Z lanes, team rings/nameplates, team-survival early win, and Squads score sync) and splits FX pool, HUD UI, and self-tests out of the main game script."
       },
       "package": {
-        "assetId": "1030",
-        "filename": "roller-carnival-0.1.10.zip",
-        "size": 154326,
-        "sha256": "867e233e4117ac6233592c42c443cf8660a893662ffef1d5c53f10ae1419a337",
+        "assetId": "1034",
+        "filename": "roller-carnival-0.1.11.zip",
+        "size": 175268,
+        "sha256": "c3e07d5d8ce30f73859a0806d228d211a7cce440f12e3f8c2436632628a2d1c1",
         "mirrorApproved": true
       },
-      "supportedGameVersions": ["v2.1.2"],
-      "windowsPreview": "0.1.2-13",
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
-        "platforms": ["windows"],
+        "platforms": [
+          "windows"
+        ],
         "target": "pckDir",
-        "touches": ["mods"],
+        "touches": [
+          "mods"
+        ],
         "exclusive": "loader",
         "autoLoader": true,
         "baseline": {
@@ -170,16 +214,20 @@
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
         "requiredFiles": [
-          "mod.json",
-          "main.gd",
-          "config.gd",
           "carnival_meshes.gd",
-          "roller_carnival_game.gd",
+          "config.gd",
+          "fx_pool.gd",
+          "hud_ui.gd",
+          "main.gd",
+          "mod.json",
           "official_minigame.gd",
           "override_game.gd",
           "override_local_game.gd",
+          "override_picker.gd",
           "override_playlist.gd",
-          "override_picker.gd"
+          "roller_carnival_game.gd",
+          "self_test.gd",
+          "team_support.gd"
         ],
         "upstreamUninstall": false
       },
@@ -199,7 +247,12 @@
         "zh-TW": "高處琥珀滾筒按住 S 下蹲、低處冷鋼滾筒按空白鍵 / W 跳躍，碰撞推擠至左側粉碎熔爐淘汰並依躲避數排名加分。",
         "en": "Hold S to crouch under high amber rollers, press Space / W to jump over low steel rollers, avoid being shoved into the shredder furnace, and score by dodge rank."
       },
-      "aliases": ["滚筒", "滾筒嘉年華", "roller", "carnival"]
+      "aliases": [
+        "滚筒",
+        "滾筒嘉年華",
+        "roller",
+        "carnival"
+      ]
     },
     {
       "id": "lobby-bots",
@@ -230,7 +283,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-13",
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -305,7 +358,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-13",
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -375,7 +428,7 @@
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-13",
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -426,6 +479,12 @@
       "id": "bubble-blitz",
       "category": "game",
       "order": 9,
+      "requires": [
+        {
+          "id": "mpm-core",
+          "minVersion": "v0.1.0"
+        }
+      ],
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "cover": {
@@ -434,24 +493,24 @@
         "size": 287193,
         "sha256": "19b1bc1396da255b91ad8d952a1b084eff3c6a28c4fe69ea4bcaf90a862d152c"
       },
-      "version": "v0.1.4",
+      "version": "v0.1.5",
       "releaseNotes": {
-        "version": "v0.1.4",
-        "zh-CN": "大幅消除多弹连锁爆炸卡顿（粒子/贴花/灯光/火焰格全量常驻对象池 + 0.05 秒错帧连锁引爆 + 同格火焰去重），并修复移动中按一下空格误放两颗炸弹的问题。",
-        "zh-TW": "大幅消除多彈連鎖爆炸卡頓（粒子／貼花／燈光／火焰格全量常駐物件池 + 0.05 秒錯幀連鎖引爆 + 同格火焰去重），並修正移動中按一下空白鍵誤放兩顆炸彈的問題。",
-        "en": "Eliminates multi-bomb explosion stutter with persistent FX/decal/light/blast-cell pooling, 0.05s staggered chain detonation, and blast-cell deduplication; fixes single Space press dropping two bombs while crossing tile boundaries."
+        "version": "v0.1.5",
+        "zh-CN": "内建组队派对（team-party）原生小队模式（对角出生、友军火焰免疫、碰触救援倒地队友、救援倾向 AI 与小队同步计分），并拆分 AI、特效池与自测模块。",
+        "zh-TW": "內建組隊派對（team-party）原生小隊模式（對角出生、友軍火焰免疫、碰觸救援倒地隊友、救援傾向 AI 與小隊同步計分），並拆分 AI、特效池與自測模組。",
+        "en": "Adds native Team Party squad support (corner spawns, friendly flame immunity, touch rescue for downed allies, rescue-seeking AI, and Squads score sync) and splits AI, FX pooling, and self-tests into separate modules."
       },
       "package": {
-        "assetId": "1031",
-        "filename": "bubble-blitz-0.1.4.zip",
-        "size": 175414,
-        "sha256": "db525952c08cfb0d92440c18eec9bc6fe41514733a4a9bdcf5f894a6f05d1bc4",
+        "assetId": "1035",
+        "filename": "bubble-blitz-0.1.5.zip",
+        "size": 198610,
+        "sha256": "1e7bbe81b918cab1e36b7b6d6129f6ab59e58e4934630f7ffeb4390b2040c69d",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-13",
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -469,16 +528,20 @@
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
         "requiredFiles": [
+          "ai_controller.gd",
           "arena_meshes.gd",
           "bubble_blitz_game.gd",
           "config.gd",
+          "fx_pool.gd",
           "main.gd",
           "mod.json",
           "official_minigame.gd",
           "override_game.gd",
           "override_local_game.gd",
           "override_picker.gd",
-          "override_playlist.gd"
+          "override_playlist.gd",
+          "self_test.gd",
+          "team_support.gd"
         ],
         "upstreamUninstall": false
       },
@@ -512,6 +575,12 @@
       "id": "spike-ring",
       "category": "game",
       "order": 10,
+      "requires": [
+        {
+          "id": "mpm-core",
+          "minVersion": "v0.1.0"
+        }
+      ],
       "repo": "JamesGZM/machine-party-mod-manager",
       "inventoryById": true,
       "cover": {
@@ -520,24 +589,24 @@
         "size": 832988,
         "sha256": "7bdc73af6c0187543e7a2178129f0531464a9bee8823b7696754fb1a24424174"
       },
-      "version": "v0.1.2",
+      "version": "v0.1.3",
       "releaseNotes": {
-        "version": "v0.1.2",
-        "zh-CN": "推人命中与出局粒子改为常驻对象池复用并加入视锥内预热，避免多人连续按住互推时高频创建粒子造成掉帧。",
-        "zh-TW": "推人命中與出局粒子改為常駐物件池複用並加入視錐內預熱，避免多人連續按住互推時高頻建立粒子造成掉幀。",
-        "en": "Pools shove-hit and elimination GPU particles with in-frustum warmup so continuous multiplayer shoving runs with zero runtime particle allocations."
+        "version": "v0.1.3",
+        "zh-CN": "内建组队派对（team-party）原生小队模式（分队出生、友军零推搡、360° 冲击波免伤与 3.5 米护盾共振、仅攻击敌队 AI 与小队计分），并拆分机关导演、AI、特效池与自测模块。",
+        "zh-TW": "內建組隊派對（team-party）原生小隊模式（分隊出生、友軍零推搡、360° 衝擊波免傷與 3.5 米護盾共振、僅攻擊敵隊 AI 與小隊計分），並拆分機關導演、AI、特效池與自測模組。",
+        "en": "Adds native Team Party squad support (grouped spawns, zero friendly shove, 360° shockwave immunity, 3.5m shield link, enemy-only AI targeting, and Squads score sync) and extracts hazard director, AI, FX pooling, and self-tests."
       },
       "package": {
-        "assetId": "1032",
-        "filename": "spike-ring-0.1.2.zip",
-        "size": 221829,
-        "sha256": "bcd743ddf3d833422d95a77b53d2622d88ce5596e549e5fb8eb88ff95733a9f9",
+        "assetId": "1036",
+        "filename": "spike-ring-0.1.3.zip",
+        "size": 244160,
+        "sha256": "6a6d3b303994314daf41f1d351ed7cf3d0d6666086f31f96ca4d6550d9c4e4ea",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
         "v2.1.2"
       ],
-      "windowsPreview": "0.1.2-13",
+      "windowsPreview": "0.2.6-1",
       "adapter": {
         "kind": "loader-files",
         "platforms": [
@@ -555,8 +624,11 @@
           "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
         },
         "requiredFiles": [
+          "ai_controller.gd",
           "arena_meshes.gd",
           "config.gd",
+          "fx_pool.gd",
+          "hazard_director.gd",
           "main.gd",
           "mod.json",
           "official_minigame.gd",
@@ -564,7 +636,9 @@
           "override_local_game.gd",
           "override_picker.gd",
           "override_playlist.gd",
-          "spike_ring_game.gd"
+          "self_test.gd",
+          "spike_ring_game.gd",
+          "team_support.gd"
         ],
         "upstreamUninstall": false
       },
@@ -591,6 +665,163 @@
         "spike",
         "ring",
         "spike ring"
+      ]
+    },
+    {
+      "id": "team-party",
+      "category": "tool",
+      "order": 11,
+      "repo": "JamesGZM/machine-party-mod-manager",
+      "inventoryById": true,
+      "version": "v0.1.0",
+      "releaseNotes": {
+        "version": "v0.1.0",
+        "zh-CN": "首个独立版本：在大厅提供自由混战 / 2/TEAM / 4/TEAM / FREE 手动分队、拖拽换位与一键随机洗牌（支持房内既有 lobby-bots 机器人，绝不自动补位），为原版小游戏提供名牌染色、防友军误推与小队同步计分，并向自研小游戏公开团队注册表 API。",
+        "zh-TW": "首個獨立版本：在大廳提供自由混戰 / 2/TEAM / 4/TEAM / FREE 手動分隊、拖曳換位與單鍵隨機洗牌（支援房內既有 lobby-bots 機器人，絕不自動補位），為原版小遊戲提供名牌染色、防友軍誤推與小隊同步計分，並向自研小遊戲公開團隊註冊表 API。",
+        "en": "Initial release: provides FFA / 2-per-team / 4-per-team / custom team lobby setup, chair click/drag swapping, and one-click shuffle (supporting existing lobby-bots bots with zero auto-fill), vanilla minigame nametags, friendly-fire shove filtering, early win & Squads scoring, plus the shared team registry API consumed natively by first-party minigames."
+      },
+      "package": {
+        "assetId": "1033",
+        "filename": "team-party-0.1.0.zip",
+        "size": 147693,
+        "sha256": "dc0dd15688fd0cd5c609b2014ca4667f607e6a204901d35fbcc1a2d28003f3d8",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.2.6-1",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
+        "target": "pckDir",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "ingame_hud.gd",
+          "lobby_assignment.gd",
+          "lobby_drag_3d.gd",
+          "lobby_ui.gd",
+          "main.gd",
+          "mod.json",
+          "team_registry.gd",
+          "vanilla_ingame.gd"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": false,
+      "name": {
+        "zh-CN": "组队派对",
+        "zh-TW": "組隊派對",
+        "en": "Team Party"
+      },
+      "summary": {
+        "zh-CN": "大厅 2–4 队分队与拖拽换位、原版小游戏团队挂接、以及全模组共享团队注册表。",
+        "zh-TW": "大廳 2–4 隊分隊與拖曳換位、原版小遊戲團隊掛接、以及全模組共享團隊註冊表。",
+        "en": "Room-level 2-4 team setup and chair swapping, vanilla minigame team hooks, and shared team registry API."
+      },
+      "detail": {
+        "zh-CN": "负责房间层与官方原版关卡的组队逻辑：房主可在大厅切换个人混战、2人一队、4人一队或自由 2/3/4 队并单键洗牌或拖拽人物换椅（仅分配房内既有玩家与 lobby-bots 机器人，绝不自动补位），客机可点空椅入座或向玩家发起换位请求。局内通过共享注册表向泡泡爆破、尖刺圆环、滚筒嘉年华等自研小游戏提供原生地组队数据（各小游戏内建自身团队规则），并对官方原版关卡直接注入名牌染色、防友军推搡与小队同步加分。Windows 实机验证待确认，发布前暂未标为已验证。",
+        "zh-TW": "負責房間層與官方原版關卡的組隊邏輯：房主可在大廳切換個人混戰、2人一隊、4人一隊或自由 2/3/4 隊並單鍵洗牌或拖曳人物換椅（僅分配房內既有玩家與 lobby-bots 機器人，絕不自動補位），客機可點空椅入座或向玩家發起換位請求。局內透過共享註冊表向泡泡爆破、尖刺圓環、滾筒嘉年華等自研小遊戲提供原生組隊資料（各小遊戲內建自身團隊規則），並對官方原版關卡直接注入名牌染色、防友軍推搡與小隊同步加分。Windows 實機驗證待確認，發布前暫未標為已驗證。",
+        "en": "Owns lobby team assignment and vanilla minigame hooks: the host chooses FFA, 2/team, 4/team, or free 2-4 teams and drags chairs or shuffles existing humans and lobby-bots bots (zero auto-fill); guests claim empty chairs or request swaps. Exposes the shared team registry consumed natively by first-party minigames (Bubble Blitz, Spike Ring, Roller Carnival, each implementing its own team rules) while injecting team badges, friendly-fire shove filtering, and Squads score sync into official minigames. Pending Windows multiplayer confirmation."
+      },
+      "aliases": [
+        "组队",
+        "組隊",
+        "team",
+        "squad",
+        "分队",
+        "分隊"
+      ]
+    },
+    {
+      "id": "mpm-core",
+      "category": "tool",
+      "role": "library",
+      "order": 12,
+      "repo": "JamesGZM/machine-party-mod-manager",
+      "inventoryById": true,
+      "version": "v0.1.0",
+      "releaseNotes": {
+        "version": "v0.1.0",
+        "zh-CN": "首个核心运行库版本：提供 Minigame Hub v2（HUB_VERSION = 2）、Lobby UI 协调器 v2、跨模组事件总线与三语本地化辅助工具。",
+        "zh-TW": "首個核心運行庫版本：提供 Minigame Hub v2（HUB_VERSION = 2）、Lobby UI 協調器 v2、跨模組事件匯流排與三語本地化輔助工具。",
+        "en": "Initial core library release: provides Minigame Hub v2 (HUB_VERSION = 2), Lobby UI Coordinator v2, cross-mod event bus, and trilingual locale helpers."
+      },
+      "package": {
+        "assetId": "1037",
+        "filename": "mpm-core-0.1.0.zip",
+        "size": 50225,
+        "sha256": "b95497a82f6f53a60354b3afc23497ee314170a113b00a8a939463a2943a66b1",
+        "mirrorApproved": true
+      },
+      "supportedGameVersions": [
+        "v2.1.2"
+      ],
+      "windowsPreview": "0.2.6-1",
+      "adapter": {
+        "kind": "loader-files",
+        "platforms": [
+          "windows"
+        ],
+        "target": "pckDir",
+        "touches": [
+          "mods"
+        ],
+        "exclusive": "loader",
+        "autoLoader": true,
+        "baseline": {
+          "file": "Machine Party.pck",
+          "size": 634798100,
+          "sha256": "326cc3988d3ac554d1f288bed89b1f89d450f78ec9d4470f88558975753dfa8e"
+        },
+        "requiredFiles": [
+          "event_bus.gd",
+          "fx_pool.gd",
+          "hook_chain.gd",
+          "lobby_ui_coordinator.gd",
+          "locale_utils.gd",
+          "main.gd",
+          "minigame_sdk.gd",
+          "mod.json",
+          "override_game.gd",
+          "override_local_game.gd",
+          "override_picker.gd",
+          "override_playlist.gd"
+        ],
+        "upstreamUninstall": false
+      },
+      "verified": false,
+      "name": {
+        "zh-CN": "MPM 核心运行库",
+        "zh-TW": "MPM 核心運行庫",
+        "en": "MPM Core"
+      },
+      "summary": {
+        "zh-CN": "为第一方模组提供 Minigame Hub v2、大厅 UI 协调器与事件总线。",
+        "zh-TW": "為第一方模組提供 Minigame Hub v2、大廳 UI 協調器與事件匯流排。",
+        "en": "Shared runtime library providing Minigame Hub v2, Lobby UI Coordinator v2, and event bus."
+      },
+      "detail": {
+        "zh-CN": "以最高优先级（priority: -100）加载的共用基础库模组，集中维护 Minigame Hub v2（平滑升级旧版 HUB_VERSION = 1）、Lobby UI 协调器 v2（通知引导加载器让步）以及跨模组事件总线与语系工具。由管理器在安装依赖模组时自动装配，Windows 实机验证前暂标为未验证。",
+        "zh-TW": "以最高優先權（priority: -100）載入的共用基礎庫模組，集中維護 Minigame Hub v2（平滑升級舊版 HUB_VERSION = 1）、Lobby UI 協調器 v2（通知引導載入器讓步）以及跨模組事件匯流排與語系工具。由管理器在安裝依賴模組時自動裝配，Windows 實機驗證前暫標為未驗證。",
+        "en": "Early-loading shared library mod (priority -100) bundling Minigame Hub v2 (superseding HUB_VERSION = 1), Lobby UI Coordinator v2, cross-mod event bus, and locale helpers. Automatically managed by dependency resolution; pending Windows multiplayer verification."
+      },
+      "aliases": [
+        "mpm-core",
+        "core",
+        "核心库",
+        "核心運行庫"
       ]
     }
   ]

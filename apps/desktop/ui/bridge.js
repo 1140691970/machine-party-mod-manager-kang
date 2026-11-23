@@ -16,6 +16,7 @@ export const saveGame = path => invoke("save_game", {path});
 export const installedVersions = path => invoke("installed_versions", {path});
 export const validateGameMods = (path, force) => invoke("validate_game_mods", {path, force});
 export const reloadLoader = (path, expectedDir, force) => invoke("reload_loader", {path, expectedDir, force});
+export const setModsEnabled = (path, ids, enabled, expectedDir) => invoke("set_mods_enabled", {path, ids, enabled, expectedDir});
 export const gameProcess = (path, expectedDir, action) => invoke("game_process", {path, expectedDir, action});
 export const gameCopies = path => invoke("game_copies", {path});
 export const cachedPackages = () => invoke("cached_packages");

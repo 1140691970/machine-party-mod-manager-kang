@@ -1,4 +1,4 @@
-import {copyFile, mkdtemp, rm, writeFile} from "node:fs/promises";
+import {copyFile, mkdir, mkdtemp, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {existsSync} from "node:fs";
@@ -19,6 +19,16 @@ test("built-in loader de-conflicts overlapping lobby mod UI without touching van
   t.after(() => rm(dir, {recursive: true, force: true}));
   await writeFile(join(dir, "project.godot"), 'config_version=5\n\n[application]\nconfig/name="LoaderLobbyUITest"\n');
   await copyFile(local("../../apps/desktop/src-tauri/assets/mpm_bootstrap.gd"), join(dir, "mpm_bootstrap.gd"));
+  for (const [folder, id] of [["mod_on", "mod_on"], ["mod_off", "mod_off"], ["alias-folder", "alias_inner"]]) {
+    const modDir = join(dir, "test_mods", folder);
+    await mkdir(modDir, {recursive: true});
+    await writeFile(join(modDir, "mod.json"), JSON.stringify({id, entry: "main.gd"}));
+    await writeFile(join(modDir, "main.gd"), "extends Node\n");
+  }
+  await writeFile(join(dir, "test_mods", ".mpm-state.json"), JSON.stringify({
+    version: 1,
+    disabled: ["mod_off", "alias-folder"]
+  }));
   const result = spawnSync(godot, ["--headless", "--path", dir, "--script", local("./loader_lobby_ui_test.gd")], {
     encoding: "utf8",
     timeout: 20000

@@ -4,15 +4,19 @@
 //   action    - the card's single-mod action (from currentAction)
 //   removable - the manager holds an uninstall transaction for this mod
 
-export const BATCH_KINDS = ["install", "uninstall"];
+export const BATCH_KINDS = ["install", "enable", "disable", "uninstall"];
 
 const LABELS = {
   install: "batchInstall",
+  enable: "batchEnable",
+  disable: "batchDisable",
   uninstall: "batchUninstall"
 };
 
 const CONFIRMS = {
   install: "batchConfirmInstall",
+  enable: "batchConfirmEnable",
+  disable: "batchConfirmDisable",
   uninstall: "batchConfirmUninstall"
 };
 
@@ -29,8 +33,11 @@ export const batchConfirmKey = kind => CONFIRMS[kind] || "";
 export function batchMatches(kind, row) {
   if (!row) return false;
   if (kind === "install") return (row.action === "install" && !row.removable) || row.action === "updateMod";
-  if (kind === "uninstall") return Boolean(row.removable)
-    && row.action !== "checking" && row.action !== "retryCheck";
+  const removable = Boolean(row.removable) && row.action !== "checking" && row.action !== "retryCheck";
+  if (kind === "uninstall") return removable;
+  const toggleable = row.toggleable === undefined ? removable : (removable && Boolean(row.toggleable));
+  if (kind === "enable") return toggleable && Boolean(row.disabled);
+  if (kind === "disable") return toggleable && !row.disabled;
   return false;
 }
 
@@ -42,7 +49,7 @@ export function batchEligible(kind, row) {
 // Resolves the concrete single-mod action to run for one item.
 export function batchItemAction(kind, row) {
   if (!batchMatches(kind, row)) return "";
-  if (kind === "uninstall") return "uninstall";
+  if (kind === "uninstall" || kind === "enable" || kind === "disable") return kind;
   return row.action === "updateMod" ? "updateMod" : "install";
 }
 
