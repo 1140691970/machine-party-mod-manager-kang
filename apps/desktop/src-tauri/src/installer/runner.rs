@@ -1,14 +1,14 @@
 use std::{
-    fs::{File, OpenOptions},
+    fs::OpenOptions,
     io::{self, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
-#[cfg(not(windows))]
-use std::io::Read;
 #[cfg(windows)]
 use std::os::windows::{fs::OpenOptionsExt, process::CommandExt};
+#[cfg(not(windows))]
+use std::{fs::File, io::Read};
 
 #[cfg(windows)]
 use crate::game;
