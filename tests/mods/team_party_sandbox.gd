@@ -1,13 +1,13 @@
 extends SceneTree
 
 ## Multi-Mod Team Party Sandbox (macOS Interactive Tester + Headless End-to-End Test)
-## Combines untouched:
-##   - mods/team-party/main.gd
+## Combines native:
+##   - mods/team-party/* (room team setup, HUD & vanilla minigame hooks)
 ##   - mods/player-spotlight/main.gd
 ##   - mods/lobby-bots/main.gd (via live compatible bots + DiscoBrain runner)
-##   - mods/bubble-blitz/*
-##   - mods/spike-ring/*
-##   - mods/roller-carnival/*
+##   - mods/bubble-blitz/* (native team mode via team_support.gd)
+##   - mods/spike-ring/* (native team mode via team_support.gd)
+##   - mods/roller-carnival/* (native team mode via team_support.gd)
 ## Plus a playable Disco Dodge team brawl arena.
 
 const SCENE_LOBBY := 0
@@ -2131,9 +2131,10 @@ func _run_headless_self_tests() -> void:
 	var bot1_lbl: Label3D = _active_lobby.lobby_handler.nametags[3] as Label3D
 	_expect(bot1_lbl.text.begins_with("[RED] ") or bot1_lbl.text.begins_with("[红]") or bot1_lbl.text.begins_with("[紅]"), "Bot 1 3D lobby nametag gets team prefix")
 
-	# 2. Bubble Blitz (UNTOUCHED mod wrapped by team-party)
+	# 2. Bubble Blitz (native team support inside bubble-blitz mod)
 	_switch_scene(SCENE_BUBBLE)
 	await process_frame
+	_expect(_active_stage.has_meta(&"mpm_native_team_stage") and not _active_stage.has_meta(&"mpm_team_wrapped"), "BubbleBlitz runs native team mode without runtime wrapper")
 	_bb_action_friendly_bomb()
 	var bb_ps: Dictionary = _active_stage.get("_players") as Dictionary
 	var bb_pair: Dictionary = _find_first_teammate_and_enemy(bb_ps, 1)
@@ -2152,9 +2153,10 @@ func _run_headless_self_tests() -> void:
 	await create_timer(1.55).timeout
 	_expect(not bb_won.is_empty() and int(bb_won.get(1, -1)) == int(bb_won.get(int(bb_mate["network_id"]), -2)), "BubbleBlitz: early win emits synced squad scores")
 
-	# 3. Spike Ring (UNTOUCHED mod wrapped by team-party)
+	# 3. Spike Ring (native team support inside spike-ring mod)
 	_switch_scene(SCENE_SPIKE)
 	await process_frame
+	_expect(_active_stage.has_meta(&"mpm_native_team_stage") and not _active_stage.has_meta(&"mpm_team_wrapped"), "SpikeRing runs native team mode without runtime wrapper")
 	_sr_action_shockwave()
 	var sr_ps: Dictionary = _active_stage.get("_players") as Dictionary
 	var sr_pair: Dictionary = _find_first_teammate_and_enemy(sr_ps, 1)
@@ -2170,9 +2172,10 @@ func _run_headless_self_tests() -> void:
 	await process_frame
 	_expect(int(sr_won.get(1, -1)) > 0 and int(sr_won.get(1, -1)) == int(sr_won.get(2, -2)) and int(sr_won.get(1, -1)) == int(sr_won.get(-1, -3)), "SpikeRing: early win + synced squad scores")
 
-	# 4. Roller Carnival (UNTOUCHED mod wrapped by team-party)
+	# 4. Roller Carnival (native team support inside roller-carnival mod)
 	_switch_scene(SCENE_ROLLER)
 	await process_frame
+	_expect(_active_stage.has_meta(&"mpm_native_team_stage") and not _active_stage.has_meta(&"mpm_team_wrapped"), "RollerCarnival runs native team mode without runtime wrapper")
 	var rc_ps: Array = _active_stage.get("_players") as Array
 	_expect(rc_ps.size() == 7, "RollerCarnival spawns 7 players")
 	# Verify Z lanes grouped by team (Red team 1 comes first along Z)
@@ -2252,7 +2255,6 @@ func _shutdown(code: int) -> void:
 	_clear_current_scene()
 	_real_lobby_packed = null
 	if _tp_mod != null:
-		(_tp_mod.get("_wrapped_script_cache") as Dictionary).clear()
 		_tp_mod.free()
 		_tp_mod = null
 	if _spot_mod != null:
@@ -2297,6 +2299,15 @@ func _shutdown(code: int) -> void:
 	_rc_meshes = null
 	_rc_stage_script = null
 	_cjk_3d_font = null
-	if FileAccess.file_exists("res://main.gd.uid"):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("res://main.gd.uid"))
+	for uid_rel in [
+		"res://main.gd.uid",
+		"res://team_registry.gd.uid",
+		"res://lobby_assignment.gd.uid",
+		"res://lobby_ui.gd.uid",
+		"res://lobby_drag_3d.gd.uid",
+		"res://vanilla_ingame.gd.uid",
+		"res://ingame_hud.gd.uid",
+	]:
+		if FileAccess.file_exists(uid_rel):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(uid_rel))
 	quit(code)

@@ -31,6 +31,7 @@ var _mod_dir: String = ""
 var _config_script = null
 var _meshes_script = null
 var _game_script = null
+var _registered_scripts: Dictionary = {}
 var _packed_minigame_scene: PackedScene = null
 var _icon_texture: Texture2D = null
 var _official_script: GDScript
@@ -142,8 +143,7 @@ func _mod_ready(loader) -> void:
 
 
 func _register_into_hub(loader) -> void:
-	var custom_map: Dictionary = _get_shared_registry(loader, "custom_minigames", "_mpm_custom_minigames")
-	custom_map[TARGET_SLOT_ID] = {
+	var spec := {
 		"mod_id": MOD_ID,
 		"slot_id": TARGET_SLOT_ID,
 		"scene_path": TARGET_SCENE_PATH,
@@ -154,6 +154,15 @@ func _register_into_hub(loader) -> void:
 		"brief_content": Callable(self, "_brief_content"),
 		"controls_data": Callable(self, "_controls_data"),
 	}
+	if Engine.has_meta(&"mpm_core"):
+		var core = Engine.get_meta(&"mpm_core")
+		if core is Dictionary:
+			var sdk = (core as Dictionary).get("minigame_sdk", null)
+			if sdk != null and sdk.has_method("register_minigame"):
+				sdk.register_minigame(spec, loader)
+				return
+	var custom_map: Dictionary = _get_shared_registry(loader, "custom_minigames", "_mpm_custom_minigames")
+	custom_map[TARGET_SLOT_ID] = spec
 
 
 func _install_hub_overrides(loader) -> void:
@@ -211,27 +220,37 @@ func _apply_cached_override(node: Node) -> void:
 
 
 func _register_mod_scripts(loader) -> void:
+	var helper_files: Array[String] = [
+		"config.gd",
+		"arena_meshes.gd",
+		"team_support.gd",
+		"hazard_director.gd",
+		"fx_pool.gd",
+		"ai_controller.gd",
+		"self_test.gd",
+		"spike_ring_game.gd",
+	]
 	var use_register_api := false
 	if loader.has_method("has_api"):
 		use_register_api = bool(loader.call("has_api", "register_script"))
 	if use_register_api and loader.has_method("register_script"):
-		loader.register_script(MOD_ID, "config.gd", REG_RES_DIR + "config.gd")
-		loader.register_script(MOD_ID, "arena_meshes.gd", REG_RES_DIR + "arena_meshes.gd")
-		loader.register_script(MOD_ID, "spike_ring_game.gd", REG_RES_DIR + "spike_ring_game.gd")
-		_config_script = ResourceLoader.load(REG_RES_DIR + "config.gd")
-		_meshes_script = ResourceLoader.load(REG_RES_DIR + "arena_meshes.gd")
-		_game_script = ResourceLoader.load(REG_RES_DIR + "spike_ring_game.gd")
+		for rel in helper_files:
+			var res_path: String = REG_RES_DIR + rel
+			loader.register_script(MOD_ID, rel, res_path)
+			_registered_scripts[rel] = ResourceLoader.load(res_path)
+		_config_script = _registered_scripts.get("config.gd", null)
+		_meshes_script = _registered_scripts.get("arena_meshes.gd", null)
+		_game_script = _registered_scripts.get("spike_ring_game.gd", null)
 		return
 	if loader.has_method("compile"):
-		_config_script = loader.compile(_mod_dir.path_join("config.gd"))
-		if _config_script != null:
-			_config_script.take_over_path(REG_RES_DIR + "config.gd")
-		_meshes_script = loader.compile(_mod_dir.path_join("arena_meshes.gd"))
-		if _meshes_script != null:
-			_meshes_script.take_over_path(REG_RES_DIR + "arena_meshes.gd")
-		_game_script = loader.compile(_mod_dir.path_join("spike_ring_game.gd"))
-		if _game_script != null:
-			_game_script.take_over_path(REG_RES_DIR + "spike_ring_game.gd")
+		for rel in helper_files:
+			var gd = loader.compile(_mod_dir.path_join(rel))
+			if gd != null:
+				gd.take_over_path(REG_RES_DIR + rel)
+				_registered_scripts[rel] = gd
+		_config_script = _registered_scripts.get("config.gd", null)
+		_meshes_script = _registered_scripts.get("arena_meshes.gd", null)
+		_game_script = _registered_scripts.get("spike_ring_game.gd", null)
 
 
 func _prepare_packed_minigame_scene() -> bool:
@@ -300,6 +319,12 @@ func _on_game_entered(game_node: Node) -> void:
 
 
 func _exit_tree() -> void:
+	if Engine.has_meta(&"mpm_core"):
+		var core = Engine.get_meta(&"mpm_core")
+		if core is Dictionary:
+			var sdk = (core as Dictionary).get("minigame_sdk", null)
+			if sdk != null and sdk.has_method("unregister_minigame"):
+				sdk.unregister_minigame(MOD_ID, _loader)
 	if Engine.has_meta("_mpm_custom_minigames"):
 		var custom_map = Engine.get_meta("_mpm_custom_minigames")
 		if custom_map is Dictionary:
@@ -311,5 +336,9 @@ func _exit_tree() -> void:
 		if hub is Dictionary:
 			(hub as Dictionary).clear()
 		Engine.remove_meta("_mpm_custom_minigames_hub")
+	_registered_scripts.clear()
+	_config_script = null
+	_meshes_script = null
+	_game_script = null
 	_packed_minigame_scene = null
 	_icon_texture = null

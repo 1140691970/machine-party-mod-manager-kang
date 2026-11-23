@@ -62,7 +62,7 @@ Steam 上的 Machine Party 僅支援 Windows，不考慮在 macOS 上遊玩。�
 ## 常見改動
 
 - **新增或修改模組**：只改 `catalog/mods.json`。三種語言的 `name`、`summary`、`detail` 都要填寫，維持 `id` 與 `repo` 不變；封面為選填，如需封面請將圖片放入 `catalog/covers/<id>.<ext>` 並在條目中填寫對應的 `cover` 中繼資料（`filename`、`contentType`、`size`、`sha256`），透過 R2 圖床分發（禁止再將模組封面內建至 `apps/desktop/ui/images/`）。收錄流程見[模組目錄指南](../catalog/mods.md)。
-- **新增儲存庫自研模組**：依循[自研模組開發、測試、接入與打包規範](mod-development.md)（在 `mods/<id>/` 提供 `README.md`、`mod.json` 與 GDScript 腳本），執行 `node scripts/pack-mod.mjs <id>`（自動排除 `project.godot`、`*_scene.tscn`、`*.sh` 與 `*.md`），依與其他模組完全相同的格式在 `catalog/mods.json` 新增 `package` 與 `adapter.kind: "loader-files"`（`autoLoader: true`）條目，並執行 Godot 檢查、`npm run test:rust` 與 `npm test`（[ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)）。
+- **新增儲存庫自研模組**：依循[自研模組開發、測試、接入與打包規範](mod-development.md)與[模組 SDK 參考手冊](mod-sdk.md)（在 `mods/<id>/` 提供 `README.md`、`mod.json` 與 GDScript 腳本），執行 `node scripts/pack-mod.mjs <id>`（自動排除 `project.godot`、`*_scene.tscn`、`*.sh` 與 `*.md`），依與其他模組完全相同的格式在 `catalog/mods.json` 新增 `package` 與 `adapter.kind: "loader-files"`（`autoLoader: true`）條目，並執行 Godot 檢查、`npm run test:rust` 與 `npm test`（[ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)）。
 - **新增介面文案**：在 `apps/desktop/ui/languages.js` 增加一個鍵，同時填寫簡體中文、繁體中文與英文。
 - **新增命令**：在不依賴 Tauri 的模組實作邏輯並撰寫單元測試，在 `commands.rs` 公開，在 `main.rs` 註冊，且只從 `bridge.js` 呼叫。
 - **調整架構**：在 `docs/en`、`docs/zh-CN`、`docs/zh-TW` 各新增一份 ADR，並更新現行架構頁面。

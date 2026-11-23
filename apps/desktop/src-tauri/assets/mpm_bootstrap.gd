@@ -160,8 +160,8 @@ func _discover_and_init_mods() -> void:
 			var deps_missing := false
 			var deps_ready := true
 			for dep in deps:
-				var dep_id: String = str(dep)
-				if not candidate_ids.has(dep_id):
+				var dep_id: String = str((dep as Dictionary).get("id", "")) if dep is Dictionary else str(dep)
+				if dep_id.is_empty() or not candidate_ids.has(dep_id):
 					deps_missing = true
 					break
 				if not loaded_ids.has(dep_id):
@@ -789,6 +789,8 @@ func _rects_overlap_with_gap(a: Rect2, b: Rect2, gap: float) -> bool:
 
 
 func _layout_lobby_mod_ui() -> void:
+	if Engine.has_meta(&"mpm_lobby_ui_coordinator_v2") and bool(Engine.get_meta(&"mpm_lobby_ui_coordinator_v2")):
+		return
 	if not is_instance_valid(_lobby_node):
 		return
 	var vp: Viewport = _lobby_node.get_viewport()

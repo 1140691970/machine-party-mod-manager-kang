@@ -526,8 +526,17 @@ func _run() -> void:
 	expect(hud_in_game == null or not is_instance_valid(hud_in_game) or not hud_in_game.visible, "in-game Team HUD hides once match/game exits")
 	mod_loader.free()
 	net.free()
-	if FileAccess.file_exists("res://main.gd.uid"):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path("res://main.gd.uid"))
+	for uid_rel in [
+		"res://main.gd.uid",
+		"res://team_registry.gd.uid",
+		"res://lobby_assignment.gd.uid",
+		"res://lobby_ui.gd.uid",
+		"res://lobby_drag_3d.gd.uid",
+		"res://vanilla_ingame.gd.uid",
+		"res://ingame_hud.gd.uid",
+	]:
+		if FileAccess.file_exists(uid_rel):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(uid_rel))
 
 	if _failed:
 		quit(1)

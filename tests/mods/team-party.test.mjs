@@ -25,7 +25,7 @@ test("team-party lobby assignment, nametags, spotlight compat, shove filter, ear
   assert.match(output, /Team Party checks passed/);
 });
 
-test("team-party sandbox verifies untouched BubbleBlitz, SpikeRing, RollerCarnival, LobbyBots and PlayerSpotlight together", {
+test("team-party sandbox verifies native BubbleBlitz, SpikeRing, RollerCarnival, LobbyBots and PlayerSpotlight together", {
   skip: !available && "Godot unavailable"
 }, () => {
   const result = spawnSync(godot, [

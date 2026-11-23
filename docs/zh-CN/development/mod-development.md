@@ -2,7 +2,7 @@
 
 [English](../../en/development/mod-development.md) · **简体中文** · [繁體中文](../../zh-TW/development/mod-development.md)
 
-本规范适用于在本仓库 [`mods/`](../../../mods/README.md) 目录下开发和维护的**第一方自研模组**。第三方社区模组遵循[候选模组与收录规范](../catalog/mods.md)的上游发布审核流程；两者均通过同一套 Cloudflare R2 与目录 Worker 流水线分发（见[正式目录交付方案](../catalog/delivery.md)、[ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)）。
+本规范适用于在本仓库 [`mods/`](../../../mods/README.md) 目录下开发和维护的**第一方自研模组**；公开运行时契约与 SDK 工具链规划见[模组 SDK 参考手册](mod-sdk.md)与 [ADR-018](../architecture/ADR-018-mod-development-sdk.md)。第三方社区模组遵循[候选模组与收录规范](../catalog/mods.md)的上游发布审核流程；两者均通过同一套 Cloudflare R2 与目录 Worker 流水线分发（见[正式目录交付方案](../catalog/delivery.md)、[ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)）。
 
 ## 1. 适用范围与设计原则
 

@@ -49,12 +49,21 @@ function validAdapter(adapter) {
   return allArgs.every(arg => !adapter.forbiddenArgs.includes(arg));
 }
 
+function validRequires(requires) {
+  return requires === undefined || (Array.isArray(requires) && requires.every(req =>
+    req && typeof req === "object"
+    && typeof req.id === "string" && slug.test(req.id)
+    && (req.minVersion === undefined || (typeof req.minVersion === "string" && version.test(req.minVersion)))));
+}
+
 function validEntry(mod) {
   if (!mod || typeof mod !== "object") return false;
   const pkg = mod.package;
   return typeof mod.id === "string" && slug.test(mod.id)
     && (mod.inventoryById === undefined || typeof mod.inventoryById === "boolean")
     && (mod.legacyInventoryRepos === undefined || stringArray(mod.legacyInventoryRepos))
+    && (mod.role === undefined || mod.role === "library")
+    && validRequires(mod.requires)
     && typeof mod.repo === "string" && /^[\w-][\w.-]*\/[\w-][\w.-]*$/.test(mod.repo)
     && Number.isSafeInteger(mod.order) && mod.order > 0 && typeof mod.verified === "boolean"
     && (!mod.image || typeof mod.image === "string" && slug.test(mod.image))

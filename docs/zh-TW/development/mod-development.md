@@ -2,7 +2,7 @@
 
 [English](../../en/development/mod-development.md) · [简体中文](../../zh-CN/development/mod-development.md) · **繁體中文**
 
-本規範適用於在本儲存庫 [`mods/`](../../../mods/README.md) 目錄下開發與維護的**第一方自研模組**。第三方社群模組依循[候選模組與收錄規範](../catalog/mods.md)的上游發布審核流程；兩者共用同一套 Cloudflare R2 與目錄 Worker 分發管線（見[正式目錄交付方案](../catalog/delivery.md)、[ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)）。
+本規範適用於在本儲存庫 [`mods/`](../../../mods/README.md) 目錄下開發與維護的**第一方自研模組**；公開執行期契約與 SDK 工具鏈規劃見[模組 SDK 參考手冊](mod-sdk.md)與 [ADR-018](../architecture/ADR-018-mod-development-sdk.md)。第三方社群模組依循[候選模組與收錄規範](../catalog/mods.md)的上游發布審核流程；兩者共用同一套 Cloudflare R2 與目錄 Worker 分發管線（見[正式目錄交付方案](../catalog/delivery.md)、[ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)）。
 
 ## 1. 適用範圍與設計原則
 

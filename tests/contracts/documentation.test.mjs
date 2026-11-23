@@ -40,7 +40,10 @@ test("translated policies exist at the root", async () => {
 
 test("all three README mod tables match the repository catalog", async () => {
   const catalog = JSON.parse(await readFile(path.join(root, "catalog/mods.json"), "utf8"));
-  const expected = catalog.mods.toSorted((a, b) => a.order - b.order).map(mod => {
+  const expected = catalog.mods
+    .filter(mod => mod.role !== "library")
+    .toSorted((a, b) => a.order - b.order)
+    .map(mod => {
     const url = "https://github.com/" + mod.repo;
     return [mod.repo === catalog.repo ? url + "/tree/main/mods/" + mod.id : url, mod.version];
   });

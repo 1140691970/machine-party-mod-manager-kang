@@ -247,5 +247,11 @@ export const messages = {
   unsupportedAdapter:["当前客户端暂不支持此模组的安装方式。","目前客戶端暫不支援此模組的安裝方式。","This mod's installation method is not yet supported by this client."],
   unknownMod:["未知的模组条目。","未知的模組項目。","Unknown mod entry."],
   fileReadError:["读取游戏或暂存文件失败。","讀取遊戲或暫存檔案失敗。","Failed to read game or staging files."],
-  fileWriteError:["写入游戏或配置目录失败。","寫入遊戲或設定目錄失敗。","Failed to write to the game or configuration directory."]
+  fileWriteError:["写入游戏或配置目录失败。","寫入遊戲或設定目錄失敗。","Failed to write to the game or configuration directory."],
+  dependencyMissing:["缺少前置依赖模组，请刷新目录后重试。","缺少前置依賴模組，請重新整理目錄後重試。","A required dependency mod is missing from the catalog."],
+  dependencyCycle:["模组依赖存在循环引用，已拒绝安装。","模組依賴存在循環引用，已拒絕安裝。","Circular mod dependency detected; installation blocked."],
+  dependencyVersion:["前置依赖模组版本过低，请先更新目录。","前置依賴模組版本過低，請先更新目錄。","A required dependency mod version in the catalog is too old."],
+  dependencyRequiredBy:["以下已安装模组依赖此模组，无法禁用或卸载","以下已安裝模組依賴此模組，無法停用或解除安裝","Cannot disable or uninstall while required by"],
+  requiresMods:["前置依赖","前置依賴","Requires"],
+  roleLibrary:["核心运行库（安装依赖模组时自动配置）","核心運行庫（安裝依賴模組時自動設定）","Core library (configured automatically when installing dependent mods)"]
 };

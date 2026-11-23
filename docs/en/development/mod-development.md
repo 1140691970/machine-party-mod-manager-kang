@@ -2,7 +2,7 @@
 
 **English** · [简体中文](../../zh-CN/development/mod-development.md) · [繁體中文](../../zh-TW/development/mod-development.md)
 
-This specification governs **first-party mods** authored in this repository under [`mods/`](../../../mods/README.md). Third-party community mods follow the upstream Release approval process described in [Candidate mods and inclusion rules](../catalog/mods.md). Both share the same Cloudflare R2 + catalog Worker delivery pipeline ([Catalog delivery](../catalog/delivery.md), [ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)).
+This specification governs **first-party mods** authored in this repository under [`mods/`](../../../mods/README.md). For runtime contracts and planned SDK tooling, see [Mod SDK Reference](mod-sdk.md) and [ADR-018](../architecture/ADR-018-mod-development-sdk.md). Third-party community mods follow the upstream Release approval process described in [Candidate mods and inclusion rules](../catalog/mods.md). Both share the same Cloudflare R2 + catalog Worker delivery pipeline ([Catalog delivery](../catalog/delivery.md), [ADR-009](../architecture/ADR-009-bundled-first-party-mods.md)).
 
 ## 1. Scope and design principles
 

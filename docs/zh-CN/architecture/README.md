@@ -22,8 +22,8 @@ flowchart LR
 
 | 目录 | 职责 |
 | --- | --- |
-| `apps/desktop/src-tauri` | Tauri 2 外壳。`main.rs` 只负责组装；`commands.rs` 解码、校验 IPC 并转交；`game.rs` 识别 Steam 游戏副本；`installer.rs` 是无 Tauri 依赖的交易引擎与适配器工厂；`pck_loader.rs` 通过 `assets/mpm_bootstrap.gd` 与 `Machine Party.pck.modloader.json` 执行管理器自管 Godot PCK 加载器的补丁与还原；`inventory.rs` 读取各副本的安装记录；`preferences.rs` 保存手动选择；`catalog.rs` 内嵌目录并限制可打开的作者与项目主页（`open_project` 同时放行目录顶层 `repo` 与各模组 `repo`）；`app_updates.rs` 负责签名更新。 |
-| `apps/desktop/ui` | 无构建步骤的原生 ES 模块。`bridge.js` 是唯一接触 Tauri 的文件；`catalog.js` 与 `versions.js` 为纯函数；`state.js` 保存界面状态；各 `*-view.js` 负责渲染。样式分三层：`tokens.css` 设计 token、`components.css` 通用组件、`style.css` 页面布局；`dom.js` 与 `icons.js` 创建组件与图标。 |
+| `apps/desktop/src-tauri` | Tauri 2 外壳。`main.rs` 只负责组装；`commands.rs` 解码、校验 IPC 并转交；`game`（`game.rs`、`process.rs`、`steam_verify.rs`）识别 Steam 游戏副本；`installer/`（`mod.rs`、`runner.rs`、`zip.rs`、`transaction.rs`、`state.rs`、`conflicts.rs`、`inspect.rs`、`adapters/`、`prepare.rs`、`update.rs`、`steam_restore.rs`、`tests/`）是无 Tauri 依赖的交易引擎与适配器层；`pck_loader/`（`mod.rs`、`gdpc.rs`、`tests.rs`）通过 `assets/mpm_bootstrap.gd` 与 `Machine Party.pck.modloader.json` 执行管理器自管 Godot PCK 加载器的补丁与还原；`inventory.rs` 读取各副本的安装记录；`preferences.rs` 保存手动选择；`catalog.rs` 内嵌目录并限制可打开的作者与项目主页（`open_project` 同时放行目录顶层 `repo` 与各模组 `repo`）；`app_updates.rs` 负责签名更新。 |
+| `apps/desktop/ui` | 无构建步骤的原生 ES 模块。`bridge.js` 是唯一接触 Tauri 的文件；`catalog.js` 与 `versions.js` 为纯函数；`state.js` 保存界面状态；`catalog-view.js`、`mod-helpers.js`、`mod-dialogs.js`、`mod-install-flow.js`、`batch-view.js` 与 `settings-view.js` 负责渲染与流程协调。样式分三层：`tokens.css` 设计 token、`components.css` 通用组件、`style.css` 页面布局；`dom.js` 与 `icons.js` 创建组件与图标。 |
 | `catalog/mods.json` | 管理器顶层 `repo`、模组收录 ID、序号、版本、三语文案、别名及声明式 `adapter` 配置的唯一来源（[ADR-002](ADR-002-catalog-source.md)）。 |
 | `mods/<id>/` | 本仓库编写的自研 GDScript 玩法模组，经 `scripts/pack-mod.mjs` 确定性打包后上传至 R2 并由 catalog Worker 分发，配合内置自管加载器一键安装与还原（[ADR-009](ADR-009-bundled-first-party-mods.md)）。 |
 | `services/update-worker` | 只读 Worker，从 R2 提供稳定清单与按版本固定的安装包（[ADR-003](ADR-003-desktop-updates.md)）。 |
@@ -72,3 +72,5 @@ Steam 上的 Machine Party（App ID 4108000）仅支持 Windows，不考虑在 m
 - [ADR-014 · Steam 验证成功后清理受管模组](ADR-014-steam-restore.md)
 - [ADR-015 · 多小游戏共存注册中心](ADR-015-multi-minigame-hub.md)
 - [ADR-016 · 基于 R2 图床的可选模组封面规范](ADR-016-r2-mod-covers.md)
+- [ADR-017 · 模块化边界、核心库模组与分阶段重构方案（提议）](ADR-017-modular-boundaries-and-core-runtime.md)
+- [ADR-018 · MPM 模组开发 SDK 与工具链架构（提议）](ADR-018-mod-development-sdk.md)
