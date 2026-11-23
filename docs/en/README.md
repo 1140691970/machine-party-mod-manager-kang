@@ -14,6 +14,7 @@
 - [Development guide](development/README.md)
 - [First-party mod development specification](development/mod-development.md)
 - [Co-op minigame design and admission gating](development/coop-minigame-gating.md)
+- [Core Heist gameplay and development specification](development/core-heist-design.md)
 - [Releasing manager updates](development/releasing.md)
 - [Current architecture](architecture/README.md) and its ADRs
 
