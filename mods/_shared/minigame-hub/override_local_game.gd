@@ -30,6 +30,26 @@ static func _slot_debug_name(slot_id: int, custom_map: Dictionary) -> String:
 	return str(slot_id)
 
 
+static func _is_slot_eligible(slot_id: int, custom_map: Dictionary) -> bool:
+	if not custom_map.has(slot_id):
+		return true
+	var spec_raw = custom_map[slot_id]
+	if not (spec_raw is Dictionary):
+		return true
+	if not Engine.has_meta(&"mpm_core"):
+		return true
+	var core_raw = Engine.get_meta(&"mpm_core")
+	if not (core_raw is Dictionary):
+		return true
+	var sdk = (core_raw as Dictionary).get("minigame_sdk", null)
+	if sdk == null or not sdk.has_method("evaluate_minigame_eligibility"):
+		return true
+	var res = sdk.evaluate_minigame_eligibility(spec_raw as Dictionary, {"is_local": true})
+	if res is Dictionary:
+		return bool((res as Dictionary).get("eligible", true))
+	return true
+
+
 func generate_session_playlist() -> void:
 	var custom_map: Dictionary = _get_custom_minigames()
 	var custom_slots: Array = _sorted_custom_slots(custom_map)
@@ -45,6 +65,8 @@ func generate_session_playlist() -> void:
 			var arcade_games_count: int = 10
 			var all_allowed_minigame_identifiers: Array = Globals.CustomMinigamesWhitelist.duplicate(true)
 			for slot_id in custom_slots:
+				if not _is_slot_eligible(slot_id, custom_map):
+					continue
 				if not all_allowed_minigame_identifiers.has(slot_id):
 					all_allowed_minigame_identifiers.append(slot_id)
 			all_allowed_minigame_identifiers.shuffle()
@@ -58,6 +80,8 @@ func generate_session_playlist() -> void:
 			for game in Globals.session_playlist:
 				var gid: int = int(game.game_identifier)
 				if not Globals.CustomMinigamesWhitelist.has(game.game_identifier) and not custom_map.has(gid):
+					continue
+				if custom_map.has(gid) and not _is_slot_eligible(gid, custom_map):
 					continue
 				minigames_shuffled.append(game.game_identifier)
 				session_minigame_rounds[game.game_identifier] = max(game.total_rounds, 1)
@@ -82,8 +106,19 @@ func generate_session_playlist() -> void:
 				present_slots[slot_id] = true
 
 		for game in Globals.session_playlist:
+			var gid: int = int(game.game_identifier)
+			if custom_map.has(gid) and not _is_slot_eligible(gid, custom_map):
+				continue
 			minigames_shuffled.append(game.game_identifier)
 			session_minigame_rounds[game.game_identifier] = max(game.total_rounds, 1)
+
+	if minigames_shuffled.is_empty():
+		for mlr in Globals.default_playlist:
+			var gid: int = int(mlr.game_identifier)
+			if custom_map.has(gid) and not _is_slot_eligible(gid, custom_map):
+				continue
+			minigames_shuffled.append(mlr.game_identifier)
+			session_minigame_rounds[mlr.game_identifier] = max(mlr.total_rounds, 1)
 
 	if not debug_no_shuffle:
 		minigames_shuffled.shuffle()

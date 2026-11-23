@@ -17,10 +17,8 @@ test("multiple custom minigame mods coexist in hub registry, playlist, and scene
   const project = await mkdtemp(path.join(os.tmpdir(), "multi-minigame-hub-"));
   t.after(() => rm(project, { recursive: true, force: true }));
 
-  await mkdir(path.join(project, "mods/roller-carnival"), { recursive: true });
-  await mkdir(path.join(project, "mods/bubble-blitz"), { recursive: true });
-  await mkdir(path.join(project, "mods/spike-ring"), { recursive: true });
-  for (const modId of ["roller-carnival", "bubble-blitz", "spike-ring"]) {
+  for (const modId of ["mpm-core", "roller-carnival", "bubble-blitz", "spike-ring"]) {
+    await mkdir(path.join(project, "mods", modId), { recursive: true });
     const srcDir = local(`../../mods/${modId}`);
     for (const name of await readdir(srcDir)) {
       if (name.endsWith(".gd") || name === "mod.json") {

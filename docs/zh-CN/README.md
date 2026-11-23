@@ -13,6 +13,8 @@
 
 - [开发指南](development/README.md)
 - [自研模组开发、测试、接入与打包规范](development/mod-development.md)
+- [协作对抗小游戏规划与准入门槛规范](development/coop-minigame-gating.md)
+- [能源抢夺战（Core Heist）玩法与开发规格书](development/core-heist-design.md)
 - [发布管理器更新](development/releasing.md)
 - [现行架构](architecture/README.md)及 ADR
 

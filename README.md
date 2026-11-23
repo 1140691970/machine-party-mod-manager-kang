@@ -80,13 +80,14 @@ The table lists the versions in this repository’s [catalog](catalog/mods.json)
 | --- | --- | --- | --- |
 | [Overtime](https://github.com/DarkJadeStone/MachineParty-Overtime) | `v1.7` | Play online or locally with up to eight players | Author CLI payload → MPML |
 | [MachineParty+](https://github.com/Ghostx10742/MachineParty-Plus) | `v2.1.0` | Public lobbies, voice chat and text chat | Native MPML |
-| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.11` | Mechanical carnival dodge minigame | Native MPML |
+| [Roller Carnival](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/roller-carnival) | `v0.1.12` | Mechanical carnival dodge minigame | Native MPML |
 | [Lobby Bots](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/lobby-bots) | `v0.2.2` | Add or remove ready bots in online rooms. | Native MPML |
 | [Standalone HD](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/standalone-hd) | `v0.1.2` | Sharper 3D rendering with the existing window and HUD layout | Native MPML |
 | [Player Spotlight](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/player-spotlight) | `v0.1.1` | Local-only overhead industrial spotlight on your own character across 3D minigames | Native MPML |
-| [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.5` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
-| [Spike Ring](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.3` | 60s circular pit survival: wall-mounted gapped lasers, saws, floor spikes, shrinking ring & visible airdrops | Native MPML |
-| [Team Party](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/team-party) | `v0.1.0` | Room-level 2-4 team setup & chair swapping, vanilla minigame hooks, and shared team registry API | Native MPML |
+| [Bubble Blitz](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/bubble-blitz) | `v0.1.6` | Fast 3-HP hybrid water-bubble arena across 4 randomized maps | Native MPML |
+| [Spike Ring](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/spike-ring) | `v0.1.4` | 60s circular pit survival: wall-mounted gapped lasers, saws, floor spikes, shrinking ring & visible airdrops | Native MPML |
+| [Team Party](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/team-party) | `v0.1.1` | Room-level 2-4 team setup & chair swapping, vanilla minigame hooks, and shared team registry API | Native MPML |
+| [Core Heist](https://github.com/JamesGZM/machine-party-mod-manager/tree/main/mods/core-heist) | `v0.1.0` | Team-only 75s 2-4 squad energy heist with dual-team Core resonance, vault raids, and Overdrive steal bonuses | Native MPML |
 
 See [candidate mods and inclusion rules](docs/en/catalog/mods.md) for acceptance checklists, upstream licensing notes and conflict groups.
 

@@ -89,7 +89,7 @@ func _ensure_modules() -> void:
 	if lobby_ui == null:
 		lobby_ui = _load_sibling_script("lobby_ui_coordinator.gd").new()
 	if minigame_sdk == null:
-		minigame_sdk = _load_sibling_script("minigame_sdk.gd").new(event_bus)
+		minigame_sdk = _load_sibling_script("minigame_sdk.gd").new(event_bus, locale)
 	if hook_chain == null:
 		hook_chain = _load_sibling_script("hook_chain.gd").new()
 	if _fx_pool_script == null:
@@ -115,6 +115,8 @@ func _publish_meta(loader = null) -> void:
 		"hook_chain": hook_chain,
 		"register_minigame": Callable(minigame_sdk, "register_minigame"),
 		"unregister_minigame": Callable(minigame_sdk, "unregister_minigame"),
+		"evaluate_minigame_eligibility": Callable(minigame_sdk, "evaluate_minigame_eligibility"),
+		"format_admission_tag": Callable(minigame_sdk, "format_admission_tag"),
 		"fx_pool_script": _fx_pool_script,
 		"create_fx_pool": Callable(self, "create_fx_pool"),
 	}

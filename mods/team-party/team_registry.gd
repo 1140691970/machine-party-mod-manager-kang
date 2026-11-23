@@ -60,6 +60,16 @@ func publish_state() -> void:
 	tp._shared_state["teams"] = tp.teams
 	tp._shared_state["node"] = tp
 	Engine.set_meta(tp.META_KEY, tp._shared_state)
+	if Engine.has_meta(&"mpm_core"):
+		var core_meta = Engine.get_meta(&"mpm_core")
+		if core_meta is Dictionary:
+			var bus = (core_meta as Dictionary).get("event_bus", null)
+			if bus != null and bus.has_method("emit_event"):
+				bus.emit_event("team_party.state_changed", {
+					"enabled": is_team_mode_active(),
+					"team_count": tp.team_count,
+					"team_format": tp.team_format,
+				})
 
 
 func label(en: String, cn: String, tw: String) -> String:
