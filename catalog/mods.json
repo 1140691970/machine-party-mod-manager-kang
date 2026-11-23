@@ -189,8 +189,8 @@
       "package": {
         "assetId": "1034",
         "filename": "roller-carnival-0.1.11.zip",
-        "size": 175268,
-        "sha256": "c3e07d5d8ce30f73859a0806d228d211a7cce440f12e3f8c2436632628a2d1c1",
+        "size": 181992,
+        "sha256": "dc88bbaf585a2e797b316e3429d0660d3fdce6dc94fabba6bb44ef19f2ab9bb9",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -509,8 +509,8 @@
       "package": {
         "assetId": "1035",
         "filename": "bubble-blitz-0.1.5.zip",
-        "size": 198610,
-        "sha256": "1e7bbe81b918cab1e36b7b6d6129f6ab59e58e4934630f7ffeb4390b2040c69d",
+        "size": 205334,
+        "sha256": "2bd8fd2388d17f423f496527ce7b8518554fb4a0fefa7aafe71853accbb1ffd3",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -605,8 +605,8 @@
       "package": {
         "assetId": "1036",
         "filename": "spike-ring-0.1.3.zip",
-        "size": 244160,
-        "sha256": "6a6d3b303994314daf41f1d351ed7cf3d0d6666086f31f96ca4d6550d9c4e4ea",
+        "size": 250884,
+        "sha256": "8f46c987dfdf16b09c14cb7f2b8c269c2d5eeb343fce51abfc103b673b445016",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -695,8 +695,8 @@
       "package": {
         "assetId": "1033",
         "filename": "team-party-0.1.0.zip",
-        "size": 147693,
-        "sha256": "dc0dd15688fd0cd5c609b2014ca4667f607e6a204901d35fbcc1a2d28003f3d8",
+        "size": 148083,
+        "sha256": "70cb9bff299ed2ac521a16c59f95ffa9401a96e0bc65ab64ed5b38dd527f0854",
         "mirrorApproved": true
       },
       "supportedGameVersions": [
@@ -773,8 +773,8 @@
       "package": {
         "assetId": "1037",
         "filename": "mpm-core-0.1.0.zip",
-        "size": 50225,
-        "sha256": "b95497a82f6f53a60354b3afc23497ee314170a113b00a8a939463a2943a66b1",
+        "size": 66836,
+        "sha256": "d9b7db227f12f85ff75dfe163c596bbd2610538fb6561ad67c6e5175330fac6c",
         "mirrorApproved": true
       },
       "supportedGameVersions": [

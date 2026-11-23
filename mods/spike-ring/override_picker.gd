@@ -39,6 +39,26 @@ static func _resolve_icon_texture(slot_id: int, spec: Dictionary) -> Texture2D:
 	return null
 
 
+static func _is_slot_eligible(slot_id: int, custom_map: Dictionary) -> bool:
+	if not custom_map.has(slot_id):
+		return true
+	var spec_raw = custom_map[slot_id]
+	if not (spec_raw is Dictionary):
+		return true
+	if not Engine.has_meta(&"mpm_core"):
+		return true
+	var core_raw = Engine.get_meta(&"mpm_core")
+	if not (core_raw is Dictionary):
+		return true
+	var sdk = (core_raw as Dictionary).get("minigame_sdk", null)
+	if sdk == null or not sdk.has_method("evaluate_minigame_eligibility"):
+		return true
+	var res = sdk.evaluate_minigame_eligibility(spec_raw as Dictionary, {})
+	if res is Dictionary:
+		return bool((res as Dictionary).get("eligible", true))
+	return true
+
+
 func _ensure_custom_icon_resources() -> void:
 	if intermission_manager == null:
 		return
@@ -154,6 +174,8 @@ func setup_minigame_pick_host() -> void:
 		if seen_ids.has(identifier):
 			continue
 		if not Globals.CustomMinigamesWhitelist.has(identifier) and not custom_map.has(identifier):
+			continue
+		if custom_map.has(identifier) and not (identifier in intermission_manager.game.session_minigame_list) and not _is_slot_eligible(identifier, custom_map):
 			continue
 		if Globals.CutsceneMinigameIdentifiers.has(identifier):
 			continue

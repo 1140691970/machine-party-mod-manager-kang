@@ -194,6 +194,82 @@ func _run() -> void:
 	chain.remove_hook("demo.calc", h_short)
 	expect(int(chain.hook_count("demo.calc")) == 0, "hook_chain empty after removing all hooks")
 
+	# Admission gating tests
+	var mod_both: Dictionary = {"mod_id": "both-mod"}
+	var mod_team: Dictionary = {
+		"mod_id": "team-mod",
+		"admission": {
+			"mode_support": "team_only",
+			"min_teams": 2,
+			"max_teams": 2,
+			"min_total_players": 4,
+			"min_players_per_team": 2,
+			"allow_local_couch": false,
+		},
+	}
+	var mod_ffa: Dictionary = {
+		"mod_id": "ffa-mod",
+		"admission": {"mode_support": "ffa_only"},
+	}
+
+	var res_both_ffa: Dictionary = sdk.evaluate_minigame_eligibility(mod_both, {"team_enabled": false, "total_players": 2})
+	var res_both_team: Dictionary = sdk.evaluate_minigame_eligibility(mod_both, {"team_enabled": true, "team_count": 2, "teams": {1: 1, 2: 2}, "total_players": 2})
+	expect(bool(res_both_ffa.get("eligible", false)) and bool(res_both_team.get("eligible", false)), "default both mod is eligible in FFA and Team Party")
+
+	var res_team_ffa: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"team_enabled": false, "total_players": 4})
+	expect(not bool(res_team_ffa.get("eligible", true)) and bool(res_team_ffa.get("hard_blocked", false)) and str(res_team_ffa.get("reason_key", "")) == "needs_team_mode", "team_only hard-blocked in FFA")
+
+	var res_team_ok: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"team_enabled": true, "team_count": 2, "teams": {1: 1, 2: 1, 3: 2, 4: 2}, "total_players": 4})
+	expect(bool(res_team_ok.get("eligible", false)) and not bool(res_team_ok.get("hard_blocked", true)), "team_only eligible in 2v2")
+
+	var res_team_3t: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"team_enabled": true, "team_count": 3, "teams": {1: 1, 2: 2, 3: 3, 4: 1}, "total_players": 4})
+	expect(not bool(res_team_3t.get("eligible", true)) and bool(res_team_3t.get("hard_blocked", false)) and str(res_team_3t.get("reason_key", "")) == "team_count_out_of_range", "team_only hard-blocked when team_count > max_teams")
+
+	var res_team_2v0: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"team_enabled": true, "team_count": 2, "teams": {1: 1, 2: 1, 3: 1, 4: 1}, "total_players": 4})
+	expect(not bool(res_team_2v0.get("eligible", true)) and bool(res_team_2v0.get("soft_warning", false)) and str(res_team_2v0.get("reason_key", "")) == "needs_more_teams", "team_only soft-warned in asymmetric 2v0")
+
+	var res_team_1v2: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"team_enabled": true, "team_count": 2, "teams": {1: 1, 2: 2, 3: 2, 4: 2}, "total_players": 4})
+	expect(not bool(res_team_1v2.get("eligible", true)) and bool(res_team_1v2.get("soft_warning", false)) and str(res_team_1v2.get("reason_key", "")) == "needs_more_per_team", "team_only soft-warned in 1v3 when min_players_per_team == 2")
+
+	var res_team_players: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"team_enabled": true, "team_count": 2, "teams": {1: 1, 2: 2}, "total_players": 2})
+	expect(not bool(res_team_players.get("eligible", true)) and bool(res_team_players.get("soft_warning", false)) and str(res_team_players.get("reason_key", "")) == "needs_more_players", "min_total_players triggers soft warning")
+
+	var res_team_local: Dictionary = sdk.evaluate_minigame_eligibility(mod_team, {"is_local": true, "total_players": 4})
+	expect(not bool(res_team_local.get("eligible", true)) and bool(res_team_local.get("hard_blocked", false)) and str(res_team_local.get("reason_key", "")) == "local_unsupported", "allow_local_couch=false hard-blocked in local mode")
+
+	var res_ffa_ok: Dictionary = sdk.evaluate_minigame_eligibility(mod_ffa, {"team_enabled": false, "total_players": 2})
+	var res_ffa_blocked: Dictionary = sdk.evaluate_minigame_eligibility(mod_ffa, {"team_enabled": true, "team_count": 2, "teams": {1: 1, 2: 2}, "total_players": 2})
+	expect(bool(res_ffa_ok.get("eligible", false)) and not bool(res_ffa_blocked.get("eligible", true)) and bool(res_ffa_blocked.get("hard_blocked", false)) and str(res_ffa_blocked.get("reason_key", "")) == "ffa_only", "ffa_only eligible in FFA and hard-blocked in Team Party")
+
+	expect(not str(sdk.format_admission_tag(res_team_ffa, mod_team)).is_empty(), "format_admission_tag returns non-empty tag for blocked mod")
+	expect(str(sdk.format_admission_tag(res_team_ok, mod_team)).is_empty(), "format_admission_tag returns empty string for eligible mod")
+
+	# Regression #1: register_minigame() round-trip must preserve default "both" without forcing explicit bounds
+	var reg_both: Dictionary = sdk.register_minigame({"mod_id": "default-both-rt"}, loader)
+	var reg_both_entry: Dictionary = reg_both["entry"] as Dictionary
+	var res_both_rt: Dictionary = sdk.evaluate_minigame_eligibility(reg_both_entry, {"team_enabled": true, "team_count": 2, "teams": {1: 1}, "total_players": 1})
+	expect(bool(res_both_rt.get("eligible", false)), "registered default both mod stays eligible for solo player in team mode")
+
+	# Regression #2: build_admission_context() auto-detects GameManager.local_game
+	var gm_script := GDScript.new()
+	gm_script.source_code = "extends Node\nvar local_game: bool = true\n"
+	gm_script.reload()
+	var gm_node := gm_script.new() as Node
+	gm_node.name = "GameManager"
+	root.add_child(gm_node)
+	var auto_ctx: Dictionary = sdk.build_admission_context({})
+	expect(bool(auto_ctx.get("is_local", false)), "build_admission_context auto-detects GameManager.local_game = true")
+	gm_node.free()
+
+	# Event bus round-trip for team_party.state_changed
+	var tp_events: Array = []
+	var tp_cb := func(p: Dictionary) -> void:
+		tp_events.append(bool(p.get("enabled", false)))
+	bus.on("team_party.state_changed", tp_cb)
+	bus.emit_event("team_party.state_changed", {"enabled": true, "team_count": 2})
+	bus.off("team_party.state_changed", tp_cb)
+	expect(tp_events == [true], "team_party.state_changed event round-trip works")
+
 	lobby.free()
 	core.free()
 	loader.free()
