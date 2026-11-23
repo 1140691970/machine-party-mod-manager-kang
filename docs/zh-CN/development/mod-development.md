@@ -45,7 +45,7 @@
 
 ## 3. 内置加载器运行时 API 与游戏接入规范
 
-内置引导脚本（`LOADER_VERSION = "5"`、`API_VERSION = 2`）作为首项 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在游戏脚本加载前运行，并与外部 `MachinePartyModLoader.exe` 保持 API v2 兼容。
+内置引导脚本（`LOADER_VERSION = "6"`、`API_VERSION = 2`）作为首项 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在游戏脚本加载前运行，并与外部 `MachinePartyModLoader.exe` 保持 API v2 兼容。桌面管理器在 `mods/.mpm-state.json` 中记录已禁用的模组，加载器会在启动扫描时跳过它们而无需修改 `mod.json`。
 
 ### 生命周期回调
 

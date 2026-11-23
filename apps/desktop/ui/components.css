@@ -110,6 +110,70 @@
 .tag-warning {
   color: var(--warning);
 }
+.tag-disabled {
+  color: var(--text-secondary);
+  background: #120c0deb;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+/* Switch */
+.mod-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  cursor: pointer;
+}
+.mod-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.mod-switch-track {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  background: var(--wine-900);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.mod-switch-track::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.mod-switch input:checked + .mod-switch-track {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-hover);
+}
+.mod-switch input:checked + .mod-switch-track::after {
+  transform: translateX(18px);
+  background: var(--on-accent);
+}
+.mod-switch:hover input:not(:disabled) + .mod-switch-track {
+  box-shadow: inset 0 0 0 1px var(--accent-hover);
+}
+.mod-switch input:focus-visible + .mod-switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.mod-switch:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
 
 /* Field */
 .field {

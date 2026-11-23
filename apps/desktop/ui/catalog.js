@@ -28,7 +28,7 @@ export function installedRows(inventory, online, bundled) {
     .sort((a, b) => (a.mod?.order ?? Infinity) - (b.mod?.order ?? Infinity) || a.repo.localeCompare(b.repo));
 }
 
-export const FILTER_STATUSES = ["all", "installed", "notInstalled", "updatable"];
+export const FILTER_STATUSES = ["all", "enabled", "disabled", "notInstalled", "updatable"];
 
 export function catalogCategories(mods) {
   const seen = new Set();
@@ -42,34 +42,29 @@ export function catalogCategories(mods) {
   return list;
 }
 
-export function modFilterStatus({action, removable, installed} = {}) {
-  if (action === "updateMod") return "updatable";
-  if (removable || installed || action === "uninstall") return "installed";
-  return "notInstalled";
+export function modFilterStatus({action, removable, installed, disabled} = {}) {
+  if (!(removable || installed || action === "uninstall" || action === "updateMod")) return "notInstalled";
+  return disabled ? "disabled" : "enabled";
 }
 
 export function matchesStatusFilter(filter, row) {
   if (!filter || filter === "all") return true;
+  if (filter === "updatable") return row?.action === "updateMod";
   const status = modFilterStatus(row);
-  if (filter === "updatable") return status === "updatable";
-  if (filter === "installed") return status === "installed" || status === "updatable";
+  if (filter === "enabled") return status === "enabled";
+  if (filter === "disabled") return status === "disabled";
   if (filter === "notInstalled") return status === "notInstalled";
   return true;
 }
 
 export function statusCounts(mods, statusOf) {
-  const counts = {all: 0, installed: 0, notInstalled: 0, updatable: 0};
+  const counts = {all: 0, enabled: 0, disabled: 0, notInstalled: 0, updatable: 0};
   for (const mod of mods || []) {
     counts.all++;
-    const status = modFilterStatus(statusOf ? statusOf(mod) : undefined);
-    if (status === "updatable") {
-      counts.updatable++;
-      counts.installed++;
-    } else if (status === "installed") {
-      counts.installed++;
-    } else {
-      counts.notInstalled++;
-    }
+    const row = statusOf ? statusOf(mod) : undefined;
+    const status = modFilterStatus(row);
+    counts[status]++;
+    if (row?.action === "updateMod") counts.updatable++;
   }
   return counts;
 }

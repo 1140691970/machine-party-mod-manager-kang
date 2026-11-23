@@ -42,7 +42,18 @@ func _run() -> void:
 	root.add_child(loader)
 	await process_frame
 
-	expect(loader.loader_version() == "5", "loader_version should be 5")
+	expect(loader.loader_version() == "6", "loader_version should be 6")
+
+	# Verify mods/.mpm-state.json skips disabled mods by either mod.json id or folder name.
+	var test_mods_dir: String = ProjectSettings.globalize_path("res://test_mods")
+	if DirAccess.dir_exists_absolute(test_mods_dir):
+		var loader2: Node = boot_script.new()
+		loader2.mods_root = test_mods_dir
+		loader2._discover_and_init_mods()
+		expect(loader2.has_mod("mod_on"), "enabled mod should load when not listed in .mpm-state.json")
+		expect(not loader2.has_mod("mod_off"), "disabled mod matched by id should be skipped")
+		expect(not loader2.has_mod("alias_inner"), "disabled mod matched by folder name should be skipped")
+		loader2.free()
 
 	# Reproduce MachineParty-Plus VoiceHUD: added to /root via call_deferred during startup
 	# BEFORE entering the lobby, initially hidden, and turned visible once inside the lobby.

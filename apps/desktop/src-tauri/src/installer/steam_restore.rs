@@ -328,6 +328,19 @@ fn finish(
             }
         }
     }
+    let state_path = dir.join("mods").join(MOD_STATE_FILE);
+    if !matches!(
+        fs::symlink_metadata(&state_path),
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound
+    ) {
+        lock()?;
+        match fs::remove_file(&state_path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => return Err("fileWriteError".into()),
+        }
+    }
+    let _ = fs::remove_dir(dir.join("mods"));
     for (root, id, key) in cleanup.mods {
         inventory::remove_installed(config, &root, &key)?;
         remove_transaction(config, &root, &id)?;

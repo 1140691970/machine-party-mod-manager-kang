@@ -35,12 +35,13 @@ test("a late scan cannot replace a new copy or turn a failed scan into an uninst
   await flush();
   scans.get("copy B").reject(Error("fileReadError"));
   await b;
-  scans.get("copy A").resolve({installed:{},pckDir:"A",modStates:{overtime:"manualInstall"}});
+  scans.get("copy A").resolve({installed:{},pckDir:"A",modStates:{overtime:"manualInstall"},disabledMods:["overtime"]});
   await Promise.all([a,repeat]);
   assert.equal(state.game,"copy B");
   assert.equal(state.scan,"failed");
   assert.deepEqual(state.inventory, {"copy B":"v1.7"});
   assert.deepEqual(state.modStates,{});
+  assert.deepEqual(state.disabledMods,[]);
 });
 
 test("an install resolves its game copy before continuing and cancellation does no package work", async () => {
@@ -109,10 +110,11 @@ test("reload restores inventory for a valid saved copy when Steam detection retu
     if (command === "save_game") return;
     if (command === "installed_versions") return installed;
     assert.equal(command, "validate_game_mods");
-    return {installed, pckDir:state.game, modStates:{project:"installed"}};
+    return {installed, pckDir:state.game, modStates:{project:"installed"}, disabledMods:["project"]};
   };
   await detectGame();
   assert.deepEqual(state.inventory, installed);
+  assert.deepEqual(state.disabledMods, ["project"]);
   assert.equal(state.scan, "ready");
 });
 

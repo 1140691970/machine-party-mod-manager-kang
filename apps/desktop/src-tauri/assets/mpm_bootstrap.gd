@@ -4,9 +4,10 @@ extends Node
 ## Loaded first as `autoload/ModLoader` (`*res://modloader/bootstrap.gd`) so
 ## script overrides and resource registrations execute before game scripts load.
 
-const LOADER_VERSION := "5"
+const LOADER_VERSION := "6"
 const API_VERSION := 2
 const LOG_PATH := "user://modloader.log"
+const STATE_FILE := ".mpm-state.json"
 const LOBBY_SCENE_SCRIPT := "res://scenes/lobby/scripts/lobby_scene.gd"
 const UI_STACK_GAP := 12.0
 const UI_SCREEN_MARGIN := 16.0
@@ -96,6 +97,7 @@ func _discover_and_init_mods() -> void:
 	if da == null:
 		return
 
+	var disabled_ids: Dictionary = _read_disabled_mods()
 	var candidates: Array = []
 	da.list_dir_begin()
 	while true:
@@ -118,6 +120,9 @@ func _discover_and_init_mods() -> void:
 		var entry_rel: String = str(parsed.get("entry", "")).strip_edges()
 		if mod_id.is_empty() or entry_rel.is_empty():
 			note("skipped mod missing id or entry in " + entry_name)
+			continue
+		if disabled_ids.has(mod_id) or disabled_ids.has(entry_name):
+			note("skipped disabled mod: " + mod_id)
 			continue
 		var requires_raw = parsed.get("requires", [])
 		var requires: Array = requires_raw if requires_raw is Array else []
@@ -223,6 +228,23 @@ func _on_tree_ready() -> void:
 	if root != null:
 		for child in root.get_children():
 			_maybe_record_mod_root_layer(child)
+
+
+func _read_disabled_mods() -> Dictionary:
+	var disabled: Dictionary = {}
+	if mods_root.is_empty():
+		return disabled
+	var state_path: String = mods_root.path_join(STATE_FILE)
+	if not FileAccess.file_exists(state_path):
+		return disabled
+	var parsed: Dictionary = _read_json_dict(state_path)
+	var list = parsed.get("disabled", [])
+	if list is Array:
+		for raw in list:
+			var id_str: String = str(raw).strip_edges()
+			if not id_str.is_empty():
+				disabled[id_str] = true
+	return disabled
 
 
 func _read_json_dict(path: String) -> Dictionary:

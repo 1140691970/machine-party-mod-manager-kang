@@ -5,7 +5,7 @@ import {
   batchTargets, batchToggle, canRunBatch
 } from "./batch.js";
 import { installationProblem, catalogAction, uninstallEntry } from "./mod-action.js";
-import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, uninstallMod, updateMod } from "./bridge.js";
+import { clearPackage, downloadMod, installMod, verifyPackage, isDesktop, openProject, setModsEnabled, uninstallMod, updateMod } from "./bridge.js";
 import { confirmGameExit } from "./game-exit-dialog.js";
 import { FILTER_STATUSES, catalogCategories, inventoryKey, installedRows, releaseNotesFor, statusCounts, visibleMods } from "./catalog.js";
 import { $, button, closeDialog, element, progress, show, tag } from "./dom.js";
@@ -29,6 +29,9 @@ const trustedPackage = mod => isDesktop && Boolean(mod.package?.mirrorApproved) 
 
 const signedPackage = mod => isDesktop && state.updateTargets.some(item => matchesMod(item, mod));
 const removalEntry = mod => uninstallEntry(mod.id, state.modStates[mod.id], [...state.pinned, ...state.removalMods, ...state.updateTargets]);
+const isDisabled = mod => state.disabledMods.includes(mod.id);
+const modAdapter = mod => mod.adapter || pinnedOf(mod)?.adapter;
+const canToggle = mod => state.modStates[mod.id] === "installed" && (!modAdapter(mod) || modAdapter(mod).kind === "loader-files");
 const approvedUpdate = mod => isDesktop && (signedPackage(mod)
   || (trustedPackage(mod) && (pinnedOf(mod).verified || isPreview(mod))));
 
@@ -74,6 +77,15 @@ function details(mod) {
   }
   if (modState === "installed" && currentAction(mod) === "updateMod") {
     parts.push(primaryAction(mod), button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
+  }
+  if (canToggle(mod)) {
+    const disabled = isDisabled(mod);
+    const primary = disabled && currentAction(mod) !== "updateMod";
+    parts.push(
+      element("p", t("modStateHint").replace("{state}", t(disabled ? "modDisabled" : "modEnabled"))),
+      button(t(disabled ? "enableMod" : "disableMod"), () => toggleModEnabled(mod, disabled, true),
+        primary ? "primary" : "secondary", disabled ? "enable" : "disable")
+    );
   }
   if (modState === "needsRepair" && state.lastScan?.repair?.[mod.id] && removalEntry(mod)) parts.push(button(t("uninstall"), () => uninstallDialog(mod), "secondary"));
   if (modState === "legacyInstalled" && trustedPackage(mod) && (mod.verified || isPreview(mod))) parts.push(button(t("migrateLoader"), () => startInstall(mod, "switch"), "primary"));
@@ -136,6 +148,7 @@ function cover(mod, name) {
     fallback.replaceWith(img);
   }
   const tags = element("div", "", "cover-tags");
+  if (canToggle(mod) && isDisabled(mod)) tags.append(tag(t("modDisabled"), "disabled"));
   const version = tag(mod.version || t("unlisted"));
   if (mod.version) version.classList.add("tag-mono");
   tags.append(version);
@@ -383,6 +396,57 @@ function uninstallDialog(cardMod) {
   show(title("uninstall"), steps, button(t("uninstall"), run, "primary"));
 }
 
+async function toggleModEnabled(mod, enabled, fromDetails = false) {
+  if (state.busyMod) return;
+  await withGameCopy(async () => {
+    if (state.busyMod || !state.pckDir || !canToggle(mod)) return;
+    const path = state.game;
+    const dir = state.pckDir;
+    state.busyMod = mod.id;
+    render();
+    let succeeded = false;
+    try {
+      if (!await confirmGameExit(path, dir, () => state.game === path && state.pckDir === dir)) {
+        return;
+      }
+      if (state.game !== path || state.pckDir !== dir) return;
+      const result = await setModsEnabled(path, [mod.id], enabled, dir);
+      state.busyMod = "";
+      applyValidation(result, path);
+      succeeded = true;
+    } catch (error) {
+      const [key, ...detail] = String(error).split(": ");
+      show(t("failed"), element("p", [t(key) || key, ...detail].join(" · "), "error"), button(t("close"), closeDialog, "primary"));
+      if (state.game === path) await syncGameMods(true);
+    } finally {
+      state.busyMod = "";
+      render();
+      if (succeeded && fromDetails && $("dialog")?.open) {
+        const latest = state.mods.find(item => item.id === mod.id) || mod;
+        details(latest);
+      }
+    }
+  });
+  render();
+}
+
+function toggleSwitch(mod) {
+  const disabled = isDisabled(mod);
+  const label = element("label", "", "mod-switch");
+  label.title = t(disabled ? "enableMod" : "disableMod");
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.setAttribute("role", "switch");
+  input.setAttribute("aria-label", t("toggleModAria").replace("{mod}", nameOf(mod)));
+  input.checked = !disabled;
+  input.disabled = Boolean(state.busyMod) || state.scan !== "ready" || (state.page === "catalog" && state.batchMode);
+  input.onchange = () => {
+    void toggleModEnabled(mod, input.checked);
+  };
+  label.append(input, element("span", "", "mod-switch-track"));
+  return label;
+}
+
 function primaryAction(mod) {
   const action = currentAction(mod);
   const label = action === "updateMod" ? t("updateModTo").replace("{version}", mod.version) : t(action === "review" ? "viewReason" : action);
@@ -401,6 +465,7 @@ function card(mod, index) {
   const name = nameOf(mod);
   const local = state.inventory[inventoryKey(mod)];
   const item = element("article", "", "card");
+  if (canToggle(mod) && isDisabled(mod)) item.classList.add("card-disabled");
   item.style.setProperty("--i", String(index));
 
   const body = element("div", "", "card-body");
@@ -422,6 +487,7 @@ function card(mod, index) {
 
   const footer = element("div", "", "card-actions");
   footer.append(primaryAction(mod));
+  if (canToggle(mod)) footer.append(toggleSwitch(mod));
   if (state.page === "catalog" && currentAction(mod) === "updateMod" && removalEntry(mod)) {
     const removeBtn = button("", () => withGameCopy(() => removalEntry(mod) ? uninstallDialog(mod) : details(mod)), "secondary", "close");
     removeBtn.classList.add("card-remove-btn");
@@ -450,10 +516,11 @@ function card(mod, index) {
 
 // ---- Catalog filters & batch operations -------------------------------
 const BATCH_BUSY = "__batch__";
-const BATCH_ICONS = {install: "download", uninstall: "close"};
+const BATCH_ICONS = {install: "download", enable: "enable", disable: "disable", uninstall: "close"};
 const STATUS_KEYS = {
   all: "filterAll",
-  installed: "filterInstalled",
+  enabled: "filterEnabled",
+  disabled: "filterDisabled",
   notInstalled: "filterNotInstalled",
   updatable: "filterUpdatable"
 };
@@ -461,13 +528,16 @@ const STATUS_KEYS = {
 const statusRow = mod => ({
   action: currentAction(mod),
   removable: Boolean(removalEntry(mod)),
-  installed: state.modStates[mod.id] === "installed" || state.inventory[inventoryKey(mod)] !== undefined
+  installed: state.modStates[mod.id] === "installed" || state.inventory[inventoryKey(mod)] !== undefined,
+  disabled: isDisabled(mod)
 });
 
 const batchRow = mod => ({
   ready: Boolean(state.game) && state.scan === "ready",
   action: currentAction(mod),
-  removable: Boolean(removalEntry(mod))
+  removable: Boolean(removalEntry(mod)),
+  toggleable: canToggle(mod),
+  disabled: isDisabled(mod)
 });
 
 function filteredCatalogMods() {
@@ -523,8 +593,10 @@ function syncBatchStrip() {
     ref.badge.textContent = String(matched);
     ref.btn.disabled = running;
     const activeInstall = kind === "install" && matched > 0;
+    const activeToggle = (kind === "enable" || kind === "disable") && matched > 0;
     const activeUninstall = kind === "uninstall" && matched > 0;
     ref.btn.classList.toggle("btn-primary", activeInstall);
+    ref.btn.classList.toggle("btn-secondary", activeToggle);
     ref.btn.classList.toggle("batch-op-danger", activeUninstall);
     ref.btn.classList.toggle("batch-op-idle", matched === 0);
   }
@@ -546,9 +618,10 @@ function renderCatalogToolbar(content, visible) {
   const query = $("#search input")?.value || "";
   const scopedMods = visibleMods(state.mods, {query, category: state.filterCategory});
   const counts = statusCounts(scopedMods, statusRow);
-  const extraInstalled = unlistedInstalledCount(query);
-  counts.all += extraInstalled;
-  counts.installed += extraInstalled;
+  for (const item of unlistedInstalledRows(query)) {
+    counts.all++;
+    counts[isUnlistedDisabled(item) ? "disabled" : "enabled"]++;
+  }
   for (const status of FILTER_STATUSES) {
     const active = state.filterStatus === status;
     const num = counts[status] ?? 0;
@@ -696,7 +769,7 @@ function confirmBatchRun(kind, queue, filtered) {
   }
   const note = filtered.length
     ? element("p", t("batchFilteredHint").replace("{count}", String(filtered.length)), "panel-note")
-    : element("p", t("batchConfirmHint"), "panel-note");
+    : element("p", t(kind === "enable" || kind === "disable" ? "batchConfirmToggleHint" : "batchConfirmHint"), "panel-note");
   show(t(batchConfirmKey(kind)).replace("{count}", String(queue.length)),
     list, note,
     button(t("batchCancel"), closeDialog, "secondary"),
@@ -822,32 +895,82 @@ async function runBatchDialog(batch, queue) {
 
   const results = [];
   let aborted = false;
-  let completed = 0;
-  for (const id of queue) {
-    if (!owns()) return;
-    setStatus(id, t("working"));
-    let outcome;
-    try {
-      outcome = await executeBatchItem(kind, id, path, pct => setStatus(id, pct), controller.signal, owns);
-    } catch (error) {
-      outcome = "fail";
-      const [key, ...detail] = String(error).split(": ");
-      if (["downloadFirst", "packageCorrupt", "downloadFailed"].includes(key)) delete state.packages[id];
-      setStatus(id, [t(key) || key, ...detail].join(" · "), "fail");
-    }
-    if (!owns()) return;
-    if (outcome === "abort") {
-      setStatus(id, t("batchItemSkipped"), "skip");
-      results.push("skip");
+  if (kind === "enable" || kind === "disable") {
+    const targetEnabled = kind === "enable";
+    const dir = state.pckDir;
+    const outcomeById = new Map();
+    if (!path || !dir || state.game !== path
+      || !await confirmGameExit(path, dir, () => owns() && state.pckDir === dir) || !owns()) {
+      for (const id of queue) {
+        setStatus(id, t("batchItemSkipped"), "skip");
+        outcomeById.set(id, "skip");
+      }
       aborted = true;
-      break;
+    } else {
+      const eligible = [];
+      for (const id of queue) {
+        const mod = state.mods.find(item => item.id === id);
+        if (!mod || !batchEligible(kind, batchRow(mod))) {
+          setStatus(id, t("batchItemSkipped"), "skip");
+          outcomeById.set(id, "skip");
+        } else {
+          setStatus(id, t("working"));
+          eligible.push(id);
+        }
+      }
+      if (eligible.length) {
+        try {
+          const result = await setModsEnabled(path, eligible, targetEnabled, dir);
+          if (!owns()) return;
+          applyValidation(result, path);
+          for (const id of eligible) {
+            const ok = (result.disabledMods || []).includes(id) === !targetEnabled;
+            setStatus(id, t(ok ? "done" : "failed"), ok ? "ok" : "fail");
+            outcomeById.set(id, ok ? "ok" : "fail");
+          }
+        } catch (error) {
+          if (!owns()) return;
+          const [key, ...detail] = String(error).split(": ");
+          const msg = [t(key) || key, ...detail].join(" · ");
+          for (const id of eligible) {
+            setStatus(id, msg, "fail");
+            outcomeById.set(id, "fail");
+          }
+          await rescanBatch(path);
+        }
+      }
     }
-    if (outcome === "ok") setStatus(id, t("done"), "ok");
-    else if (outcome === "skip") setStatus(id, t("batchItemSkipped"), "skip");
-    results.push(outcome);
-    completed++;
-    bar.set(Math.round(completed / queue.length * 100));
-    if (outcome !== "ok") await rescanBatch(path);
+    if (!owns()) return;
+    for (const id of queue) results.push(outcomeById.get(id) || "skip");
+    bar.set(100);
+  } else {
+    let completed = 0;
+    for (const id of queue) {
+      if (!owns()) return;
+      setStatus(id, t("working"));
+      let outcome;
+      try {
+        outcome = await executeBatchItem(kind, id, path, pct => setStatus(id, pct), controller.signal, owns);
+      } catch (error) {
+        outcome = "fail";
+        const [key, ...detail] = String(error).split(": ");
+        if (["downloadFirst", "packageCorrupt", "downloadFailed"].includes(key)) delete state.packages[id];
+        setStatus(id, [t(key) || key, ...detail].join(" · "), "fail");
+      }
+      if (!owns()) return;
+      if (outcome === "abort") {
+        setStatus(id, t("batchItemSkipped"), "skip");
+        results.push("skip");
+        aborted = true;
+        break;
+      }
+      if (outcome === "ok") setStatus(id, t("done"), "ok");
+      else if (outcome === "skip") setStatus(id, t("batchItemSkipped"), "skip");
+      results.push(outcome);
+      completed++;
+      bar.set(Math.round(completed / queue.length * 100));
+      if (outcome !== "ok") await rescanBatch(path);
+    }
   }
   if (!owns()) return;
   batch.phase = "done";
@@ -875,13 +998,12 @@ function unlistedInstalledRows(query) {
     .filter(({repo, mod}) => !listed.has(repo) && (!term || repo.toLowerCase().includes(term) || (mod && nameOf(mod).toLowerCase().includes(term))));
 }
 
-function unlistedInstalledCount(query) {
-  return unlistedInstalledRows(query).length;
-}
+const isUnlistedDisabled = ({repo, mod}) => state.disabledMods.includes(mod ? mod.id : repo);
 
 function unlistedInstalledCards(query) {
-  if (state.filterStatus !== "all" && state.filterStatus !== "installed") return [];
+  if (!["all", "enabled", "disabled"].includes(state.filterStatus)) return [];
   return unlistedInstalledRows(query)
+    .filter(item => state.filterStatus === "all" || (state.filterStatus === "disabled") === isUnlistedDisabled(item))
     .map(({repo, version, mod}, index) => {
       if (mod) return card(mod, state.mods.length + index);
       const row = element("article", "", "card");

@@ -460,6 +460,30 @@ pub async fn reload_loader(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+pub async fn set_mods_enabled(
+    app: AppHandle,
+    path: PathBuf,
+    ids: Vec<String>,
+    enabled: bool,
+    expected_dir: PathBuf,
+) -> Result<installer::CopyValidation, String> {
+    let dir = config_dir(&app)?;
+    let list = active_entries(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = lock_file(&dir, "inventory")?;
+        installer::steam_restore::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
+        if game::resolve_pck_dir(&path).as_ref() != Some(&expected_dir) {
+            return Err("statusUnavailable".into());
+        }
+        installer::update::recover(&dir, &path, &list, &installer::SystemGameLockCheck)?;
+        installer::set_mods_enabled(&path, &ids, enabled, &installer::SystemGameLockCheck)?;
+        installer::scan_copy(&dir, &path, &list, true)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn authorized_mod(item: &catalog::ModEntry) -> bool {
     if cfg!(windows) && catalog::preview_entry(env!("CARGO_PKG_VERSION")).is_some() {
         return catalog::matches_preview(item, env!("CARGO_PKG_VERSION"));

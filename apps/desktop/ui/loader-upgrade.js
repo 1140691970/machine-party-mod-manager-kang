@@ -1,9 +1,10 @@
 import { isDesktop, reloadLoader } from "./bridge.js";
-import { $ } from "./dom.js";
+import { $, button, closeDialog, element, show } from "./dom.js";
 import { confirmGameExit } from "./game-exit-dialog.js";
 import { render, state, t } from "./state.js";
 
 const attempted = new Set();
+const prompted = new Set();
 
 export function formatLoaderNote(note) {
   if (!note) return "";
@@ -44,7 +45,24 @@ export async function maybeAutoUpgradeLoader(validation, path, applyValidation) 
     if (code === "gameRunning") {
       // Allow retrying automatically once the player closes the game and returns to the app.
       attempted.delete(key);
-      if (state.game === path) state.loaderNote = {key: "loaderWaitingGameClose"};
+      if (state.game === path) {
+        state.loaderNote = {key: "loaderWaitingGameClose"};
+        if (!prompted.has(key) && !$("dialog[open]") && $("dialog")) {
+          prompted.add(key);
+          const msg = t("loaderUpgradeGameRunning")
+            .replace("{from}", loader.installedVersion ?? "?")
+            .replace("{to}", loader.targetVersion ?? "");
+          show(
+            t("loaderUpgradeTitle"),
+            element("p", msg),
+            button(t("laterUpdate"), closeDialog, "secondary"),
+            button(t("closeGameUpgradeLoader"), async () => {
+              closeDialog();
+              await runManualLoaderReload(applyValidation);
+            }, "primary")
+          );
+        }
+      }
     } else if (state.game === path) {
       state.loaderNote = {key: code, raw: code};
     }

@@ -4,7 +4,7 @@ mod prepare;
 pub mod update;
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, File, OpenOptions},
     io::{self, BufReader, Cursor, Read, Seek, SeekFrom, Write},
     path::{Component, Path, PathBuf},
@@ -31,6 +31,7 @@ use crate::{
 const TRANSACTIONS_FILE: &str = "transactions.json";
 const BACKUPS_DIR: &str = "backups";
 const RESTORE_DAT: &str = "overtime_restore.dat";
+pub const MOD_STATE_FILE: &str = ".mpm-state.json";
 const MP8R_MAGIC: u32 = 0x3852_504D;
 const MAX_RESTORE_BYTES: u64 = 512 * 1024;
 const MAX_ZIP_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
@@ -230,6 +231,8 @@ pub struct CopyValidation {
     pub repair: BTreeMap<String, (PathBuf, Option<String>)>,
     pub installed: inventory::Installed,
     pub mod_states: BTreeMap<String, String>,
+    #[serde(default)]
+    pub disabled_mods: Vec<String>,
     pub loader: pck_loader::LoaderStatus,
 }
 
@@ -1108,6 +1111,113 @@ fn uses_delta_restore(adapter: &AdapterProfile) -> bool {
     adapter.upstream_uninstall && adapter.touches.iter().any(|name| name == RESTORE_DAT)
 }
 
+#[derive(Serialize, Deserialize, Default)]
+struct ModStateFile {
+    #[serde(default)]
+    version: u32,
+    #[serde(default)]
+    disabled: BTreeSet<String>,
+}
+
+fn mod_state_path(pck_dir: &Path) -> PathBuf {
+    pck_dir.join("mods").join(MOD_STATE_FILE)
+}
+
+fn ensure_unredirected_file(path: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if update::redirected(&meta) || !meta.is_file() => {
+            Err("gameUpdatedOrModified".into())
+        }
+        Ok(_) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(_) => Err("fileReadError".into()),
+    }
+}
+
+fn read_disabled_set(pck_dir: &Path) -> Result<BTreeSet<String>, String> {
+    let path = mod_state_path(pck_dir);
+    if !ensure_unredirected_file(&path)? {
+        return Ok(BTreeSet::new());
+    }
+    let bytes = fs::read(&path).map_err(|_| "fileReadError".to_string())?;
+    let Ok(parsed) = serde_json::from_slice::<ModStateFile>(&bytes) else {
+        return Ok(BTreeSet::new());
+    };
+    Ok(parsed
+        .disabled
+        .into_iter()
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
+/// Returns the sorted list of disabled mod IDs recorded in `mods/.mpm-state.json`.
+pub fn read_disabled_mods(pck_dir: &Path) -> Result<Vec<String>, String> {
+    Ok(read_disabled_set(pck_dir)?.into_iter().collect())
+}
+
+fn write_disabled_mods(pck_dir: &Path, disabled: &BTreeSet<String>) -> Result<(), String> {
+    let path = mod_state_path(pck_dir);
+    let existed = ensure_unredirected_file(&path)?;
+    if disabled.is_empty() {
+        if existed {
+            fs::remove_file(&path).map_err(|_| "fileWriteError".to_string())?;
+        }
+        return Ok(());
+    }
+    let state = ModStateFile {
+        version: 1,
+        disabled: disabled.clone(),
+    };
+    let bytes = serde_json::to_vec_pretty(&state).map_err(|_| "fileWriteError".to_string())?;
+    write_atomic(&path, &bytes)
+}
+
+/// Updates the enabled/disabled state for installed loader mods in `mods/.mpm-state.json`.
+pub fn set_mods_enabled(
+    game_root: &Path,
+    mod_ids: &[String],
+    enabled: bool,
+    lock_check: &dyn GameLockCheck,
+) -> Result<(), String> {
+    let pck_dir = game::resolve_pck_dir(game_root).ok_or("invalidGame")?;
+    let pck_path = pck_dir.join("Machine Party.pck");
+    lock_check.ensure_unlocked(&pck_dir, &pck_path)?;
+    let mods_root = pck_dir.join("mods");
+    match fs::symlink_metadata(&mods_root) {
+        Ok(meta) if meta.is_dir() && !update::redirected(&meta) => {}
+        Ok(_) => return Err("gameUpdatedOrModified".into()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Err("statusUnavailable".into()),
+        Err(_) => return Err("fileReadError".into()),
+    }
+    for id in mod_ids {
+        if !is_safe_filename(id) || id.starts_with('.') {
+            return Err("statusUnavailable".into());
+        }
+        let mod_dir = mods_root.join(id);
+        match fs::symlink_metadata(&mod_dir) {
+            Ok(meta) if meta.is_dir() && !update::redirected(&meta) => {}
+            Ok(_) => return Err("gameUpdatedOrModified".into()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                return Err("statusUnavailable".into());
+            }
+            Err(_) => return Err("fileReadError".into()),
+        }
+    }
+    if mod_ids.is_empty() {
+        return Ok(());
+    }
+    let mut disabled = read_disabled_set(&pck_dir)?;
+    for id in mod_ids {
+        if enabled {
+            disabled.remove(id);
+        } else {
+            disabled.insert(id.clone());
+        }
+    }
+    write_disabled_mods(&pck_dir, &disabled)
+}
+
 fn loader_mod_dir(pck_dir: &Path, mod_entry: &ModEntry) -> PathBuf {
     pck_dir.join("mods").join(&mod_entry.id)
 }
@@ -1883,6 +1993,17 @@ pub fn uninstall_mod(
                 return Err("restoreVerifyFailed".into());
             }
         }
+        if !has_remaining_mod_dirs(&mods_root, None)? {
+            match fs::remove_file(mod_state_path(&pck_dir)) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(_) => return Err("fileWriteError".into()),
+            }
+        } else if let Ok(mut disabled) = read_disabled_set(&pck_dir)
+            && disabled.remove(&mod_entry.id)
+        {
+            write_disabled_mods(&pck_dir, &disabled)?;
+        }
         let _ = fs::remove_dir(&mods_root);
         let disk = file_fingerprint(&pck_path)?;
         if restored_pck.as_ref() == Some(&disk)
@@ -2597,6 +2718,10 @@ pub fn validate_game_mods(
         mod_states.insert(item.id.clone(), state.to_owned());
     }
     let loader = pck_loader::inspect_loader(&pck_dir, &current_pck)?;
+    let disabled_mods = read_disabled_mods(&pck_dir)?
+        .into_iter()
+        .filter(|id| is_safe_filename(id) && pck_dir.join("mods").join(id).is_dir())
+        .collect();
     Ok(CopyValidation {
         pck_path: pck_dir.join("Machine Party.pck"),
         pck_dir,
@@ -2605,6 +2730,7 @@ pub fn validate_game_mods(
         repair,
         installed,
         mod_states,
+        disabled_mods,
         loader,
     })
 }
@@ -2666,6 +2792,7 @@ fn scan_stamp(config: &Path, root: &Path, mods: &[ModEntry]) -> Result<ScanStamp
         config.join("installations.json"),
     ];
     let mods_root = dir.join("mods");
+    paths.push(mods_root.join(MOD_STATE_FILE));
     if mods_root.is_dir() {
         for entry in fs::read_dir(&mods_root).map_err(|_| "fileReadError".to_string())? {
             let entry = entry.map_err(|_| "fileReadError".to_string())?;
@@ -6097,6 +6224,150 @@ print("Patched")
             .unwrap_err(),
             "loaderConflict"
         );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn set_mods_enabled_persists_state_checks_game_lock_and_cleans_on_uninstall() {
+        let root = test_root("l1-enable-disable");
+        let pck_bytes = pck_loader::build_synthetic_pck_v3(false, true);
+        let (game_root, pck_dir, baseline) = setup_synthetic_game(&root, &pck_bytes);
+        let config_dir = root.join("config");
+        let staging_dir = root.join("staging");
+
+        let roller_zip_bytes = build_test_zip(&[
+            (
+                "mod.json",
+                b"{\"id\":\"roller-carnival\",\"entry\":\"main.gd\"}",
+                true,
+            ),
+            ("main.gd", b"extends Node\n# roller", true),
+            ("config.gd", b"extends RefCounted\n", true),
+            ("carnival_meshes.gd", b"extends RefCounted\n", true),
+            ("roller_carnival_game.gd", b"extends Node3D\n", true),
+            ("official_minigame.gd", b"extends Minigame\n", true),
+            ("override_game.gd", b"extends Node\n", true),
+            ("override_local_game.gd", b"extends Node\n", true),
+            ("override_playlist.gd", b"extends Node\n", true),
+            ("override_picker.gd", b"extends Node\n", true),
+        ]);
+        let roller_zip = root.join("roller.zip");
+        fs::write(&roller_zip, &roller_zip_bytes).unwrap();
+        let roller =
+            make_loader_entry_from_catalog("roller-carnival", &roller_zip_bytes, &baseline);
+
+        let bots_zip_bytes = build_test_zip(&[
+            (
+                "mod.json",
+                b"{\"id\":\"lobby-bots\",\"entry\":\"main.gd\"}",
+                true,
+            ),
+            ("main.gd", b"extends Node\n# bots", true),
+            ("junk_platform.gd", b"extends Node\n", true),
+        ]);
+        let bots_zip = root.join("bots.zip");
+        fs::write(&bots_zip, &bots_zip_bytes).unwrap();
+        let bots = make_loader_entry_from_catalog("lobby-bots", &bots_zip_bytes, &baseline);
+
+        let mods = vec![roller.clone(), bots.clone()];
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &roller_zip,
+            &staging_dir.join("roller"),
+            &roller,
+            &mods,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        install_from_zip(
+            &config_dir,
+            &game_root,
+            &bots_zip,
+            &staging_dir.join("bots"),
+            &bots,
+            &mods,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+
+        struct LockedCheck;
+        impl GameLockCheck for LockedCheck {
+            fn ensure_unlocked(&self, _: &Path, _: &Path) -> Result<(), String> {
+                Err("gameRunning".into())
+            }
+        }
+        assert_eq!(
+            set_mods_enabled(&game_root, &["roller-carnival".into()], false, &LockedCheck,)
+                .unwrap_err(),
+            "gameRunning"
+        );
+        assert_eq!(
+            set_mods_enabled(&game_root, &[".hidden".into()], false, &UnlockedCheck).unwrap_err(),
+            "statusUnavailable"
+        );
+
+        // Corrupt JSON in .mpm-state.json falls back cleanly without blocking scan or overwrite.
+        fs::write(
+            pck_dir.join("mods").join(MOD_STATE_FILE),
+            b"{not valid json",
+        )
+        .unwrap();
+        let v_corrupt = scan_copy(&config_dir, &game_root, &mods, true).unwrap();
+        assert!(v_corrupt.disabled_mods.is_empty());
+
+        // Disable both mods -> loader remains installed and fingerprints stay intact.
+        set_mods_enabled(
+            &game_root,
+            &["roller-carnival".into(), "lobby-bots".into()],
+            false,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        let v_disabled = scan_copy(&config_dir, &game_root, &mods, false).unwrap();
+        assert_eq!(v_disabled.mod_states["roller-carnival"], "installed");
+        assert_eq!(v_disabled.mod_states["lobby-bots"], "installed");
+        assert_eq!(
+            v_disabled.disabled_mods,
+            vec!["lobby-bots".to_string(), "roller-carnival".to_string()]
+        );
+        assert!(pck_loader::read_managed_marker(&pck_dir).unwrap().is_some());
+
+        // Re-enable one mod.
+        set_mods_enabled(&game_root, &["lobby-bots".into()], true, &UnlockedCheck).unwrap();
+        let v_partial = scan_copy(&config_dir, &game_root, &mods, false).unwrap();
+        assert_eq!(v_partial.disabled_mods, vec!["roller-carnival".to_string()]);
+
+        // Disable lobby-bots again, then uninstall both mods one by one.
+        set_mods_enabled(&game_root, &["lobby-bots".into()], false, &UnlockedCheck).unwrap();
+        uninstall_mod(
+            &config_dir,
+            &game_root,
+            &roller,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        assert_eq!(
+            read_disabled_mods(&pck_dir).unwrap(),
+            vec!["lobby-bots".to_string()]
+        );
+        assert!(pck_dir.join("mods").join(MOD_STATE_FILE).is_file());
+
+        let restored = uninstall_mod(
+            &config_dir,
+            &game_root,
+            &bots,
+            &SystemRunner,
+            &UnlockedCheck,
+        )
+        .unwrap();
+        assert_eq!(restored, baseline);
+        assert!(!pck_dir.join("mods").join(MOD_STATE_FILE).exists());
+        assert!(!pck_dir.join("mods").exists());
 
         fs::remove_dir_all(root).unwrap();
     }

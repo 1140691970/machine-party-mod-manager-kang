@@ -536,7 +536,16 @@ main {
   display: flex;
   justify-content: flex-end;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: var(--space-2);
+}
+.card.card-disabled .cover img,
+.card.card-disabled .cover-title {
+  filter: grayscale(0.55) brightness(0.76);
+}
+.card.card-disabled .card-title,
+.card.card-disabled .card-summary {
+  opacity: 0.72;
 }
 .card-body {
   flex: 1;

@@ -45,7 +45,7 @@
 
 ## 3. 內建載入器執行期 API 與遊戲接入規範
 
-內建引導腳本（`LOADER_VERSION = "5"`、`API_VERSION = 2`）作為首項 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在遊戲腳本載入前啟動，並與外部 `MachinePartyModLoader.exe` 共用相同的 API v2 介面。
+內建引導腳本（`LOADER_VERSION = "6"`、`API_VERSION = 2`）作為首項 `autoload/ModLoader`（`*res://modloader/bootstrap.gd`）在遊戲腳本載入前啟動，並與外部 `MachinePartyModLoader.exe` 共用相同的 API v2 介面。桌面管理器會在 `mods/.mpm-state.json` 中記錄已停用（禁用）的模組，載入器於啟動探索時會直接略過而無需修改 `mod.json`。
 
 ### 生命週期回呼
 
